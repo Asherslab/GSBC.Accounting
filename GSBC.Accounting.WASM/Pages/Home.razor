@@ -1,4 +1,6 @@
 @page "/"
+@using GSBC.Accounting.WASM.Features.Expenses
+@inject DraftSession Session
 
 <PageTitle>GSBC Finance Forms</PageTitle>
 
@@ -7,6 +9,11 @@
 
     The drafts card is third rather than first on purpose. Most people arriving here are starting a
     form, not resuming one, and a list they have no entries in would be the first thing they read.
+
+    IT IS ALSO ABSENT ENTIRELY UNTIL THE BROWSER HAS A SESSION. Nothing on this client can read the
+    __gsbc_anon cookie - it is HttpOnly - so DraftSession asks the server, and until it answers there is
+    no honest way to offer somebody "your saved drafts": the link would lead to a list the server
+    refuses to talk about. A first-time visitor sees the two forms and nothing else.
 *@
 
 <div class="layout norail">
@@ -50,22 +57,25 @@
         </section>
 
 
-        <section class="card">
-            <header>
-                <span class="num">&mdash;</span>
-                <h3>Your saved drafts</h3>
-                <span class="hint">Kept for this browser</span>
-            </header>
-            <div class="body">
-                <p class="help">
-                    Both forms save themselves as you fill them in, so you can close the page and come
-                    back later. Drafts are kept for the browser you started them on &mdash; clearing
-                    your cookies, or switching to another device, loses them &mdash; and a draft nobody
-                    edits is deleted after 90 days.
-                </p>
-                <p><a class="cardlink" href="/drafts">See your saved drafts</a></p>
-            </div>
-        </section>
+        @if (Session.HasSession)
+        {
+            <section class="card">
+                <header>
+                    <span class="num">&mdash;</span>
+                    <h3>Your saved drafts</h3>
+                    <span class="hint">Kept for this browser</span>
+                </header>
+                <div class="body">
+                    <p class="help">
+                        Both forms save themselves as you fill them in, so you can close the page and come
+                        back later. Drafts are kept for the browser you started them on &mdash; clearing
+                        your cookies, or switching to another device, loses them &mdash; and a draft nobody
+                        edits is deleted after 90 days.
+                    </p>
+                    <p><a class="cardlink" href="/drafts">See your saved drafts</a></p>
+                </div>
+            </section>
+        }
 
         <p class="footnote">
             Neither form asks you to sign in, and neither is a substitute for approval. Sections 7 and
@@ -80,5 +90,20 @@
     [CascadingParameter] private MainLayout Layout { get; set; } = default!;
 
     protected override void OnInitialized() => Layout.SetTitle("Finance Forms");
+
+    // The card appears on the second render, once the server has said whether this browser owns
+    // anything. Deliberately silent on failure: this page has nothing to tell somebody about drafts if
+    // it cannot find out, and a banner here would be about the plumbing rather than about their form.
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await Session.DraftsAsync();
+        }
+        catch
+        {
+            // Unreachable server. Leaves the card hidden, which is the same answer as no session.
+        }
+    }
 
 }
