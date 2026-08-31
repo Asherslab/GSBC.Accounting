@@ -10,7 +10,7 @@
 <PageTitle>@Text.DocumentTitle</PageTitle>
 
 @*
-    Sections 1 to 3 of the debit card form. Sections 4 to 6 arrive in slice 5, attachments in slice 4;
+    Sections 1 to 3 of the debit card form, plus attachments. Sections 4 to 8 arrive in later slices;
     the rail lists them now, marked pending, because a rail that skips from 3 to 7 reads as a bug.
 *@
 
@@ -33,12 +33,12 @@
             </div>
         }
 
-        @if (_createdId is not null)
+        @if (_submissionId is not null)
         {
             <div class="notice" role="status">
                 <span class="ico">OK</span>
                 <div>
-                    <b>Draft saved.</b> Reference <span class="mono">@_createdId</span>. Attachments and
+                    <b>Draft saved.</b> Reference <span class="mono">@_submissionId</span>. Attachments and
                     the declarations are added in a later step; this draft is not yet submitted for
                     approval.
                 </div>
@@ -178,6 +178,8 @@
             </div>
         </section>
 
+        <AttachmentsCard Files="_attachments" EnsureSubmission="EnsureSubmissionAsync" OnChanged="Touched"/>
+
         <p class="footnote">
             This form supports compliance but does not replace the Church constitution, delegations,
             debit card policy, grant conditions, employment obligations, or professional advice. Finance
@@ -191,6 +193,7 @@
         <div><span class="k">Card charge</span><span class="v">@(Model.AmountCharged?.ToString("C2") ?? "$0.00")</span></div>
         <div><span class="k">@Text.NetTotalLabel</span><span class="v">@Model.NetTotal.ToString("C2")</span></div>
         <div><span class="k">Lines</span><span class="v">@Model.Lines.Count</span></div>
+        <div><span class="k">Attachments</span><span class="v">@_attachments.Count</span></div>
     </div>
     <div class="spacer"></div>
     @if (Model.ChargeMismatch)
@@ -211,15 +214,21 @@
     private static ExpenseFormText Text => ExpenseFormWording.For(SubmissionKind.DebitCardPurchase);
 
     private readonly List<string> _errors = [];
+    private readonly List<ExpenseAttachment> _attachments = [];
     private bool _busy;
-    private Guid? _createdId;
+
+    /// <summary>
+    /// The draft's id once it exists. Phase one of the two-phase write: receipts are uploaded against
+    /// this, and only then can the form be submitted.
+    /// </summary>
+    private Guid? _submissionId;
 
     private IReadOnlyList<SectionRail.RailSection> Rail =>
     [
         new("1", Text.Section1Caption, "s1", Complete: !string.IsNullOrWhiteSpace(Model.SubmitterName)),
         new("2", Text.Section2Caption, "s2", Complete: !string.IsNullOrWhiteSpace(Model.PurposeNarrative)),
         new("3", Text.Section3Caption, "s3", Complete: Model.Lines.Any(x => x.GrossAmount > 0)),
-        new("—", "Attachments", "s3b", Complete: false, Pending: true),
+        new("—", "Attachments", "s3b", Complete: _attachments.Count > 0),
         new("4", "Compliance checks", "s4", Complete: false, Pending: true),
         new("5", "Missing receipt", "s5", Complete: false, Pending: true),
         new("6", "Declaration", "s6", Complete: false, Pending: true),
@@ -262,37 +271,60 @@
         await Drafts.SaveAsync(Model);
     }
 
-    private async Task Save()
+    /// <summary>
+    /// Returns the draft's id, creating it on first use.
+    /// </summary>
+    /// <remarks>
+    /// Called by the attachments card before its first upload, and by Save. Creating the draft lazily -
+    /// rather than on page load - means somebody who opens the form and walks away leaves no row behind,
+    /// which matters when nothing is authenticated and nothing cleans up.
+    /// </remarks>
+    private async Task<Guid?> EnsureSubmissionAsync()
     {
-        _busy = true;
+        if (_submissionId is not null)
+            return _submissionId;
+
         _errors.Clear();
-        _createdId = null;
 
         try
         {
             BasicReadResponse<Guid?> response = await Submissions.Create(Model.ToCreateRequest());
 
-            if (response.Success)
+            if (response is { Success: true, Entity: not null })
             {
-                _createdId = response.Entity;
+                _submissionId = response.Entity;
 
-                // The draft has become a row, so the browser copy stops being the record. Slice 7's
-                // submit step is what makes it final.
-                await Drafts.ClearAsync(SubmissionKind.DebitCardPurchase);
+                return _submissionId;
             }
-            else
-            {
-                // Errors is the list; Error is only its first entry, kept for a client that wants one
-                // line. Show all of them - a form that reveals its problems one at a time is the one
-                // people give up on.
-                _errors.AddRange(response.Errors.Count > 0
-                    ? response.Errors
-                    : [response.Error ?? "The submission was refused."]);
-            }
+
+            // Errors is the list; Error is only its first entry. Show all of them - a form that reveals
+            // its problems one at a time is the one people give up on.
+            _errors.AddRange(response.Errors.Count > 0
+                ? response.Errors
+                : [response.Error ?? "The submission was refused."]);
         }
         catch (Exception ex)
         {
             _errors.Add($"Could not reach the server: {ex.Message}");
+        }
+
+        return null;
+    }
+
+    private async Task Save()
+    {
+        _busy = true;
+
+        try
+        {
+            Guid? id = await EnsureSubmissionAsync();
+
+            if (id is not null)
+            {
+                // The draft has become a row, so the browser copy stops being the record. Slice 7's
+                // submit step is what makes it final.
+                await Drafts.ClearAsync(SubmissionKind.DebitCardPurchase);
+            }
         }
         finally
         {

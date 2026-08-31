@@ -40,4 +40,8 @@ builder.Services.AddCodeFirstClient<IExpenseSubmissionService>();
 // claimant's contact details.
 builder.Services.AddScoped<DraftStore>();
 
+// Receipts go up a plain HTTP body, not the gRPC channel - see AttachmentClient. Same-origin, so it
+// reuses the HttpClient registered above.
+builder.Services.AddScoped<AttachmentClient>();
+
 await builder.Build().RunAsync();
