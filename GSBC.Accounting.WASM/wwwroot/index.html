@@ -116,6 +116,12 @@
     <span class="dismiss">x</span>
 </div>
 
+<!--
+    Plain name, no `#[.{fingerprint}]` marker, and both halves of that are load-bearing. The loader is
+    the one asset under _framework that keeps its literal name after publish; every .wasm beside it is
+    content-hashed. That holds only while the project does NOT set OverrideHtmlAssetPlaceholders - see
+    the comment on that property's absence in the csproj.
+-->
 <script src="_framework/blazor.webassembly.js"></script>
 </body>
 
