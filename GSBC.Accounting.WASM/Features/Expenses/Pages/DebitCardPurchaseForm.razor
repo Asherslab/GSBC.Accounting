@@ -206,6 +206,23 @@
     {
         <span class="badge warn">Lines don't match the charge</span>
     }
+@*
+    Development builds only.
+
+    Gated on a `const bool`, NOT on a #if around the markup: Razor does not process C# preprocessor
+    directives in the markup section at all. Writing `#if DEBUG` there renders the words "#if DEBUG"
+    into the page and the button ships anyway - observed on 2026-08-31, the action bar read
+    "#if DEBUG / Fill with mock data / #endif".
+
+    A const false is genuinely compiled out: Roslyn removes the unreachable branch, and MockData itself
+    plus FillWithMockData are inside #if DEBUG in the C# sections, where directives do work. So in a
+    published build neither the control nor the generator exists - which is the requirement, because a
+    button that ships and is merely hidden by CSS is still a button, and this one writes rows.
+*@
+    @if (MockDataAvailable)
+    {
+        <button class="b" type="button" @onclick="FillWithMockData" disabled="@_busy">Fill with mock data</button>
+    }
     <button class="b primary" type="button" @onclick="Save" disabled="@_busy">
         @(_busy ? "Saving…" : "Save draft")
     </button>
@@ -258,6 +275,42 @@
 
         if (draft is not null)
             Model = draft;
+    }
+
+#if DEBUG
+    private const bool MockDataAvailable = true;
+#else
+    private const bool MockDataAvailable = false;
+#endif
+
+    /// <summary>
+    /// Replaces the form with a randomly chosen plausible scenario. Two presses give visibly different
+    /// submissions, and roughly one in three exercises the awkward paths - a Missing line that unlocks
+    /// section 5, a Yes that opens a reveal, and a non-zero personal portion so the net differs from the
+    /// gross.
+    /// </summary>
+    private async Task FillWithMockData()
+    {
+#if DEBUG
+        // A fresh model rather than mutating the current one: leftover rows from a previous press would
+        // make two mock submissions differ in ways the generator did not choose, which defeats the point.
+        Model = new ExpenseFormModel { Kind = SubmissionKind.DebitCardPurchase };
+
+        MockData.Fill(Model);
+
+        // A new draft, not the one already created - otherwise the second press would silently add
+        // attachments and lines to the first submission.
+        _submissionId = null;
+        _attachments.Clear();
+        _errors.Clear();
+
+        await Touched();
+#else
+        // Unreachable: MockDataAvailable is a const false in Release, so the only call site is compiled
+        // away. The method itself has to stay declared, because Razor resolves @onclick against it while
+        // building the render tree even for a branch it then eliminates.
+        await Task.CompletedTask;
+#endif
     }
 
     private void SetRole(ClaimantRole role)
