@@ -1,9 +1,4 @@
 @page "/"
-@using GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses
-@using GSBC.Accounting.Shared.Contracts.Messages.Requests.Features.Expenses
-@using GSBC.Accounting.Shared.Contracts.Messages.Responses.Base
-@using GSBC.Accounting.Shared.Contracts.Services.Features.Expenses
-@inject IExpenseSubmissionService Submissions
 
 <PageTitle>GSBC Finance Forms</PageTitle>
 
@@ -50,40 +45,6 @@
             </div>
         </section>
 
-@*
-    SLICE 1 SCAFFOLDING - the real debit card form in slice 2 replaces this entirely.
-
-    It exists so slice 1 can be seen working over the real wire rather than asserted: grpc-web from the
-    browser, through YARP, to the service, into Postgres. Compiled out of a Release build by #if DEBUG,
-    not hidden with CSS - a control that ships and is merely invisible is still a control.
-*@
-#if DEBUG
-        <section class="card">
-            <header>
-                <span class="num">&mdash;</span>
-                <h3>Slice 1 probe</h3>
-                <span class="hint">Development build only</span>
-            </header>
-            <div class="body">
-                <p class="help">
-                    Posts a hard-coded two-line debit card submission and reports the id Postgres gave
-                    it. Replaced by the real form in slice 2.
-                </p>
-
-                <button class="b primary" type="button" @onclick="CreateProbeSubmission" disabled="@_busy">
-                    @(_busy ? "Posting…" : "Post a hard-coded submission")
-                </button>
-
-                @if (_result is not null)
-                {
-                    <p class="notice @(_ok ? "" : "bad")" style="margin-top:14px">
-                        <span class="ico">@(_ok ? "OK" : "!!")</span>
-                        <span class="mono">@_result</span>
-                    </p>
-                }
-            </div>
-        </section>
-#endif
 
         <p class="footnote">
             Neither form asks you to sign in, and neither is a substitute for approval. Sections 7 and
@@ -99,81 +60,4 @@
 
     protected override void OnInitialized() => Layout.SetTitle("Finance Forms");
 
-#if DEBUG
-    private bool _busy;
-    private bool _ok;
-    private string? _result;
-
-    private async Task CreateProbeSubmission()
-    {
-        _busy = true;
-        _result = null;
-
-        try
-        {
-            CreateExpenseSubmissionRequest request = new()
-            {
-                Kind = SubmissionKind.DebitCardPurchase,
-                SubmitterName = "Slice 1 probe",
-                // UTC on the wire. A local DateTime here would be written ten hours out.
-                FormDate = DateTime.UtcNow.Date,
-                Role = ClaimantRole.Volunteer,
-                MinistryDepartment = "Youth",
-                CardLastFourDigits = "4242",
-                TransactionDate = DateTime.UtcNow.Date,
-                SupplierMerchant = "Bunnings Warehouse",
-                AmountCharged = 143.90m,
-                BankReference = "PROBE-0001",
-                PurposeActivity = "Youth",
-                PurposeNarrative = "Timber and fixings for the youth shed shelving.",
-                // Non-zero, so the net differs from the gross and the server's arithmetic is visible.
-                LessPersonalAmount = 12.50m,
-                IsMockData = true,
-                Lines =
-                [
-                    new ExpenseLine
-                    {
-                        SubmissionId = Guid.Empty,
-                        Ordinal = 0,
-                        ItemDescription = "Pine shelving 2400mm x 6",
-                        Details = "6 lengths",
-                        Purpose = "Youth shed storage",
-                        Evidence = EvidenceStatus.Attached,
-                        GrossAmount = 98.40m,
-                        GstAmount = 8.95m,
-                        ChurchUsePercent = 100m
-                    },
-                    new ExpenseLine
-                    {
-                        SubmissionId = Guid.Empty,
-                        Ordinal = 1,
-                        ItemDescription = "Brackets and screws",
-                        Details = "Assorted",
-                        Purpose = "Youth shed storage",
-                        Evidence = EvidenceStatus.Attached,
-                        GrossAmount = 45.50m,
-                        GstAmount = 4.14m,
-                        ChurchUsePercent = 100m
-                    }
-                ]
-            };
-
-            BasicReadResponse<Guid?> response = await Submissions.Create(request);
-
-            _ok = response.Success;
-            _result = response.Success
-                ? $"Created {response.Entity}"
-                : $"Refused: {string.Join(" / ", response.Errors.DefaultIfEmpty(response.Error ?? "unknown"))}";
-        }
-        catch (Exception ex)
-        {
-            _ok = false;
-            _result = ex.Message;
-        }
-        finally
-        {
-            _busy = false;
-        }
-    }
-#endif
 }

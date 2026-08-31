@@ -1,0 +1,66 @@
+@*
+    The mockup's left column. Per-page rather than in MainLayout, because each form owns its own section
+    list - and because MainLayout also serves the landing page, which has no sections at all.
+
+    Sections not yet built are rendered but marked, rather than omitted: a rail that jumps from 3 to 7
+    reads as a bug, where a greyed "slice 5" entry reads as unfinished.
+*@
+
+@inject NavigationManager Navigation
+
+@* The loop variable is `item`, not `section`: Razor reads `@section` as the section directive and
+   fails with "The 'section' directive must appear at the start of the line", which points nowhere near
+   the actual cause. *@
+<nav class="rail" aria-label="Form sections">
+    <h2>Sections</h2>
+    <ol>
+        @foreach (RailSection item in Sections)
+        {
+            <li>
+                <a href="@Href(item)" class="@(item.Pending ? "" : "")">
+                    <span class="n">@item.Number</span>
+                    <span>
+                        @item.Title
+                        @if (item.Pending)
+                        {
+                            <span class="dot"></span>
+                        }
+                        else if (item.Complete)
+                        {
+                            <span class="dot done"></span>
+                        }
+                        else
+                        {
+                            <span class="dot err"></span>
+                        }
+                    </span>
+                </a>
+            </li>
+        }
+    </ol>
+</nav>
+
+@code
+{
+    [Parameter, EditorRequired] public required IReadOnlyList<RailSection> Sections { get; set; }
+
+    /// <summary>
+    /// The anchor is written against the CURRENT path, not as a bare "#s1".
+    /// </summary>
+    /// <remarks>
+    /// A fragment-only href resolves against <c>&lt;base href="/"&gt;</c>, so "#s1" becomes
+    /// "https://host/#s1" - the page path is dropped and clicking a rail entry navigates to the landing
+    /// page. Observed on 2026-08-31: every rail link on the debit card form pointed at the site root.
+    /// Nothing errors, so it reads as "the anchors just do not work".
+    /// </remarks>
+    private string Href(RailSection item)
+    {
+        string path = new Uri(Navigation.Uri).GetLeftPart(UriPartial.Path);
+
+        return $"{path}#{item.Anchor}";
+    }
+
+    /// <param name="Complete">Ignored when <paramref name="Pending"/> is true.</param>
+    /// <param name="Pending">The section exists on the paper form but is not built yet.</param>
+    public record RailSection(string Number, string Title, string Anchor, bool Complete, bool Pending = false);
+}

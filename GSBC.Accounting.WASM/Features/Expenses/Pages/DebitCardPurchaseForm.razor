@@ -1,0 +1,302 @@
+@page "/forms/debit-card-purchase"
+@using GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses
+@using GSBC.Accounting.Shared.Contracts.Messages.Responses.Base
+@using GSBC.Accounting.Shared.Contracts.Services.Features.Expenses
+@using GSBC.Accounting.WASM.Features.Expenses
+@using GSBC.Accounting.WASM.Features.Expenses.Components
+@inject IExpenseSubmissionService Submissions
+@inject DraftStore Drafts
+
+<PageTitle>@Text.DocumentTitle</PageTitle>
+
+@*
+    Sections 1 to 3 of the debit card form. Sections 4 to 6 arrive in slice 5, attachments in slice 4;
+    the rail lists them now, marked pending, because a rail that skips from 3 to 7 reads as a bug.
+*@
+
+<div class="layout">
+    <SectionRail Sections="Rail"/>
+
+    <main>
+        <p class="lede">@Text.Banner</p>
+
+        @if (_errors.Count > 0)
+        {
+            <div class="banner" role="alert">
+                <h4>This form isn't ready to submit</h4>
+                <ul>
+                    @foreach (string error in _errors)
+                    {
+                        <li>@error</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (_createdId is not null)
+        {
+            <div class="notice" role="status">
+                <span class="ico">OK</span>
+                <div>
+                    <b>Draft saved.</b> Reference <span class="mono">@_createdId</span>. Attachments and
+                    the declarations are added in a later step; this draft is not yet submitted for
+                    approval.
+                </div>
+            </div>
+        }
+
+        <!-- 1 -->
+        <section class="card" id="s1">
+            <header>
+                <span class="num">01</span>
+                <h3>@Text.Section1Caption</h3>
+                <span class="hint">@Text.Section1Hint</span>
+            </header>
+            <div class="body">
+                <div class="grid">
+                    <div class="f c5">
+                        <label for="cardholder">@Text.SubmitterNameLabel <span class="req">*</span></label>
+                        <input type="text" id="cardholder" @bind="Model.SubmitterName" @bind:event="oninput"/>
+                    </div>
+                    <div class="f c3">
+                        <label for="formdate">@Text.FormDateLabel <span class="req">*</span></label>
+                        <input type="date" id="formdate" @bind="Model.FormDate" @bind:event="oninput"/>
+                    </div>
+                    <div class="f c4">
+                        <label for="card4">Card last 4 digits <span class="req">*</span></label>
+                        <input type="text" id="card4" class="mono" inputmode="numeric" maxlength="4"
+                               placeholder="0000" @bind="Model.CardLastFourDigits" @bind:event="oninput"/>
+                        <span class="help">Never record the full number, PIN or CVV.</span>
+                    </div>
+
+                    <div class="f c12">
+                        <fieldset style="border:0;padding:0;margin:0">
+                            <legend class="lbl" style="padding:0">Role / relationship <span class="req">*</span></legend>
+                            <div class="chips">
+                                @foreach (ClaimantRole role in Enum.GetValues<ClaimantRole>())
+                                {
+                                    <label class="chip">
+                                        <input type="radio" name="role" checked="@(Model.Role == role)"
+                                               @onchange="() => SetRole(role)"/>
+                                        @RoleLabel(role)
+                                    </label>
+                                }
+                            </div>
+                        </fieldset>
+                    </div>
+
+                    @if (Model.Role == ClaimantRole.Other)
+                    {
+                        <div class="f c4">
+                            <label for="roleother">Other &mdash; please say what</label>
+                            <input type="text" id="roleother" @bind="Model.RoleOther" @bind:event="oninput"/>
+                        </div>
+                    }
+
+                    <div class="f c4">
+                        <label for="ministry">Ministry / department <span class="req">*</span></label>
+                        <input type="text" id="ministry" @bind="Model.MinistryDepartment" @bind:event="oninput"/>
+                    </div>
+                    <div class="f c4">
+                        <label for="txdate">Transaction date <span class="req">*</span></label>
+                        <input type="date" id="txdate" @bind="Model.TransactionDate" @bind:event="oninput"/>
+                    </div>
+                    <div class="f c4">
+                        <label for="txtime">Time</label>
+                        <input type="time" id="txtime" @bind="Model.TransactionTime" @bind:event="oninput"/>
+                    </div>
+
+                    <div class="f c5">
+                        <label for="supplier">Supplier / merchant <span class="req">*</span></label>
+                        <input type="text" id="supplier" @bind="Model.SupplierMerchant" @bind:event="oninput"/>
+                    </div>
+                    <div class="f c3">
+                        <label for="charged">Amount charged <span class="req">*</span></label>
+                        <div class="money">
+                            <input type="number" step="0.01" min="0" id="charged"
+                                   @bind="Model.AmountCharged" @bind:event="oninput" @bind:after="Touched"/>
+                        </div>
+                    </div>
+                    <div class="f c4">
+                        <label for="bankref">Bank reference</label>
+                        <input type="text" id="bankref" class="mono" placeholder="e.g. EFTPOS 27/08"
+                               @bind="Model.BankReference" @bind:event="oninput"/>
+                    </div>
+                </div>
+
+                <div class="notice" style="margin-top:16px">
+                    <span class="ico">!</span>
+                    <div>
+                        <b>Card security.</b> Record only the last four digits. The full card number, PIN
+                        or security code must never be entered here or attached in an image.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2 -->
+        <section class="card" id="s2">
+            <header>
+                <span class="num">02</span>
+                <h3>@Text.Section2Caption</h3>
+            </header>
+            <div class="body">
+                <div class="grid">
+                    <div class="f c6">
+                        <label for="event">Event / project</label>
+                        <input type="text" id="event" @bind="Model.EventProject" @bind:event="oninput"/>
+                    </div>
+                    <div class="f c3">
+                        <label for="approvedby">Prior approval by</label>
+                        <input type="text" id="approvedby" @bind="Model.PriorApprovalBy" @bind:event="oninput"/>
+                    </div>
+                    <div class="f c3">
+                        <label for="approvaldate">Approval date</label>
+                        <input type="date" id="approvaldate" @bind="Model.ApprovalDate" @bind:event="oninput"/>
+                    </div>
+                    <div class="f c12">
+                        <label for="purpose">@Text.PurposeNarrativePrompt <span class="req">*</span></label>
+                        <textarea id="purpose" rows="4" @bind="Model.PurposeNarrative" @bind:event="oninput"></textarea>
+                        <span class="help">
+                            Enough detail that someone outside the ministry could see the church purpose
+                            without asking.
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3 -->
+        <section class="card" id="s3">
+            <header>
+                <span class="num">03</span>
+                <h3>@Text.Section3Caption</h3>
+                <span class="hint">@Text.Section3Hint</span>
+            </header>
+            <div class="body">
+                <LineTable Model="Model" Text="Text" OnChanged="Touched"/>
+            </div>
+        </section>
+
+        <p class="footnote">
+            This form supports compliance but does not replace the Church constitution, delegations,
+            debit card policy, grant conditions, employment obligations, or professional advice. Finance
+            applies the ATO and ACNC requirements current at the payment date.
+        </p>
+    </main>
+</div>
+
+<div class="actionbar">
+    <div class="sum">
+        <div><span class="k">Card charge</span><span class="v">@(Model.AmountCharged?.ToString("C2") ?? "$0.00")</span></div>
+        <div><span class="k">@Text.NetTotalLabel</span><span class="v">@Model.NetTotal.ToString("C2")</span></div>
+        <div><span class="k">Lines</span><span class="v">@Model.Lines.Count</span></div>
+    </div>
+    <div class="spacer"></div>
+    @if (Model.ChargeMismatch)
+    {
+        <span class="badge warn">Lines don't match the charge</span>
+    }
+    <button class="b primary" type="button" @onclick="Save" disabled="@_busy">
+        @(_busy ? "Saving…" : "Save draft")
+    </button>
+</div>
+
+@code
+{
+    [CascadingParameter] private MainLayout Layout { get; set; } = default!;
+
+    private ExpenseFormModel Model { get; set; } = new() { Kind = SubmissionKind.DebitCardPurchase };
+
+    private static ExpenseFormText Text => ExpenseFormWording.For(SubmissionKind.DebitCardPurchase);
+
+    private readonly List<string> _errors = [];
+    private bool _busy;
+    private Guid? _createdId;
+
+    private IReadOnlyList<SectionRail.RailSection> Rail =>
+    [
+        new("1", Text.Section1Caption, "s1", Complete: !string.IsNullOrWhiteSpace(Model.SubmitterName)),
+        new("2", Text.Section2Caption, "s2", Complete: !string.IsNullOrWhiteSpace(Model.PurposeNarrative)),
+        new("3", Text.Section3Caption, "s3", Complete: Model.Lines.Any(x => x.GrossAmount > 0)),
+        new("—", "Attachments", "s3b", Complete: false, Pending: true),
+        new("4", "Compliance checks", "s4", Complete: false, Pending: true),
+        new("5", "Missing receipt", "s5", Complete: false, Pending: true),
+        new("6", "Declaration", "s6", Complete: false, Pending: true),
+        new("7", "Independent approval", "s7", Complete: false, Pending: true),
+        new("8", "Finance use only", "s8", Complete: false, Pending: true)
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.SetTitle(Text.PageTitle);
+
+        // A draft belongs to this browser and nothing else - see DraftStore for why there is no
+        // server-side one.
+        ExpenseFormModel? draft = await Drafts.LoadAsync(SubmissionKind.DebitCardPurchase);
+
+        if (draft is not null)
+            Model = draft;
+    }
+
+    private void SetRole(ClaimantRole role)
+    {
+        Model.Role = role;
+
+        // Dropping the free text when the role moves away from Other, so a stale "Other" answer cannot
+        // ride along on a submission that no longer says Other.
+        if (role != ClaimantRole.Other)
+            Model.RoleOther = null;
+    }
+
+    private static string RoleLabel(ClaimantRole role) => role switch
+    {
+        ClaimantRole.ResponsiblePerson => "Responsible Person",
+        _ => role.ToString()
+    };
+
+    /// <summary>Re-renders for the running totals, and persists the draft.</summary>
+    private async Task Touched()
+    {
+        StateHasChanged();
+        await Drafts.SaveAsync(Model);
+    }
+
+    private async Task Save()
+    {
+        _busy = true;
+        _errors.Clear();
+        _createdId = null;
+
+        try
+        {
+            BasicReadResponse<Guid?> response = await Submissions.Create(Model.ToCreateRequest());
+
+            if (response.Success)
+            {
+                _createdId = response.Entity;
+
+                // The draft has become a row, so the browser copy stops being the record. Slice 7's
+                // submit step is what makes it final.
+                await Drafts.ClearAsync(SubmissionKind.DebitCardPurchase);
+            }
+            else
+            {
+                // Errors is the list; Error is only its first entry, kept for a client that wants one
+                // line. Show all of them - a form that reveals its problems one at a time is the one
+                // people give up on.
+                _errors.AddRange(response.Errors.Count > 0
+                    ? response.Errors
+                    : [response.Error ?? "The submission was refused."]);
+            }
+        }
+        catch (Exception ex)
+        {
+            _errors.Add($"Could not reach the server: {ex.Message}");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

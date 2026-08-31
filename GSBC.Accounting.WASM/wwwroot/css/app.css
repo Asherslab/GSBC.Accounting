@@ -497,3 +497,13 @@ button.b.primary:hover{background:var(--brand-2);border-color:var(--brand-2)}
 }
 #blazor-error-ui .dismiss{cursor:pointer;position:absolute;right:16px;top:12px;color:var(--ink-3)}
 #blazor-error-ui .reload{color:var(--bad);font-weight:600}
+
+/*
+  Visually hidden but still announced. Used for a table header whose column holds only an icon button:
+  omitting the header entirely leaves screen-reader users with an unlabelled column, and a visible one
+  would print in the PDF.
+*/
+.sr-only{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+  overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
+}

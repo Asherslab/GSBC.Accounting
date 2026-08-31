@@ -8,6 +8,8 @@ code:
   - GSBC.Accounting.WASM/wwwroot/css/app.css
   - GSBC.Accounting.WASM/wwwroot/index.html
   - GSBC.Accounting.WASM/Layout/MainLayout.razor
+  - GSBC.Accounting.WASM/Program.cs
+  - GSBC.Accounting.WASM/Features/Expenses/Components/SectionRail.razor
   - mockups/debit-card-purchase-form.html
 ---
 
@@ -83,6 +85,21 @@ rail's slot, so every card is squeezed to 238px with the rest of the window empt
 the styling still looks correct — it reads as "the design is just narrow", which is why it survived
 the first run of the app on 2026-08-31 without being noticed. `.layout.norail` collapses the grid to
 one column.
+
+## Culture is pinned to en-AU
+
+`Program.cs` sets `CultureInfo.DefaultThreadCurrentCulture` before the host is built. A WASM app
+otherwise inherits the **viewer's** locale, so `ToString("C2")` on a laptop set to en-GB renders the
+church's money as pounds — observed on 2026-08-31 as `£0.00` in the debit card form's action bar. This
+is an Australian church filing to the ACNC and the ATO; the currency is AUD and dates are day-first
+regardless of who opens the page. It must be set before the host is built, because component code reads
+`CurrentCulture` as it renders.
+
+## A section-rail anchor must carry the page path
+
+`<base href="/">` means a fragment-only `href="#s1"` resolves to `https://host/#s1` — the path is
+dropped and clicking a rail entry navigates to the landing page. Nothing errors, so it reads as "the
+anchors just do not work". `SectionRail.Href` builds each one from `NavigationManager.Uri`'s path.
 
 `index.html` deliberately does **not** link `GSBC.Accounting.WASM.styles.css`. That bundle is emitted
 only when some component has a scoped `.razor.css`, and none does — the whole design is in `app.css` —
