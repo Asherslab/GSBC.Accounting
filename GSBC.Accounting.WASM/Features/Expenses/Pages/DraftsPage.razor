@@ -1,5 +1,4 @@
 @page "/drafts"
-@using Grpc.Core
 @using GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses
 @using GSBC.Accounting.Shared.Contracts.Messages.Requests.Features.Expenses
 @using GSBC.Accounting.Shared.Contracts.Messages.Responses.Base
@@ -7,6 +6,7 @@
 @using GSBC.Accounting.Shared.Contracts.Services.Features.Expenses
 @using GSBC.Accounting.WASM.Features.Expenses
 @inject IExpenseSubmissionService Submissions
+@inject DraftSession Session
 
 <PageTitle>Your saved drafts</PageTitle>
 
@@ -168,30 +168,40 @@
         await Load();
     }
 
-    private async Task Load()
+    /// <param name="force">
+    /// Re-ask the server rather than reuse the answer the landing page already got. False on first
+    /// paint - arriving here from the home page should not cost a second round trip - and true after a
+    /// discard, when the cached list is known stale.
+    /// </param>
+    private async Task Load(bool force = false)
     {
         _loading = true;
         _error = null;
 
         try
         {
-            ListDraftsResponse response = await Submissions.ListDrafts(new ListDraftsRequest());
+            // NO SESSION IS AN EMPTY LIST, NOT AN ERROR. ListDrafts is behind the AnonymousSession
+            // policy, so a browser that has never saved a draft is refused before the method runs -
+            // correct on the server, and useless to show somebody. DraftSession swallows exactly that
+            // refusal (in every shape it arrives in) and answers null, which is why this page no longer
+            // greets a first-time visitor with "Could not reach the server".
+            ListDraftsResponse? response = await Session.DraftsAsync(force);
 
             _drafts.Clear();
 
-            if (response.Success)
+            if (response is null)
+            {
+                // No session. Falls through to the "No saved drafts" card, which is both true and the
+                // only useful thing to say to somebody who has not started one.
+            }
+            else if (response.Success)
+            {
                 _drafts.AddRange(response.Drafts);
+            }
             else
+            {
                 _error = response.Error ?? "The list could not be loaded.";
-        }
-        // NO SESSION IS AN EMPTY LIST, NOT AN ERROR, and this catch is what keeps that promise.
-        // ListDrafts is behind the AnonymousSession policy, so a browser that has never saved a draft is
-        // refused before the method runs - which is correct on the server and useless to show somebody.
-        // Without this, the first visit to this page reads "Could not reach the server".
-        catch (RpcException rpc) when (rpc.StatusCode is StatusCode.Unauthenticated
-                                          or StatusCode.PermissionDenied)
-        {
-            _drafts.Clear();
+            }
         }
         catch (Exception ex)
         {
@@ -219,7 +229,7 @@
                 // Reloaded rather than removed from the list in place. The server is the only thing
                 // that knows what this session owns, and a list that quietly diverges from it is how a
                 // discarded draft comes back on the next visit and looks like the button did nothing.
-                await Load();
+                await Load(force: true);
             }
             else
             {

@@ -373,8 +373,7 @@
         // no session - a link to a draft opened in a different browser, or after the cookie expired - is
         // refused before the method runs. That has to land as "this draft is unavailable", the same
         // answer as a draft that does not exist, rather than as "could not reach the server".
-        catch (RpcException rpc) when (rpc.StatusCode is StatusCode.Unauthenticated
-                                          or StatusCode.PermissionDenied)
+        catch (RpcException rpc) when (DraftSession.IsRefusal(rpc))
         {
             _draftUnavailable = true;
         }

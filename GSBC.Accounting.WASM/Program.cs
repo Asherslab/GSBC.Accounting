@@ -54,4 +54,8 @@ builder.Services.AddCodeFirstClient<IExpenseSubmissionService>();
 // reuses the HttpClient registered above, and the cookie rides along with it.
 builder.Services.AddScoped<AttachmentClient>();
 
+// Whether this browser has a session at all. The cookie is HttpOnly, so nothing on the client can look;
+// DraftSession asks the server once and every drafts affordance renders off that one answer.
+builder.Services.AddScoped<DraftSession>();
+
 await builder.Build().RunAsync();
