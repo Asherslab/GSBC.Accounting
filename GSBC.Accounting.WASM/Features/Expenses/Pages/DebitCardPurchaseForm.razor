@@ -10,8 +10,8 @@
 <PageTitle>@Text.DocumentTitle</PageTitle>
 
 @*
-    Sections 1 to 3 of the debit card form, plus attachments. Sections 4 to 8 arrive in later slices;
-    the rail lists them now, marked pending, because a rail that skips from 3 to 7 reads as a bug.
+    The whole debit card form. Sections 1 to 6 are fillable; 7 and 8 are rendered read-only and disabled,
+    because an approver and finance complete them after submission and neither is on this page.
 *@
 
 <div class="layout">
@@ -180,6 +180,12 @@
 
         <AttachmentsCard Files="_attachments" EnsureSubmission="EnsureSubmissionAsync" OnChanged="Touched"/>
 
+        <ComplianceSection Model="Model" Text="Text" OnChanged="Touched"/>
+
+        <DeclarationsSection Model="Model" Text="Text" OnChanged="Touched"/>
+
+        <ApprovalSections Kind="SubmissionKind.DebitCardPurchase"/>
+
         <p class="footnote">
             This form supports compliance but does not replace the Church constitution, delegations,
             debit card policy, grant conditions, employment obligations, or professional advice. Finance
@@ -229,9 +235,15 @@
         new("2", Text.Section2Caption, "s2", Complete: !string.IsNullOrWhiteSpace(Model.PurposeNarrative)),
         new("3", Text.Section3Caption, "s3", Complete: Model.Lines.Any(x => x.GrossAmount > 0)),
         new("—", "Attachments", "s3b", Complete: _attachments.Count > 0),
-        new("4", "Compliance checks", "s4", Complete: false, Pending: true),
-        new("5", "Missing receipt", "s5", Complete: false, Pending: true),
-        new("6", "Declaration", "s6", Complete: false, Pending: true),
+        new("4", Text.Section4Caption, "s4", Complete: Model.Compliance.All(x => x is not null)),
+        // Only listed when a line says Missing - the paper form's own rule is "complete only when
+        // evidence is unavailable", and a rail entry for a section that is not on screen is a dead link.
+        .. Model.HasMissingEvidence
+            ? new[] { new SectionRail.RailSection("5", "Missing receipt", "s5", Model.MissingDeclared) }
+            : [],
+        new("6", Text.Section6Caption, "s6", Complete: Model.Declarations.All(x => x)),
+        // Pending forever, as far as this scope is concerned: an approver and finance fill these in, and
+        // neither is on this page.
         new("7", "Independent approval", "s7", Complete: false, Pending: true),
         new("8", "Finance use only", "s8", Complete: false, Pending: true)
     ];

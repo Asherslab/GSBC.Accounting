@@ -56,7 +56,27 @@ public record CreateExpenseSubmissionRequest
     public decimal LessPersonalAmount { get; init; }
     public List<ExpenseLine> Lines { get; init; } = [];
 
+    // Section 4
+    public bool? ComplianceQ1 { get; init; }
+    public bool? ComplianceQ2 { get; init; }
+    public bool? ComplianceQ3 { get; init; }
+    public bool? ComplianceQ4 { get; init; }
+    public bool? ComplianceQ5 { get; init; }
+    public bool? ComplianceQ6 { get; init; }
+    public string? ComplianceDetails { get; init; }
+    public List<ExpenseAttendee> Attendees { get; init; } = [];
+    public List<ExpenseTrip> Trips { get; init; } = [];
+
+    // Section 5, null unless some line is marked Missing
+    public MissingReceiptDeclaration? MissingReceipt { get; init; }
+
     // Section 6
+    public bool? Declaration1 { get; init; }
+    public bool? Declaration2 { get; init; }
+    public bool? Declaration3 { get; init; }
+    public bool? Declaration4 { get; init; }
+    public bool? Declaration5 { get; init; }
+
     public string? SignatureName { get; init; }
 
     /// <summary>

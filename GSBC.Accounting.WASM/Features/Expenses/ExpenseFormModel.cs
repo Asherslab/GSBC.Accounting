@@ -65,7 +65,48 @@ public class ExpenseFormModel
 
     public decimal LessPersonalAmount { get; set; }
 
+    // ---- Section 4 ----
+
+    /// <summary>
+    /// The six answers, indexed 0..5. null is UNANSWERED and stays null until somebody chooses - it is a
+    /// different fact from "No", and the one a reviewer needs to see.
+    /// </summary>
+    public bool?[] Compliance { get; set; } = new bool?[6];
+
+    public string? ComplianceDetails { get; set; }
+
+    /// <summary>Rows of the detail table a Yes on question 1 or 2 opens. Debit card form.</summary>
+    public List<AttendeeModel> Attendees { get; set; } = [];
+
+    /// <summary>Rows of the trip record a Yes on question 1 opens. Reimbursement form.</summary>
+    public List<TripModel> Trips { get; set; } = [];
+
+    /// <summary>
+    /// True when the form's own detail table should be shown. The debit card form opens it on question
+    /// 1 (travel) or 2 (meals); the reimbursement form only on question 1 (motor vehicle), because its
+    /// question 2 asks for attendees in the free-text block instead.
+    /// </summary>
+    public bool DetailTableOpen =>
+        Kind == SubmissionKind.DebitCardPurchase
+            ? Compliance[0] == true || Compliance[1] == true
+            : Compliance[0] == true;
+
+    /// <summary>Any Yes opens the shared free-text block.</summary>
+    public bool ComplianceDetailsOpen => Compliance.Any(x => x == true);
+
+    // ---- Section 5 ----
+
+    public string? MissingSupplier { get; set; }
+    public DateOnly? MissingDate { get; set; }
+    public decimal? MissingAmount { get; set; }
+    public string? MissingReason { get; set; }
+    public bool MissingDeclared { get; set; }
+
     // ---- Section 6 ----
+
+    /// <summary>The five declarations, indexed 0..4.</summary>
+    public bool[] Declarations { get; set; } = new bool[5];
+
     public string? SignatureName { get; set; }
 
     public bool IsMockData { get; set; }
@@ -138,8 +179,65 @@ public class ExpenseFormModel
         PurposeNarrative = Trim(PurposeNarrative),
 
         LessPersonalAmount = LessPersonalAmount,
+
+        ComplianceQ1 = Compliance[0],
+        ComplianceQ2 = Compliance[1],
+        ComplianceQ3 = Compliance[2],
+        ComplianceQ4 = Compliance[3],
+        ComplianceQ5 = Compliance[4],
+        ComplianceQ6 = Compliance[5],
+        ComplianceDetails = Trim(ComplianceDetails),
+
+        Declaration1 = Declarations[0],
+        Declaration2 = Declarations[1],
+        Declaration3 = Declarations[2],
+        Declaration4 = Declarations[3],
+        Declaration5 = Declarations[4],
+
         SignatureName = Trim(SignatureName),
         IsMockData = IsMockData,
+
+        // Only sent when the section is actually open - a submission with no missing evidence must not
+        // carry an empty declaration that a reviewer would read as one somebody made.
+        MissingReceipt = HasMissingEvidence
+            ? new MissingReceiptDeclaration
+            {
+                SubmissionId = Guid.Empty,
+                Supplier = Trim(MissingSupplier),
+                Date = ToUtc(MissingDate),
+                Amount = MissingAmount,
+                Reason = Trim(MissingReason),
+                Declared = MissingDeclared
+            }
+            : null,
+
+        Attendees = Kind == SubmissionKind.DebitCardPurchase && DetailTableOpen
+            ? Attendees.Select((a, i) => new ExpenseAttendee
+            {
+                SubmissionId = Guid.Empty,
+                Ordinal = i,
+                Date = ToUtc(a.Date),
+                Person = Trim(a.Person),
+                Relationship = Trim(a.Relationship),
+                Amount = a.Amount,
+                PrivateShare = a.PrivateShare,
+                Reason = Trim(a.Reason)
+            }).ToList()
+            : [],
+
+        Trips = Kind == SubmissionKind.ExpenseReimbursement && DetailTableOpen
+            ? Trips.Select((t, i) => new ExpenseTrip
+            {
+                SubmissionId = Guid.Empty,
+                Ordinal = i,
+                Date = ToUtc(t.Date),
+                From = Trim(t.From),
+                To = Trim(t.To),
+                BusinessKm = t.BusinessKm,
+                ApprovedRate = t.ApprovedRate,
+                Purpose = Trim(t.Purpose)
+            }).ToList()
+            : [],
 
         Lines = Lines.Select((line, index) => new ExpenseLine
         {
@@ -168,6 +266,30 @@ public class ExpenseFormModel
     private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static decimal Round(decimal value) => Math.Round(value, 2, MidpointRounding.ToEven);
+}
+
+/// <summary>One editable row of the debit card form's section 4 table.</summary>
+public class AttendeeModel
+{
+    public Guid Key { get; } = Guid.NewGuid();
+    public DateOnly? Date { get; set; }
+    public string? Person { get; set; }
+    public string? Relationship { get; set; }
+    public decimal? Amount { get; set; }
+    public decimal? PrivateShare { get; set; }
+    public string? Reason { get; set; }
+}
+
+/// <summary>One editable row of the reimbursement form's trip record.</summary>
+public class TripModel
+{
+    public Guid Key { get; } = Guid.NewGuid();
+    public DateOnly? Date { get; set; }
+    public string? From { get; set; }
+    public string? To { get; set; }
+    public decimal? BusinessKm { get; set; }
+    public decimal? ApprovedRate { get; set; }
+    public string? Purpose { get; set; }
 }
 
 /// <summary>One editable row of section 3. Every money field is nullable so an empty cell stays empty.</summary>

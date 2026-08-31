@@ -15,6 +15,12 @@ public partial class AccountingDbContext
 
     public DbSet<DbExpenseAttachment> ExpenseAttachments => Set<DbExpenseAttachment>();
 
+    public DbSet<DbExpenseAttendee> ExpenseAttendees => Set<DbExpenseAttendee>();
+
+    public DbSet<DbExpenseTrip> ExpenseTrips => Set<DbExpenseTrip>();
+
+    public DbSet<DbMissingReceiptDeclaration> MissingReceiptDeclarations => Set<DbMissingReceiptDeclaration>();
+
     private static void BuildExpensesModel(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<DbExpenseSubmission>()
@@ -94,5 +100,37 @@ public partial class AccountingDbContext
         modelBuilder.Entity<DbExpenseAttachment>().Property(x => x.FileName).HasMaxLength(260);
         modelBuilder.Entity<DbExpenseAttachment>().Property(x => x.ContentType).HasMaxLength(100);
         modelBuilder.Entity<DbExpenseAttachment>().Property(x => x.ObjectKey).HasMaxLength(400);
+
+        // ---- Section 4 and 5 children ----
+
+        modelBuilder.Entity<DbExpenseSubmission>()
+            .HasMany(x => x.Attendees).WithOne(x => x.Submission)
+            .HasForeignKey(x => x.SubmissionId).OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<DbExpenseSubmission>()
+            .HasMany(x => x.Trips).WithOne(x => x.Submission)
+            .HasForeignKey(x => x.SubmissionId).OnDelete(DeleteBehavior.Restrict);
+
+        // 0..1: the paper form has one missing-receipt declaration or none.
+        modelBuilder.Entity<DbExpenseSubmission>()
+            .HasOne(x => x.MissingReceipt).WithOne(x => x.Submission)
+            .HasForeignKey<DbMissingReceiptDeclaration>(x => x.SubmissionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<DbExpenseAttendee>().HasQueryFilter(x => !x.Deleted);
+        modelBuilder.Entity<DbExpenseTrip>().HasQueryFilter(x => !x.Deleted);
+        modelBuilder.Entity<DbMissingReceiptDeclaration>().HasQueryFilter(x => !x.Deleted);
+
+        modelBuilder.Entity<DbExpenseAttendee>().Property(x => x.Amount).HasPrecision(12, 2);
+        modelBuilder.Entity<DbExpenseAttendee>().Property(x => x.PrivateShare).HasPrecision(12, 2);
+        modelBuilder.Entity<DbMissingReceiptDeclaration>().Property(x => x.Amount).HasPrecision(12, 2);
+
+        // Kilometres to one decimal, and a per-kilometre rate in cents - 0.880 needs three places, so
+        // decimal(6,3) rather than the money precision used everywhere else.
+        modelBuilder.Entity<DbExpenseTrip>().Property(x => x.BusinessKm).HasPrecision(8, 1);
+        modelBuilder.Entity<DbExpenseTrip>().Property(x => x.ApprovedRate).HasPrecision(6, 3);
+
+        modelBuilder.Entity<DbExpenseAttendee>().HasIndex(x => new { x.SubmissionId, x.Ordinal });
+        modelBuilder.Entity<DbExpenseTrip>().HasIndex(x => new { x.SubmissionId, x.Ordinal });
     }
 }

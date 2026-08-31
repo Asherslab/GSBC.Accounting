@@ -1,0 +1,196 @@
+@using GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses
+@using GSBC.Accounting.WASM.Features.Expenses
+
+@*
+    Section 4, for both forms. Six questions, each a No/Yes pair with a reveal behind Yes.
+
+    Every question's text comes from ExpenseFormWording, keyed by kind - only questions 4 and 6 are
+    word-for-word identical between the two documents, and question 1 asks a genuinely different thing on
+    each. The ANSWERS are the same six columns either way.
+
+    Nothing here enforces the rules the questions recite. The form's job is to ask them and record what
+    was said, so a human reviewer sees it.
+*@
+
+<section class="card" id="s4">
+    <header>
+        <span class="num">04</span>
+        <h3>@Text.Section4Caption</h3>
+        <span class="hint">@Answered of 6 answered</span>
+    </header>
+    <div class="body">
+        @for (int i = 0; i < Text.ComplianceQuestions.Count; i++)
+        {
+            int index = i;
+            ComplianceQuestion question = Text.ComplianceQuestions[index];
+
+            <div class="q">
+                <p>
+                    <span class="qlabel">@(index + 1). @question.Question</span>
+                    @if (Model.Compliance[index] == true)
+                    {
+                        <span>Yes &mdash; @question.YesInstruction</span>
+                    }
+                </p>
+
+                @* A pair of radios, not a checkbox: "No" is an answer somebody gave, and unticked would
+                   be indistinguishable from unanswered. Model.Compliance[i] stays null until one is
+                   chosen, and null is what a reviewer needs to be able to see. *@
+                <div class="yn">
+                    <label>
+                        <input type="radio" name="@($"q{index}")" value="no"
+                               checked="@(Model.Compliance[index] == false)"
+                               @onchange="() => Answer(index, false)"/>No
+                    </label>
+                    <label>
+                        <input type="radio" name="@($"q{index}")" value="yes"
+                               checked="@(Model.Compliance[index] == true)"
+                               @onchange="() => Answer(index, true)"/>Yes
+                    </label>
+                </div>
+            </div>
+        }
+
+        @if (Model.ComplianceDetailsOpen)
+        {
+            <div class="reveal" style="margin-top:14px">
+                <span class="lbl">@Text.ComplianceDetailsCaption</span>
+                <textarea rows="3" style="margin-top:6px"
+                          @bind="Model.ComplianceDetails" @bind:event="oninput"></textarea>
+            </div>
+        }
+
+        @if (Model.DetailTableOpen)
+        {
+            <div style="margin-top:18px">
+                <span class="lbl">@Text.DetailTableCaption</span>
+
+                @if (Model.Kind == SubmissionKind.DebitCardPurchase)
+                {
+                    <div class="tablewrap" style="margin-top:8px">
+                        <table>
+                            <thead>
+                            <tr>
+                                <th style="min-width:130px">Date</th>
+                                <th style="min-width:160px">Person / recipient</th>
+                                <th style="min-width:150px">Relationship / role</th>
+                                <th class="num" style="width:110px">Amount</th>
+                                <th class="num" style="width:120px">Private share</th>
+                                <th style="min-width:200px">Reason and Church purpose</th>
+                                <th style="width:38px"><span class="sr-only">Remove</span></th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            @foreach (AttendeeModel row in Model.Attendees)
+                            {
+                                <tr @key="row.Key">
+                                    <td><input type="date" aria-label="Date" @bind="row.Date" @bind:event="oninput"/></td>
+                                    <td><input type="text" aria-label="Person or recipient" @bind="row.Person" @bind:event="oninput"/></td>
+                                    <td><input type="text" aria-label="Relationship or role" @bind="row.Relationship" @bind:event="oninput"/></td>
+                                    <td class="num"><div class="money"><input type="number" step="0.01" min="0" aria-label="Amount" @bind="row.Amount" @bind:event="oninput"/></div></td>
+                                    <td class="num"><div class="money"><input type="number" step="0.01" min="0" aria-label="Private share" @bind="row.PrivateShare" @bind:event="oninput"/></div></td>
+                                    <td><input type="text" aria-label="Reason and Church purpose" @bind="row.Reason" @bind:event="oninput"/></td>
+                                    <td>
+                                        <button class="rowbtn" type="button" aria-label="Remove row"
+                                                @onclick="() => RemoveAttendee(row)">&times;</button>
+                                    </td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                    <button class="btn-add" type="button" @onclick="AddAttendee">+ Add row</button>
+                }
+                else
+                {
+                    <div class="tablewrap" style="margin-top:8px">
+                        <table>
+                            <thead>
+                            <tr>
+                                <th style="min-width:130px">Date</th>
+                                <th style="min-width:160px">From</th>
+                                <th style="min-width:160px">To</th>
+                                <th class="num" style="width:110px">Business km</th>
+                                <th class="num" style="width:120px">Approved rate</th>
+                                <th style="min-width:200px">Church purpose</th>
+                                <th style="width:38px"><span class="sr-only">Remove</span></th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            @foreach (TripModel row in Model.Trips)
+                            {
+                                <tr @key="row.Key">
+                                    <td><input type="date" aria-label="Date" @bind="row.Date" @bind:event="oninput"/></td>
+                                    <td><input type="text" aria-label="From" @bind="row.From" @bind:event="oninput"/></td>
+                                    <td><input type="text" aria-label="To" @bind="row.To" @bind:event="oninput"/></td>
+                                    <td class="num"><input type="number" step="0.1" min="0" class="mono" aria-label="Business kilometres" @bind="row.BusinessKm" @bind:event="oninput"/></td>
+                                    <td class="num"><div class="money"><input type="number" step="0.001" min="0" aria-label="Approved rate per kilometre" @bind="row.ApprovedRate" @bind:event="oninput"/></div></td>
+                                    <td><input type="text" aria-label="Church purpose" @bind="row.Purpose" @bind:event="oninput"/></td>
+                                    <td>
+                                        <button class="rowbtn" type="button" aria-label="Remove row"
+                                                @onclick="() => RemoveTrip(row)">&times;</button>
+                                    </td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                    <button class="btn-add" type="button" @onclick="AddTrip">+ Add trip</button>
+                }
+            </div>
+        }
+    </div>
+</section>
+
+@code
+{
+    [Parameter, EditorRequired] public required ExpenseFormModel Model { get; set; }
+
+    [Parameter, EditorRequired] public required ExpenseFormText Text { get; set; }
+
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private int Answered => Model.Compliance.Count(x => x is not null);
+
+    private async Task Answer(int index, bool value)
+    {
+        Model.Compliance[index] = value;
+
+        // Opening a table with no rows shows a header and nothing else, which reads as broken. One row
+        // is the smallest thing that looks like a table waiting to be filled in.
+        if (Model.DetailTableOpen)
+        {
+            if (Model.Kind == SubmissionKind.DebitCardPurchase && Model.Attendees.Count == 0)
+                Model.Attendees.Add(new AttendeeModel());
+
+            if (Model.Kind == SubmissionKind.ExpenseReimbursement && Model.Trips.Count == 0)
+                Model.Trips.Add(new TripModel());
+        }
+
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task AddAttendee()
+    {
+        Model.Attendees.Add(new AttendeeModel());
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task RemoveAttendee(AttendeeModel row)
+    {
+        Model.Attendees.Remove(row);
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task AddTrip()
+    {
+        Model.Trips.Add(new TripModel());
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task RemoveTrip(TripModel row)
+    {
+        Model.Trips.Remove(row);
+        await OnChanged.InvokeAsync();
+    }
+}

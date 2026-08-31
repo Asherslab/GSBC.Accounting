@@ -46,6 +46,39 @@ debit card form prints `Item` (text — one card transaction itemised into its p
 form prints `Date` (one row per receipt). `ExpenseLine` therefore carries both `ItemDescription` and
 `LineDate`, both nullable, and `Create` requires whichever one the kind implies.
 
+## The compliance answers and declarations are columns, the questions are not
+
+Six `bool?` columns for section 4 and five for section 6, on the header rather than in a table. There
+are exactly six and five, fixed by the paper forms; a table would make "was question 4 answered" a join.
+
+**`null` means *not answered*, which is a different fact from "No"** — and it is the one a reviewer
+needs to see. The page therefore renders a No/Yes radio pair, never a checkbox: an unticked checkbox
+cannot be told apart from an unanswered question.
+
+Nothing here enforces the rules the questions recite. The form asks them and records what was said.
+
+The *text* of every question and declaration lives in `ExpenseFormWording`, keyed by kind. Where the two
+forms genuinely agree the same literal appears twice, deliberately, so changing one never changes the
+other by accident.
+
+Section 4's Yes reveals a detail table, and which table depends on the kind because question 1 is a
+different question on each form: `ExpenseAttendee` (date, person, relationship, amount, private share,
+reason) for the debit card form's meals and hospitality, `ExpenseTrip` (date, from, to, business km,
+approved rate, purpose) for the reimbursement form's motor vehicle record. `ApprovedRate` is *recorded,
+not applied* — this app holds no ATO rate table and checks nothing against one.
+
+Section 5 (`MissingReceiptDeclaration`, 0..1) exists only when some line is marked `Missing`, matching
+the form's own "complete only when evidence is unavailable". `Create` writes it only when a line
+actually says Missing: a declaration attached to a submission with full evidence would read to a
+reviewer as a statement somebody made, and nobody made it.
+
+## Sections 7 and 8 are captured but never filled in here
+
+The columns exist on the aggregate and the page renders both sections read-only and disabled, exactly
+as the mockup shows them, so the form still reads as the whole document to the person filling it in.
+Nothing in this scope can complete them: both pages are anonymous, and "the approver must not be the
+claimant" is a compliance constraint that needs an identity to enforce.
+
 ## The server computes the totals
 
 `ExpenseTotals` is the only place a total is produced. `Create` discards whatever the client sent for

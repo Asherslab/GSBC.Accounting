@@ -54,6 +54,52 @@ public static class ExpenseFormWording
         LessPersonalLabel = "Less personal portion to be repaid immediately",
         NetTotalLabel = "Net authorised church expense",
 
+
+        Section4Caption = "Special purchase details and compliance checks",
+        ComplianceQuestions =
+        [
+            new("Parking, toll, fuel, taxi or other travel?",
+                "record the destination/event and Church purpose, and attach the available receipt or trip evidence."),
+            new("Meal, restaurant, catering, gift or hospitality?",
+                "list every attendee or recipient, their relationship to the Church, the ministry purpose and any private share below."),
+            new("Did a spouse, child, family member or private companion attend, travel, dine or benefit?",
+                "identify them and fully exclude their costs and fair share of every joint expense."),
+            new("Expense incurred outside Australia or for an overseas activity?",
+                "specify country and link to the relevant activity/project records."),
+            new("Cardholder, supplier or recipient is a Responsible Person, senior manager, close family member, or related entity?",
+                "disclose below and use an independent approver."),
+            new("Actual, potential or perceived conflict of interest?",
+                "disclose below and record/manage it under the Church conflict-of-interest process.")
+        ],
+        ComplianceDetailsCaption = "Conflict / related-party / personal repayment / overseas details (if applicable)",
+        DetailTableCaption = "Meals / hospitality / gifts / travel details (if applicable)",
+
+        MissingReceiptDeclaration =
+            "I declare that the card charge was made for the stated Church purpose, the details are "
+            + "accurate, and I have supplied all available evidence. I understand GST must not be claimed "
+            + "unless the Church holds the evidence required by law.",
+
+        Section6Caption = "Cardholder declaration",
+        Declarations =
+        [
+            "STRICTLY CHURCH EXPENSE: Every amount treated as a Church expense was incurred solely for an "
+            + "authorised Church purpose. No personal, private or family expense is included.",
+
+            "Where my spouse, child, family member or another private companion attended, accompanied me or "
+            + "received any benefit, I have separately identified and excluded all of their costs and their "
+            + "fair share of every joint or shared expense (including meals, travel, accommodation, tickets "
+            + "and transport).",
+
+            "If any personal or unauthorised amount was inadvertently charged, I have disclosed it and "
+            + "repaid or arranged immediate repayment to the Church. I understand the Church debit card "
+            + "must not be used for personal purchases.",
+
+            "The attached evidence is genuine and itemised. I have disclosed discounts, refunds, credits, "
+            + "loyalty benefits used as payment, insurance recoveries and any private use.",
+
+            "I have identified meal attendees, gift recipients and beneficiaries where applicable, and "
+            + "disclosed any conflict of interest or related-party connection."
+        ],
         SignatureLabel = "Cardholder signature (confirming all declarations on page 2)"
     };
 
@@ -84,6 +130,50 @@ public static class ExpenseFormWording
         LessPersonalLabel = "Less personal / non-reimbursable portion",
         NetTotalLabel = "Total reimbursement claimed",
 
+
+        Section4Caption = "Special categories and compliance checks",
+        ComplianceQuestions =
+        [
+            new("Motor vehicle travel claimed?",
+                "complete the trip record below. Fuel is not claimed separately where a per-kilometre rate is used."),
+            new("Entertainment, meals, gifts or hospitality?",
+                "identify attendees, Church purpose and any personal component."),
+            new("Did a spouse, child, family member or other private companion benefit from or accompany the claimant?",
+                "identify and fully exclude their costs and their share of any joint expense."),
+            new("Expense incurred outside Australia or for an overseas activity?",
+                "specify country and link to the relevant activity/project records."),
+            new("Claimant is a Responsible Person, senior manager, close family member, or related entity?",
+                "declare below and use an independent approver."),
+            new("Actual, potential or perceived conflict of interest?",
+                "disclose below and record/manage it under the Church conflict-of-interest process.")
+        ],
+        ComplianceDetailsCaption = "Conflict / related-party / overseas details (if applicable)",
+        DetailTableCaption = "Motor vehicle trip record (if applicable)",
+
+        MissingReceiptDeclaration =
+            "I declare that I paid this amount for the stated Church purpose, have not been and will not be "
+            + "reimbursed from another source, and have supplied all available evidence. I understand GST "
+            + "must not be claimed unless the Church holds the evidence required by law.",
+
+        Section6Caption = "Claimant declaration",
+        Declarations =
+        [
+            "STRICTLY CHURCH EXPENSE: Every amount claimed was incurred and paid by me solely for an "
+            + "authorised Church purpose. No personal, private or family expense is included.",
+
+            "Where my spouse, child, family member or another private companion accompanied me or received "
+            + "any benefit, I have excluded all of their costs and their fair share of every joint or "
+            + "shared expense (including travel, accommodation, meals, tickets and transport).",
+
+            "I have not previously claimed, been reimbursed for, or received an allowance or other payment "
+            + "covering these amounts, and I will notify the Church if that changes.",
+
+            "The attached evidence is genuine and itemised. I have disclosed discounts, refunds, credits, "
+            + "loyalty benefits used as payment, insurance recoveries and any private use.",
+
+            "I have disclosed any actual, potential or perceived conflict of interest and any related-party "
+            + "connection relevant to this claim."
+        ],
         SignatureLabel = "Claimant signature (confirming all declarations on page 2)"
     };
 }
@@ -114,5 +204,44 @@ public record ExpenseFormText
     public required string LessPersonalLabel { get; init; }
     public required string NetTotalLabel { get; init; }
 
+    public required string Section4Caption { get; init; }
+
+    /// <summary>
+    /// The six, in order. Only questions 4 and 6 are word-for-word identical between the forms, and
+    /// question 1 is a materially different question - incidental travel paid on the card, versus the
+    /// claimant's own vehicle at a per-kilometre rate. A shared string would be a compliance error, not
+    /// a cosmetic one.
+    /// </summary>
+    public required IReadOnlyList<ComplianceQuestion> ComplianceQuestions { get; init; }
+
+    public required string ComplianceDetailsCaption { get; init; }
+
+    /// <summary>Caption of the table a Yes on question 1 or 2 opens.</summary>
+    public required string DetailTableCaption { get; init; }
+
+    /// <summary>
+    /// Section 5's declaration paragraph. Only its closing GST sentence is shared between the forms -
+    /// the opening is rewritten, and the reimbursement version adds the no-other-source clause.
+    /// </summary>
+    public required string MissingReceiptDeclaration { get; init; }
+
+    public required string Section6Caption { get; init; }
+
+    /// <summary>
+    /// The five, in order. Only declaration 4 is word-for-word identical, and declaration 3 is a
+    /// DIFFERENT declaration on each form - repayment on the debit card, no-double-claim on the
+    /// reimbursement. Neither form carries the other's, and closing that gap is finance's decision.
+    /// </summary>
+    public required IReadOnlyList<string> Declarations { get; init; }
+
     public required string SignatureLabel { get; init; }
 }
+
+/// <summary>
+/// One section 4 question: the text, and the instruction that follows "Yes".
+/// </summary>
+/// <remarks>
+/// Split in two because the page renders them differently - the question beside a No/Yes pair, the
+/// instruction inside the panel that a Yes reveals. The paper form prints them as one paragraph.
+/// </remarks>
+public record ComplianceQuestion(string Question, string YesInstruction);

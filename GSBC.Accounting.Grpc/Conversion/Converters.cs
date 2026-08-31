@@ -28,6 +28,39 @@ public partial class ExpenseLineConverter(
 }
 
 [Mapper]
+public partial class ExpenseAttendeeConverter(
+    IConverter<DateTimeOffset, DateTime> dateTimeConverter
+) : IConverter<DbExpenseAttendee, ExpenseAttendee>
+{
+    [UseMapper]
+    private readonly IConverter<DateTimeOffset, DateTime> _dateTimeConverter = dateTimeConverter;
+
+    public partial ExpenseAttendee Convert(DbExpenseAttendee attendee);
+}
+
+[Mapper]
+public partial class ExpenseTripConverter(
+    IConverter<DateTimeOffset, DateTime> dateTimeConverter
+) : IConverter<DbExpenseTrip, ExpenseTrip>
+{
+    [UseMapper]
+    private readonly IConverter<DateTimeOffset, DateTime> _dateTimeConverter = dateTimeConverter;
+
+    public partial ExpenseTrip Convert(DbExpenseTrip trip);
+}
+
+[Mapper]
+public partial class MissingReceiptDeclarationConverter(
+    IConverter<DateTimeOffset, DateTime> dateTimeConverter
+) : IConverter<DbMissingReceiptDeclaration, MissingReceiptDeclaration>
+{
+    [UseMapper]
+    private readonly IConverter<DateTimeOffset, DateTime> _dateTimeConverter = dateTimeConverter;
+
+    public partial MissingReceiptDeclaration Convert(DbMissingReceiptDeclaration declaration);
+}
+
+[Mapper]
 public partial class ExpenseSubmissionConverter(
     IConverter<DateTimeOffset, DateTime> dateTimeConverter
 ) : IConverter<DbExpenseSubmission, ExpenseSubmission>

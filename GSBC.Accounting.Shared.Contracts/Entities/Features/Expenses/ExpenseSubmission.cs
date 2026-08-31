@@ -139,7 +139,46 @@ public record ExpenseSubmission : IIdentifiable
     /// </summary>
     public decimal NetTotal { get; init; }
 
-    // ---- Section 6 ------------------------------------------------------------------------------------
+    // ---- Section 4: six compliance answers ------------------------------------------------------------
+
+    /*
+       Six bool? columns on the header, not a table. There are exactly six and they are fixed by the
+       paper forms; a table would make "was question 4 answered" a join.
+
+       null means NOT ANSWERED, which is a different fact from "No" and the one a reviewer needs to see.
+       The form's job is to ask the questions and record the answers so a human sees them - nothing here
+       enforces the rules the questions recite.
+
+       The ANSWERS are shared columns. The QUESTIONS are not: only Q4 and Q6 are word-for-word identical
+       between the two forms, and Q1 is a materially different question. See ExpenseFormWording.
+    */
+    public bool? ComplianceQ1 { get; init; }
+    public bool? ComplianceQ2 { get; init; }
+    public bool? ComplianceQ3 { get; init; }
+    public bool? ComplianceQ4 { get; init; }
+    public bool? ComplianceQ5 { get; init; }
+    public bool? ComplianceQ6 { get; init; }
+
+    /// <summary>
+    /// Section 4's free-text block. The caption differs per kind, and the debit card version also
+    /// collects personal-repayment detail here.
+    /// </summary>
+    public string? ComplianceDetails { get; init; }
+
+    // ---- Section 6: five declarations -----------------------------------------------------------------
+
+    /*
+       Five bool? columns, same reasoning as the compliance answers. Only D4 is word-for-word identical
+       between the forms, and D3 is a DIFFERENT declaration on each - repayment on the debit card form,
+       no-double-claim on the reimbursement form. Neither form carries the other's.
+    */
+    public bool? Declaration1 { get; init; }
+    public bool? Declaration2 { get; init; }
+    public bool? Declaration3 { get; init; }
+    public bool? Declaration4 { get; init; }
+    public bool? Declaration5 { get; init; }
+
+    // ---- Section 6 signature ---------------------------------------------------------------------------
 
     /// <summary>
     /// The typed signature. Not a signature in any legal sense - it is a name the claimant typed beside
@@ -162,6 +201,15 @@ public record ExpenseSubmission : IIdentifiable
     public bool IsMockData { get; init; }
 
     public List<ExpenseLine> Lines { get; init; } = [];
+
+    /// <summary>Section 4's meals/hospitality table. Debit card form only.</summary>
+    public List<ExpenseAttendee> Attendees { get; init; } = [];
+
+    /// <summary>Section 4's motor vehicle trip record. Reimbursement form only.</summary>
+    public List<ExpenseTrip> Trips { get; init; } = [];
+
+    /// <summary>Section 5, present only when some line is marked Missing.</summary>
+    public MissingReceiptDeclaration? MissingReceipt { get; init; }
 }
 
 /// <summary>Which of the two paper forms a submission is.</summary>

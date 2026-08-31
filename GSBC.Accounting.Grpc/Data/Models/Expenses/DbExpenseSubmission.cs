@@ -68,7 +68,25 @@ public class DbExpenseSubmission
     public decimal LessPersonalAmount { get; set; }
     public decimal NetTotal { get; set; }
 
-    // ---- Section 6 ----
+    // ---- Section 4: six compliance answers, six columns, not a table ----
+    // null means NOT ANSWERED, which is a different fact from "No" and the one a reviewer needs to see.
+    public bool? ComplianceQ1 { get; set; }
+    public bool? ComplianceQ2 { get; set; }
+    public bool? ComplianceQ3 { get; set; }
+    public bool? ComplianceQ4 { get; set; }
+    public bool? ComplianceQ5 { get; set; }
+    public bool? ComplianceQ6 { get; set; }
+
+    public string? ComplianceDetails { get; set; }
+
+    // ---- Section 6: five declarations, same reasoning ----
+    public bool? Declaration1 { get; set; }
+    public bool? Declaration2 { get; set; }
+    public bool? Declaration3 { get; set; }
+    public bool? Declaration4 { get; set; }
+    public bool? Declaration5 { get; set; }
+
+    // ---- Section 6 signature ----
     public string? SignatureName { get; set; }
     public DateTimeOffset? SignedAt { get; set; }
 
@@ -95,4 +113,11 @@ public class DbExpenseSubmission
     public List<DbExpenseLine> Lines { get; set; } = [];
 
     public List<DbExpenseAttachment> Attachments { get; set; } = [];
+
+    public List<DbExpenseAttendee> Attendees { get; set; } = [];
+
+    public List<DbExpenseTrip> Trips { get; set; } = [];
+
+    /// <summary>Section 5. At most one, enforced by a unique index on SubmissionId.</summary>
+    public DbMissingReceiptDeclaration? MissingReceipt { get; set; }
 }

@@ -1,0 +1,118 @@
+@using GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses
+
+@*
+    Sections 7 and 8, rendered read-only and disabled exactly as the mockup shows them.
+
+    They are here so the form still reads as the WHOLE document to the person filling it in - somebody
+    who can see that an independent approver and finance both sign afterwards understands what they are
+    submitting into. Hiding them would make the form look like the end of the process.
+
+    Nothing in this scope can fill them in. Both pages are anonymous, so there is no way to know who an
+    approver is, and "the approver must not be the claimant" is a compliance constraint that needs an
+    identity to enforce. A person completes these off-screen for now.
+
+    The fields ARE in the aggregate already, so the work that fills them in later is additive.
+*@
+
+<section class="card locked" id="s7" aria-label="Independent approval, completed after submission">
+    <header>
+        <span class="num">07</span>
+        <h3>Independent approval</h3>
+        <span class="hint">Completed after you submit</span>
+    </header>
+    <div class="body">
+        <div class="notice" style="margin-bottom:16px">
+            <span class="ico">i</span>
+            <div>
+                Completed by an approver who is <b>not you</b>. Nothing below can be filled in here.
+            </div>
+        </div>
+        <div class="grid">
+            <div class="f c5">
+                <label>Approved by</label>
+                <input type="text" disabled readonly/>
+            </div>
+            <div class="f c3">
+                <label>Approval date</label>
+                <input type="date" disabled readonly/>
+            </div>
+            <div class="f c4">
+                <label>@ApprovedAmountLabel</label>
+                <div class="money"><input type="number" disabled readonly/></div>
+            </div>
+            <div class="f c12">
+                <span class="lbl">Decision</span>
+                <div class="chips">
+                    <span class="chip">Approved</span>
+                    <span class="chip">Declined</span>
+                    <span class="chip">@DecisionLabel</span>
+                </div>
+            </div>
+            @if (Kind == SubmissionKind.DebitCardPurchase)
+            {
+                <div class="f c4">
+                    <label>Repayment required</label>
+                    <div class="money"><input type="number" disabled readonly/></div>
+                </div>
+            }
+        </div>
+    </div>
+</section>
+
+<section class="card locked" id="s8" aria-label="Finance use only, completed after submission">
+    <header>
+        <span class="num">08</span>
+        <h3>Finance use only</h3>
+        <span class="hint">Completed after approval</span>
+    </header>
+    <div class="body">
+        <div class="grid">
+            @if (Kind == SubmissionKind.DebitCardPurchase)
+            {
+                <div class="f c4">
+                    <label>Transaction reference</label>
+                    <input type="text" class="mono" disabled readonly/>
+                </div>
+                <div class="f c4">
+                    <label>Statement date</label>
+                    <input type="date" disabled readonly/>
+                </div>
+                <div class="f c4">
+                    <label>Personal repayment</label>
+                    <input type="text" disabled readonly/>
+                </div>
+            }
+            else
+            {
+                <div class="f c4">
+                    <label>Claim reference</label>
+                    <input type="text" class="mono" disabled readonly/>
+                </div>
+                <div class="f c4">
+                    <label>Payment date</label>
+                    <input type="date" disabled readonly/>
+                </div>
+                <div class="f c4">
+                    <label>Payment reference</label>
+                    <input type="text" class="mono" disabled readonly/>
+                </div>
+            }
+        </div>
+    </div>
+</section>
+
+@code
+{
+    [Parameter, EditorRequired] public required SubmissionKind Kind { get; set; }
+
+    /// <summary>`Church expense approved $` / `Approved for $` - one field, two printed labels.</summary>
+    private string ApprovedAmountLabel =>
+        Kind == SubmissionKind.DebitCardPurchase ? "Church expense approved" : "Approved for";
+
+    /// <summary>
+    /// The third decision differs: the debit card form offers `Repayment required`, the reimbursement
+    /// form `Returned for information`.
+    /// </summary>
+    private string DecisionLabel =>
+        Kind == SubmissionKind.DebitCardPurchase ? "Repayment required" : "Returned for information";
+}

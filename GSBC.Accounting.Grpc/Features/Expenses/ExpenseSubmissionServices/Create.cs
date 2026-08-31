@@ -83,6 +83,20 @@ public partial class ExpenseSubmissionService
             LessPersonalAmount = lessPersonal,
             NetTotal = ExpenseTotals.Net(gross, lessPersonal),
 
+            ComplianceQ1 = request.ComplianceQ1,
+            ComplianceQ2 = request.ComplianceQ2,
+            ComplianceQ3 = request.ComplianceQ3,
+            ComplianceQ4 = request.ComplianceQ4,
+            ComplianceQ5 = request.ComplianceQ5,
+            ComplianceQ6 = request.ComplianceQ6,
+            ComplianceDetails = request.ComplianceDetails,
+
+            Declaration1 = request.Declaration1,
+            Declaration2 = request.Declaration2,
+            Declaration3 = request.Declaration3,
+            Declaration4 = request.Declaration4,
+            Declaration5 = request.Declaration5,
+
             SignatureName = request.SignatureName,
             SignedAt = null,
 
@@ -112,6 +126,67 @@ public partial class ExpenseSubmissionService
                 GstAmount = line.GstAmount is { } g ? ExpenseTotals.Money(g) : null,
                 ChurchUsePercent = line.ChurchUsePercent
             });
+        }
+
+        // Section 4's detail tables. Only the one belonging to this kind is written - a debit card
+        // submission has no trip record and a reimbursement has no attendee table, and a client sending
+        // the wrong one is ignored rather than trusted.
+        if (request.Kind == SubmissionKind.DebitCardPurchase)
+        {
+            int attendeeOrdinal = 0;
+
+            foreach (ExpenseAttendee attendee in request.Attendees)
+            {
+                submission.Attendees.Add(new DbExpenseAttendee
+                {
+                    Id = Guid.Empty,
+                    SubmissionId = Guid.Empty,
+                    Ordinal = attendeeOrdinal++,
+                    Date = ToOffset(attendee.Date),
+                    Person = attendee.Person,
+                    Relationship = attendee.Relationship,
+                    Amount = attendee.Amount is { } a ? ExpenseTotals.Money(a) : null,
+                    PrivateShare = attendee.PrivateShare is { } p ? ExpenseTotals.Money(p) : null,
+                    Reason = attendee.Reason
+                });
+            }
+        }
+        else
+        {
+            int tripOrdinal = 0;
+
+            foreach (ExpenseTrip trip in request.Trips)
+            {
+                submission.Trips.Add(new DbExpenseTrip
+                {
+                    Id = Guid.Empty,
+                    SubmissionId = Guid.Empty,
+                    Ordinal = tripOrdinal++,
+                    Date = ToOffset(trip.Date),
+                    From = trip.From,
+                    To = trip.To,
+                    BusinessKm = trip.BusinessKm,
+                    ApprovedRate = trip.ApprovedRate,
+                    Purpose = trip.Purpose
+                });
+            }
+        }
+
+        // Section 5, written only when some line actually says Missing. A declaration attached to a
+        // submission with full evidence would read to a reviewer as a statement somebody made, and
+        // nobody made it.
+        if (request.MissingReceipt is { } missing && request.Lines.Any(x => x.Evidence == EvidenceStatus.Missing))
+        {
+            submission.MissingReceipt = new DbMissingReceiptDeclaration
+            {
+                Id = Guid.Empty,
+                SubmissionId = Guid.Empty,
+                Supplier = missing.Supplier,
+                Date = ToOffset(missing.Date),
+                Amount = missing.Amount is { } m ? ExpenseTotals.Money(m) : null,
+                Reason = missing.Reason,
+                Declared = missing.Declared
+            };
         }
 
         await db.ExpenseSubmissions.AddAsync(submission, token);
