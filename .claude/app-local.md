@@ -39,8 +39,13 @@ ImpactKids holds fixed host ports 60535 (redis), 60536 (postgres), 60537 (S3), 6
 management), and its YARP on 7263. **Every fixed host port in this repo is a different number** —
 both stacks are `ContainerLifetime.Persistent` and will be running at the same time.
 
-The full allocation, as pinned on 2026-08-31. Anything added later takes the next free number in its
-series and gets a row here.
+The full allocation, as pinned and **verified listening on 2026-08-31**. Anything added later takes the
+next free number in its series and gets a row here.
+
+For the two containers these are the ports **Aspire's DCP proxy** listens on, not what Docker publishes:
+`WithHostPort` / `WithHttpEndpoint` pin the proxy, and the container itself gets a random high port. So
+`localhost:60546` reaches Postgres, but `docker ps` shows something else entirely — which matters when
+looking a container up, see below.
 
 | Port | What | Pinned in |
 |---|---|---|
@@ -80,11 +85,17 @@ version — is answered in slice 3, not assumed. See the scope doc under Attachm
 Once slice 1 is in, the check is `psql`, not the UI:
 
 Both stacks name their Postgres resource `sql`, so both containers are called `sql-<hash>` and matching
-on the name picks the wrong one about half the time. **Match on the published port instead** — 60546 is
-this app's, 60536 is ImpactKids'.
+on the name picks the wrong one about half the time.
+
+**Do not match on the port either.** The ports in the table above are DCP *proxies* — Aspire publishes
+the container on a random high port and listens on the pinned one itself. `docker ps` on 2026-08-31
+showed this app's Postgres published on 64556 while 60546 was held by the proxy, so
+`docker ps | grep 60546` finds nothing.
+
+Match on the **data volume**, which is named deliberately and is unique to this stack:
 
 ```bash
-c=$(docker ps --format '{{.Names}}\t{{.Ports}}' | grep ':60546->' | cut -f1)
+c=$(docker ps -q --filter 'label=com.microsoft.developer.usvc-dev.mountsLabel=type=volume,src=gsbc-accounting-sql-data')
 docker exec -e PGPASSWORD="$(docker exec $c printenv POSTGRES_PASSWORD)" $c \
   psql -U postgres -d accounting -c 'select "Id","Kind","Status","TotalGross" from "ExpenseSubmissions" order by "CreatedAt" desc limit 5'
 ```
