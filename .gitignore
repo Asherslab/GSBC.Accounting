@@ -522,3 +522,6 @@ GSBC.ImpactKids
 
 # nodeterm canvas session state
 .nodeterm/
+
+# Test fixtures staged for browser file-upload testing. Regenerate rather than track.
+.nodeterm/testfiles/

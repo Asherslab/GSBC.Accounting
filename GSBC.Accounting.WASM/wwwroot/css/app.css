@@ -1,0 +1,517 @@
+/*
+  The design system, lifted verbatim from mockups/debit-card-purchase-form.html - the layout that was
+  built from the .docx and approved as the shape to aim at. Keep it a lift rather than a
+  reinterpretation: when the two disagree, the mockup is right and this file is the bug.
+
+  Two things follow from that, and neither is arbitrary:
+
+  - There is no component library here. GSBC.ImpactKids uses MudBlazor; this app does not, because the
+    mockup is a hand-rolled system whose tokens MudBlazor would have to be overridden against on every
+    surface. A form that has to look like the paper document it replaces is the wrong place to fight a
+    theme.
+
+  - Everything is a custom property on :root, in all three theme states. The viewer's theme has three:
+    an explicit choice stamps data-theme on the root element, and the default "system" setting stamps
+    nothing, leaving prefers-color-scheme as the only signal. A colour whose only definition sits
+    inside a media query is a colour that disappears in one of the three.
+
+  The print block at the bottom is the on-screen approximation of the printed form. It is NOT the PDF:
+  slice 8 renders that server-side with QuestPDF from the submission aggregate, deliberately, so the
+  screen layout and the printed layout are free to diverge.
+*/
+
+:root{
+  --ground:#f7f6f3;
+  --surface:#ffffff;
+  --surface-sunk:#f1efea;
+  --ink:#1b1c20;
+  --ink-2:#4a4d55;
+  --ink-3:#7c7f88;
+  --line:#dfdcd4;
+  --line-strong:#c6c2b8;
+  --brand:#33415c;
+  --brand-2:#4a5c80;
+  --brand-wash:#eaedf4;
+  --ok:#2f6e4e;
+  --ok-wash:#e6f0e9;
+  --warn:#8a5a17;
+  --warn-wash:#f6eeda;
+  --bad:#9d3427;
+  --bad-wash:#f7e7e3;
+  --focus:#8aa0cc;
+  --radius:4px;
+  --shadow:0 1px 2px rgba(27,28,32,.06), 0 8px 24px -16px rgba(27,28,32,.28);
+}
+/*
+  The dark palette is written out twice on purpose, and plain CSS gives no way round it: an at-rule
+  block and a plain selector cannot share one declaration list. The two blocks below MUST stay
+  byte-identical - the first answers a viewer on the system default, the second answers an explicit
+  choice, and a value that only reaches one of them produces a page that is dark until somebody
+  touches the theme toggle.
+
+  The mockup had already drifted here: --line-strong was declared twice inside the media block,
+  #464a53 then #4a4e57, and only the second matched :root[data-theme="dark"]. The dead one is deleted.
+*/
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#16171a;
+    --surface:#1e2024;
+    --surface-sunk:#25272c;
+    --ink:#eceae5;
+    --ink-2:#b3b5bc;
+    --ink-3:#83868f;
+    --line:#33363d;
+    --brand:#a9bce2;
+    --brand-2:#8fa4cd;
+    --brand-wash:#232833;
+    --ok:#7fc39c;
+    --ok-wash:#1e2a24;
+    --warn:#d7a75a;
+    --warn-wash:#2c2519;
+    --bad:#e0897c;
+    --bad-wash:#2e1f1d;
+    --line-strong:#4a4e57;
+    --focus:#7d93c0;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#16171a;
+  --surface:#1e2024;
+  --surface-sunk:#25272c;
+  --ink:#eceae5;
+  --ink-2:#b3b5bc;
+  --ink-3:#83868f;
+  --line:#33363d;
+  --line-strong:#4a4e57;
+  --brand:#a9bce2;
+  --brand-2:#8fa4cd;
+  --brand-wash:#232833;
+  --ok:#7fc39c;
+  --ok-wash:#1e2a24;
+  --warn:#d7a75a;
+  --warn-wash:#2c2519;
+  --bad:#e0897c;
+  --bad-wash:#2e1f1d;
+  --focus:#7d93c0;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--ground);
+  color:var(--ink);
+  font-family:"Public Sans","Helvetica Neue",Arial,sans-serif;
+  font-size:15px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--brand)}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:2px}
+
+/* ---------- shell ---------- */
+.topbar{
+  position:sticky;top:0;z-index:40;
+  display:flex;align-items:center;gap:18px;
+  padding:14px 28px;
+  background:var(--surface);
+  border-bottom:1px solid var(--line);
+}
+.mark{
+  width:34px;height:34px;flex:none;border-radius:2px;
+  background:var(--brand);color:var(--surface);
+  display:grid;place-items:center;
+  font-family:"Newsreader",Georgia,serif;font-size:17px;font-weight:600;letter-spacing:.02em;
+}
+:root[data-theme="dark"] .mark, :root:not([data-theme="light"]) .mark{color:var(--ground)}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]) .mark{color:#fff}}
+.topbar h1{
+  margin:0;font-family:"Newsreader",Georgia,serif;
+  font-size:19px;font-weight:600;letter-spacing:-.01em;line-height:1.15;
+}
+.topbar .sub{font-size:12px;color:var(--ink-3);letter-spacing:.04em;text-transform:uppercase}
+.topbar .spacer{flex:1}
+.draft{
+  font-size:12px;color:var(--ink-3);
+  font-family:"IBM Plex Mono",monospace;
+}
+
+.layout{
+  display:grid;
+  grid-template-columns:238px minmax(0,1fr);
+  gap:0;
+  align-items:start;
+  max-width:1320px;margin:0 auto;
+}
+/*
+  Not in the mockup, which only ever has the one page and always draws the rail.
+
+  .layout is two columns, and the FIRST is the 238px rail. A page that renders <main> without a
+  nav.rail before it therefore puts main in the rail's slot and every card is squeezed to 238px, with
+  the rest of the window left empty. There is no error and the styling still looks correct, which is
+  what makes it hard to spot - it reads as "the design is just narrow".
+
+  Any page with no rail - the landing page, not-found - uses .layout.norail.
+*/
+.layout.norail{grid-template-columns:minmax(0,1fr)}
+/* ---------- rail ---------- */
+.rail{
+  position:sticky;top:63px;
+  padding:26px 18px 40px 28px;
+  align-self:start;
+  max-height:calc(100vh - 63px);
+  overflow-y:auto;
+}
+.rail h2{
+  font-size:11px;text-transform:uppercase;letter-spacing:.11em;
+  color:var(--ink-3);margin:0 0 12px;font-weight:600;
+}
+.rail ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px}
+.rail a{
+  display:grid;grid-template-columns:20px 1fr;gap:9px;align-items:baseline;
+  padding:7px 8px;border-radius:var(--radius);
+  color:var(--ink-2);text-decoration:none;font-size:13.5px;line-height:1.35;
+}
+.rail a:hover{background:var(--surface-sunk);color:var(--ink)}
+.rail a.active{background:var(--brand-wash);color:var(--ink);font-weight:600}
+.rail .n{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-3)}
+.rail a.active .n{color:var(--brand)}
+.rail .dot{
+  display:inline-block;width:6px;height:6px;border-radius:50%;
+  background:var(--line-strong);margin-left:6px;vertical-align:middle;
+}
+.rail .dot.done{background:var(--ok)}
+.rail .dot.err{background:var(--bad)}
+
+/* ---------- form column ---------- */
+main{padding:26px 28px 160px;min-width:0}
+.lede{
+  max-width:64ch;margin:0 0 26px;
+  font-family:"Newsreader",Georgia,serif;font-size:17px;line-height:1.55;color:var(--ink-2);
+}
+.lede strong{color:var(--ink);font-weight:600}
+
+section.card{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  margin-bottom:18px;
+  box-shadow:var(--shadow);
+  scroll-margin-top:78px;
+}
+.card > header{
+  display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;
+  padding:15px 20px;border-bottom:1px solid var(--line);
+  background:linear-gradient(to bottom, var(--surface), var(--surface));
+}
+.card > header .num{
+  font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:500;
+  color:var(--brand);letter-spacing:.06em;
+}
+.card > header h3{
+  margin:0;font-size:15.5px;font-weight:600;letter-spacing:-.005em;
+}
+.card > header .hint{font-size:13px;color:var(--ink-3);margin-left:auto}
+.card .body{padding:20px}
+
+.grid{display:grid;gap:16px 18px;grid-template-columns:repeat(12,1fr)}
+.f{display:flex;flex-direction:column;gap:6px;min-width:0}
+.c3{grid-column:span 3}.c4{grid-column:span 4}.c5{grid-column:span 5}
+.c6{grid-column:span 6}.c7{grid-column:span 7}.c8{grid-column:span 8}.c12{grid-column:span 12}
+@media (max-width:900px){
+  .c3,.c4,.c5,.c6,.c7,.c8{grid-column:span 12}
+}
+
+label,.lbl{
+  font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--ink-2);
+}
+.req{color:var(--bad);font-weight:600}
+.help{font-size:12px;color:var(--ink-3);line-height:1.45}
+
+input[type=text],input[type=date],input[type=time],input[type=number],input[type=email],select,textarea{
+  width:100%;padding:8px 10px;
+  font:inherit;font-size:14px;color:var(--ink);
+  background:var(--surface);
+  border:1px solid var(--line-strong);border-radius:var(--radius);
+}
+input[type=number],.mono{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+textarea{resize:vertical;min-height:78px;line-height:1.5}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--focus);outline-offset:0;border-color:var(--brand-2)}
+input::placeholder,textarea::placeholder{color:var(--ink-3)}
+.money{position:relative}
+.money input{padding-left:22px}
+.money::before{
+  content:"$";position:absolute;left:9px;top:50%;transform:translateY(-50%);
+  color:var(--ink-3);font-family:"IBM Plex Mono",monospace;font-size:13px;pointer-events:none;
+}
+
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:6px 11px;border:1px solid var(--line-strong);border-radius:99px;
+  font-size:13px;color:var(--ink-2);cursor:pointer;background:var(--surface);
+  user-select:none;
+}
+.chip:hover{border-color:var(--brand-2);color:var(--ink)}
+.chip input{position:absolute;opacity:0;width:0;height:0}
+.chip:has(input:checked){background:var(--brand-wash);border-color:var(--brand-2);color:var(--ink);font-weight:600}
+.chip:has(input:focus-visible){outline:2px solid var(--focus);outline-offset:2px}
+
+.yn{display:inline-flex;border:1px solid var(--line-strong);border-radius:99px;overflow:hidden;flex:none}
+.yn label{
+  padding:4px 14px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--ink-3);
+  background:var(--surface);letter-spacing:.02em;
+}
+.yn label + label{border-left:1px solid var(--line-strong)}
+.yn input{position:absolute;opacity:0;width:0;height:0}
+.yn label:has(input:checked){background:var(--brand);color:#fff}
+:root[data-theme="dark"] .yn label:has(input:checked),
+:root:not([data-theme="light"]) .yn label:has(input:checked){color:var(--ground)}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]) .yn label:has(input:checked){color:#fff}}
+.yn label:has(input[value="yes"]:checked){background:var(--warn);border-color:var(--warn)}
+
+.checkline{
+  display:grid;grid-template-columns:18px 1fr;gap:11px;align-items:start;
+  padding:11px 12px;border:1px solid var(--line);border-radius:var(--radius);
+  background:var(--surface-sunk);font-size:13.5px;line-height:1.5;color:var(--ink-2);
+  cursor:pointer;
+}
+.checkline:has(input:checked){background:var(--ok-wash);border-color:color-mix(in srgb, var(--ok) 35%, transparent);color:var(--ink)}
+.checkline input{margin-top:3px;accent-color:var(--brand);width:16px;height:16px}
+.checkline b{font-weight:700;color:var(--ink)}
+.stack{display:flex;flex-direction:column;gap:9px}
+
+/* question rows in section 4 */
+.q{
+  display:flex;gap:14px;align-items:flex-start;justify-content:space-between;
+  padding:13px 0;border-top:1px solid var(--line);
+}
+.q:first-child{border-top:0;padding-top:0}
+.q p{margin:0;font-size:13.5px;line-height:1.5;color:var(--ink-2);max-width:66ch}
+.q .qlabel{font-weight:600;color:var(--ink);display:block;font-size:14px;margin-bottom:2px}
+.reveal{
+  margin:2px 0 4px;padding:14px;border-left:2px solid var(--warn);
+  background:var(--warn-wash);border-radius:0 var(--radius) var(--radius) 0;
+}
+.reveal .lbl{color:var(--warn)}
+[hidden]{display:none !important}
+
+/* ---------- tables ---------- */
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius)}
+table{border-collapse:collapse;width:100%;min-width:840px;font-size:13.5px}
+th{
+  text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--ink-3);font-weight:600;padding:9px 10px;background:var(--surface-sunk);
+  border-bottom:1px solid var(--line);white-space:nowrap;
+}
+td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+td input,td select{border-color:transparent;background:transparent;padding:6px 7px}
+td input:hover,td select:hover{border-color:var(--line-strong)}
+td input:focus,td select:focus{background:var(--surface)}
+th.num,td.num{text-align:right}
+td .money::before{left:6px}
+td .money input{padding-left:18px;text-align:right}
+.rowbtn{
+  border:0;background:transparent;color:var(--ink-3);cursor:pointer;
+  font-size:16px;line-height:1;padding:5px 7px;border-radius:var(--radius);
+}
+.rowbtn:hover{background:var(--bad-wash);color:var(--bad)}
+.btn-add{
+  margin-top:10px;display:inline-flex;align-items:center;gap:7px;
+  border:1px dashed var(--line-strong);background:transparent;color:var(--brand);
+  padding:7px 13px;border-radius:var(--radius);font:inherit;font-size:13px;font-weight:600;cursor:pointer;
+}
+.btn-add:hover{border-color:var(--brand-2);background:var(--brand-wash)}
+
+.totals{
+  margin-top:16px;margin-left:auto;max-width:420px;
+  display:grid;grid-template-columns:1fr auto;gap:8px 20px;align-items:center;
+  font-size:13.5px;
+}
+.totals .k{color:var(--ink-2)}
+.totals .v{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;text-align:right}
+.totals .rule{grid-column:1/-1;height:1px;background:var(--line);margin:2px 0}
+.totals .net{font-weight:700;color:var(--ink);font-size:15px}
+.totals .net .v{font-size:16px}
+.totals input{max-width:130px}
+
+/* ---------- attachments ---------- */
+.drop{
+  /*
+    display:block is not in the mockup and is load-bearing here. The mockup's drop zone is a <div>;
+    this app makes it a <label> so the whole panel targets the hidden file input and is keyboard
+    reachable with no JS interop. A <label> is INLINE by default, so the dashed box collapsed to the
+    width of nothing and the text spilled out beside it - "Choose receipts, or dr" inside the border and
+    "op them here" outside it. Observed in Chrome on 2026-08-31.
+  */
+  display:block;
+  border:1.5px dashed var(--line-strong);border-radius:var(--radius);
+  padding:26px 20px;text-align:center;background:var(--surface-sunk);
+  cursor:pointer;transition:border-color .12s, background .12s;
+}
+.drop:hover,.drop.over{border-color:var(--brand-2);background:var(--brand-wash)}
+.drop .big{font-size:14.5px;font-weight:600;color:var(--ink);display:block;margin-bottom:3px}
+.drop .small{font-size:12.5px;color:var(--ink-3)}
+.files{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.file{
+  display:grid;grid-template-columns:44px 1fr auto auto;gap:12px;align-items:center;
+  padding:9px 11px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);
+}
+.thumb{
+  width:44px;height:44px;border-radius:3px;background:var(--surface-sunk);
+  display:grid;place-items:center;overflow:hidden;border:1px solid var(--line);
+  font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:600;color:var(--ink-3);letter-spacing:.04em;
+}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.file .meta{min-width:0}
+.file .name{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file .sz{font-size:12px;color:var(--ink-3);font-family:"IBM Plex Mono",monospace}
+.file select{width:auto;font-size:12.5px;padding:5px 8px}
+
+.badge{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:11.5px;font-weight:600;letter-spacing:.03em;
+  padding:3px 9px;border-radius:99px;white-space:nowrap;
+}
+.badge.ok{background:var(--ok-wash);color:var(--ok)}
+.badge.warn{background:var(--warn-wash);color:var(--warn)}
+.badge.bad{background:var(--bad-wash);color:var(--bad)}
+.badge.neutral{background:var(--surface-sunk);color:var(--ink-3)}
+
+.notice{
+  display:grid;grid-template-columns:auto 1fr;gap:11px;align-items:start;
+  padding:12px 14px;border-radius:var(--radius);font-size:13px;line-height:1.5;
+  background:var(--brand-wash);color:var(--ink-2);border-left:2px solid var(--brand-2);
+}
+.notice.warn{background:var(--warn-wash);border-left-color:var(--warn);color:var(--ink-2)}
+.notice.bad{background:var(--bad-wash);border-left-color:var(--bad)}
+.notice b{color:var(--ink)}
+.notice .ico{font-family:"IBM Plex Mono",monospace;font-weight:700;color:var(--brand)}
+.notice.warn .ico{color:var(--warn)} .notice.bad .ico{color:var(--bad)}
+
+.locked{opacity:.72}
+.locked .body{pointer-events:none}
+.sig{
+  display:grid;grid-template-columns:1fr 190px;gap:18px;align-items:end;
+  padding:16px;border:1px solid var(--line-strong);border-radius:var(--radius);
+  background:var(--surface-sunk);
+}
+@media (max-width:700px){.sig{grid-template-columns:1fr}}
+.sig .typed{
+  font-family:"Newsreader",Georgia,serif;font-style:italic;font-size:22px;
+  border:0;border-bottom:1px solid var(--line-strong);border-radius:0;background:transparent;padding:4px 2px;
+}
+
+/* ---------- action bar ---------- */
+.actionbar{
+  position:fixed;left:0;right:0;bottom:0;z-index:50;
+  background:var(--surface);border-top:1px solid var(--line);
+  padding:11px 28px;
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  box-shadow:0 -8px 24px -20px rgba(0,0,0,.5);
+}
+.actionbar .sum{display:flex;gap:22px;align-items:baseline;flex-wrap:wrap}
+.actionbar .sum div{display:flex;flex-direction:column;gap:1px}
+.actionbar .sum .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-weight:600}
+.actionbar .sum .v{font-family:"IBM Plex Mono",monospace;font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
+.actionbar .spacer{flex:1}
+button.b{
+  font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;
+  padding:9px 17px;border-radius:var(--radius);border:1px solid var(--line-strong);
+  background:var(--surface);color:var(--ink);
+}
+button.b:hover{border-color:var(--brand-2);color:var(--brand)}
+button.b.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+:root[data-theme="dark"] button.b.primary,
+:root:not([data-theme="light"]) button.b.primary{color:var(--ground)}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]) button.b.primary{color:#fff}}
+button.b.primary:hover{background:var(--brand-2);border-color:var(--brand-2)}
+
+.banner{
+  margin:0 0 18px;padding:14px 16px;border-radius:var(--radius);
+  background:var(--bad-wash);border-left:2px solid var(--bad);
+}
+.banner h4{margin:0 0 6px;font-size:13.5px;color:var(--bad)}
+.banner ul{margin:0;padding-left:18px;font-size:13px;color:var(--ink-2);line-height:1.6}
+.banner a{color:var(--ink-2)}
+
+.footnote{
+  max-width:78ch;margin:26px 0 0;font-size:12.5px;line-height:1.6;color:var(--ink-3);
+  border-top:1px solid var(--line);padding-top:14px;
+}
+
+/* ---------- print / PDF ---------- */
+.printonly{display:none}
+@media print{
+  @page{size:A4;margin:14mm 13mm}
+  body{background:#fff;color:#000;font-size:10pt}
+  .topbar,.rail,.actionbar,.btn-add,.rowbtn,.drop,.banner,.no-print{display:none !important}
+  .layout{display:block;max-width:none}
+  main{padding:0}
+  .printonly{display:block}
+  .card{break-inside:avoid;box-shadow:none;border:1px solid #999;margin-bottom:8pt}
+  .card > header{background:#eee;padding:6pt 8pt}
+  .card .body{padding:8pt}
+  .grid{gap:8pt 10pt}
+  input,select,textarea{border:0;border-bottom:1px solid #999;border-radius:0;background:#fff;padding:1pt 2pt;font-size:10pt;color:#000}
+  textarea{border:1px solid #999;min-height:auto}
+  .chip{border-color:#999}
+  .file{break-inside:avoid;border-color:#999}
+  .thumb{display:none}
+  .file{grid-template-columns:1fr auto}
+  .pagebreak{break-before:page}
+  .totals{max-width:none}
+}
+.printhead{
+  border-bottom:2px solid #000;padding-bottom:6pt;margin-bottom:10pt;
+}
+.printhead h2{font-family:"Newsreader",Georgia,serif;margin:0;font-size:16pt}
+.printhead p{margin:2pt 0 0;font-size:9pt}
+
+/* ---------- Blazor shell ---------- */
+/*
+  Not from the mockup - the mockup is a static page and has no boot phase. These style the two things
+  a WASM app shows outside its own render tree: the download/boot spinner in #app, and the unhandled
+  error strip Blazor unhides itself. Both use the tokens above so a cold load and a crash still look
+  like this app rather than like the framework default.
+*/
+.loading-progress{
+  position:relative;display:block;width:8rem;height:8rem;margin:20vh auto 1rem;
+}
+.loading-progress circle{
+  fill:none;stroke:var(--surface-sunk);stroke-width:.6rem;
+  transform-origin:50% 50%;transform:rotate(-90deg);
+}
+.loading-progress circle:last-child{
+  stroke:var(--brand);
+  stroke-dasharray:calc(3.141 * var(--blazor-load-percentage, 0%) * 2) 500%;
+  transition:stroke-dasharray .05s ease-in-out;
+}
+.loading-progress-text{
+  position:relative;text-align:center;font-size:13px;color:var(--ink-3);
+  font-family:"IBM Plex Mono",monospace;
+}
+.loading-progress-text:after{
+  content:var(--blazor-load-percentage-text, "Loading");
+}
+
+#blazor-error-ui{
+  display:none;position:fixed;bottom:0;left:0;right:0;z-index:1000;
+  padding:14px 20px;font-size:13.5px;
+  background:var(--bad-wash);color:var(--ink);
+  border-top:2px solid var(--bad);
+}
+#blazor-error-ui .dismiss{cursor:pointer;position:absolute;right:16px;top:12px;color:var(--ink-3)}
+#blazor-error-ui .reload{color:var(--bad);font-weight:600}
+
+/*
+  Visually hidden but still announced. Used for a table header whose column holds only an icon button:
+  omitting the header entirely leaves screen-reader users with an unlabelled column, and a visible one
+  would print in the PDF.
+*/
+.sr-only{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+  overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
+}

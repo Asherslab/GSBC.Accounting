@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <UserSecretsId>dotnet-GSBC.Accounting.Workers.DbMigrations-4f3f0e4a-2a1c-4b8f-9d51-6f0b7d2c1a44</UserSecretsId>
+        <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.1" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\GSBC.Accounting.Grpc\GSBC.Accounting.Grpc.csproj" />
+        <ProjectReference Include="..\GSBC.Accounting.ServiceDefaults\GSBC.Accounting.ServiceDefaults.csproj" />
+    </ItemGroup>
+
+</Project>

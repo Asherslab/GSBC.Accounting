@@ -1,0 +1,490 @@
+@page "/forms/debit-card-purchase"
+@using GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses
+@using GSBC.Accounting.Shared.Contracts.Messages.Requests.Features.Expenses
+@using GSBC.Accounting.Shared.Contracts.Messages.Responses.Base
+@using GSBC.Accounting.Shared.Contracts.Services.Features.Expenses
+@using GSBC.Accounting.WASM.Features.Expenses
+@using GSBC.Accounting.WASM.Features.Expenses.Components
+@inject IExpenseSubmissionService Submissions
+@inject DraftStore Drafts
+
+<PageTitle>@Text.DocumentTitle</PageTitle>
+
+@*
+    The whole debit card form. Sections 1 to 6 are fillable; 7 and 8 are rendered read-only and disabled,
+    because an approver and finance complete them after submission and neither is on this page.
+*@
+
+<div class="layout">
+    <SectionRail Sections="Rail"/>
+
+    <main>
+        <p class="lede">@Text.Banner</p>
+
+        @if (_errors.Count > 0)
+        {
+            <div class="banner" role="alert">
+                <h4>This form isn't ready to submit</h4>
+                <ul>
+                    @foreach (string error in _errors)
+                    {
+                        <li>@error</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (_submitted)
+        {
+            <div class="notice" role="status">
+                <span class="ico">OK</span>
+                <div>
+                    <b>Submitted for approval.</b> Reference <span class="mono">@_submissionId</span>.
+                    Keep that reference. An approver who is not you completes section 7, and finance
+                    completes section 8.
+                </div>
+            </div>
+        }
+        else if (_submissionId is not null)
+        {
+            <div class="notice" role="status">
+                <span class="ico">OK</span>
+                <div>
+                    <b>Draft saved.</b> Reference <span class="mono">@_submissionId</span>. It is not
+                    submitted yet &mdash; nobody is looking at it until you submit it for approval.
+                </div>
+            </div>
+        }
+
+        <!-- 1 -->
+        <section class="card" id="s1">
+            <header>
+                <span class="num">01</span>
+                <h3>@Text.Section1Caption</h3>
+                <span class="hint">@Text.Section1Hint</span>
+            </header>
+            <div class="body">
+                <div class="grid">
+                    <div class="f c5">
+                        <label for="cardholder">@Text.SubmitterNameLabel <span class="req">*</span></label>
+                        <input type="text" id="cardholder" @bind="Model.SubmitterName" @bind:event="oninput"/>
+                    </div>
+                    <div class="f c3">
+                        <label for="formdate">@Text.FormDateLabel <span class="req">*</span></label>
+                        <input type="date" id="formdate" @bind="Model.FormDate" @bind:event="oninput"/>
+                    </div>
+                    <div class="f c4">
+                        <label for="card4">Card last 4 digits <span class="req">*</span></label>
+                        <input type="text" id="card4" class="mono" inputmode="numeric" maxlength="4"
+                               placeholder="0000" @bind="Model.CardLastFourDigits" @bind:event="oninput"/>
+                        <span class="help">Never record the full number, PIN or CVV.</span>
+                    </div>
+
+                    <div class="f c12">
+                        <fieldset style="border:0;padding:0;margin:0">
+                            <legend class="lbl" style="padding:0">Role / relationship <span class="req">*</span></legend>
+                            <div class="chips">
+                                @foreach (ClaimantRole role in Enum.GetValues<ClaimantRole>())
+                                {
+                                    <label class="chip">
+                                        <input type="radio" name="role" checked="@(Model.Role == role)"
+                                               @onchange="() => SetRole(role)"/>
+                                        @RoleLabel(role)
+                                    </label>
+                                }
+                            </div>
+                        </fieldset>
+                    </div>
+
+                    @if (Model.Role == ClaimantRole.Other)
+                    {
+                        <div class="f c4">
+                            <label for="roleother">Other &mdash; please say what</label>
+                            <input type="text" id="roleother" @bind="Model.RoleOther" @bind:event="oninput"/>
+                        </div>
+                    }
+
+                    <div class="f c4">
+                        <label for="ministry">Ministry / department <span class="req">*</span></label>
+                        <input type="text" id="ministry" @bind="Model.MinistryDepartment" @bind:event="oninput"/>
+                    </div>
+                    <div class="f c4">
+                        <label for="txdate">Transaction date <span class="req">*</span></label>
+                        <input type="date" id="txdate" @bind="Model.TransactionDate" @bind:event="oninput"/>
+                    </div>
+                    <div class="f c4">
+                        <label for="txtime">Time</label>
+                        <input type="time" id="txtime" @bind="Model.TransactionTime" @bind:event="oninput"/>
+                    </div>
+
+                    <div class="f c5">
+                        <label for="supplier">Supplier / merchant <span class="req">*</span></label>
+                        <input type="text" id="supplier" @bind="Model.SupplierMerchant" @bind:event="oninput"/>
+                    </div>
+                    <div class="f c3">
+                        <label for="charged">Amount charged <span class="req">*</span></label>
+                        <div class="money">
+                            <input type="number" step="0.01" min="0" id="charged"
+                                   @bind="Model.AmountCharged" @bind:event="oninput" @bind:after="Touched"/>
+                        </div>
+                    </div>
+                    <div class="f c4">
+                        <label for="bankref">Bank reference</label>
+                        <input type="text" id="bankref" class="mono" placeholder="e.g. EFTPOS 27/08"
+                               @bind="Model.BankReference" @bind:event="oninput"/>
+                    </div>
+                </div>
+
+                <div class="notice" style="margin-top:16px">
+                    <span class="ico">!</span>
+                    <div>
+                        <b>Card security.</b> Record only the last four digits. The full card number, PIN
+                        or security code must never be entered here or attached in an image.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2 -->
+        <section class="card" id="s2">
+            <header>
+                <span class="num">02</span>
+                <h3>@Text.Section2Caption</h3>
+            </header>
+            <div class="body">
+                <div class="grid">
+                    <div class="f c6">
+                        <label for="event">Event / project</label>
+                        <input type="text" id="event" @bind="Model.EventProject" @bind:event="oninput"/>
+                    </div>
+                    <div class="f c3">
+                        <label for="approvedby">Prior approval by</label>
+                        <input type="text" id="approvedby" @bind="Model.PriorApprovalBy" @bind:event="oninput"/>
+                    </div>
+                    <div class="f c3">
+                        <label for="approvaldate">Approval date</label>
+                        <input type="date" id="approvaldate" @bind="Model.ApprovalDate" @bind:event="oninput"/>
+                    </div>
+                    <div class="f c12">
+                        <label for="purpose">@Text.PurposeNarrativePrompt <span class="req">*</span></label>
+                        <textarea id="purpose" rows="4" @bind="Model.PurposeNarrative" @bind:event="oninput"></textarea>
+                        <span class="help">
+                            Enough detail that someone outside the ministry could see the church purpose
+                            without asking.
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3 -->
+        <section class="card" id="s3">
+            <header>
+                <span class="num">03</span>
+                <h3>@Text.Section3Caption</h3>
+                <span class="hint">@Text.Section3Hint</span>
+            </header>
+            <div class="body">
+                <LineTable Model="Model" Text="Text" OnChanged="Touched"/>
+            </div>
+        </section>
+
+        <AttachmentsCard Files="_attachments" EnsureSubmission="EnsureSubmissionAsync" OnChanged="Touched"/>
+
+        <ComplianceSection Model="Model" Text="Text" OnChanged="Touched"/>
+
+        <DeclarationsSection Model="Model" Text="Text" OnChanged="Touched"/>
+
+        <ApprovalSections Kind="SubmissionKind.DebitCardPurchase"/>
+
+        <p class="footnote">
+            This form supports compliance but does not replace the Church constitution, delegations,
+            debit card policy, grant conditions, employment obligations, or professional advice. Finance
+            applies the ATO and ACNC requirements current at the payment date.
+        </p>
+    </main>
+</div>
+
+<div class="actionbar">
+    <div class="sum">
+        <div><span class="k">Card charge</span><span class="v">@(Model.AmountCharged?.ToString("C2") ?? "$0.00")</span></div>
+        <div><span class="k">@Text.NetTotalLabel</span><span class="v">@Model.NetTotal.ToString("C2")</span></div>
+        <div><span class="k">Lines</span><span class="v">@Model.Lines.Count</span></div>
+        <div><span class="k">Attachments</span><span class="v">@_attachments.Count</span></div>
+    </div>
+    <div class="spacer"></div>
+    @if (Model.ChargeMismatch)
+    {
+        <span class="badge warn">Lines don't match the charge</span>
+    }
+@*
+    Development builds only.
+
+    Gated on a `const bool`, NOT on a #if around the markup: Razor does not process C# preprocessor
+    directives in the markup section at all. Writing `#if DEBUG` there renders the words "#if DEBUG"
+    into the page and the button ships anyway - observed on 2026-08-31, the action bar read
+    "#if DEBUG / Fill with mock data / #endif".
+
+    A const false is genuinely compiled out: Roslyn removes the unreachable branch, and MockData itself
+    plus FillWithMockData are inside #if DEBUG in the C# sections, where directives do work. So in a
+    published build neither the control nor the generator exists - which is the requirement, because a
+    button that ships and is merely hidden by CSS is still a button, and this one writes rows.
+*@
+    @if (MockDataAvailable)
+    {
+        <button class="b" type="button" @onclick="FillWithMockData" disabled="@_busy">Fill with mock data</button>
+    }
+    <button class="b" type="button" @onclick="Save" disabled="@_busy">
+        @(_busy ? "Saving…" : "Save draft")
+    </button>
+    <button class="b primary" type="button" @onclick="SubmitForApproval" disabled="@_busy">
+        Submit for approval
+    </button>
+</div>
+
+@code
+{
+    [CascadingParameter] private MainLayout Layout { get; set; } = default!;
+
+    private ExpenseFormModel Model { get; set; } = new() { Kind = SubmissionKind.DebitCardPurchase };
+
+    private static ExpenseFormText Text => ExpenseFormWording.For(SubmissionKind.DebitCardPurchase);
+
+    private readonly List<string> _errors = [];
+    private readonly List<ExpenseAttachment> _attachments = [];
+    private bool _busy;
+    private bool _submitted;
+
+    /// <summary>
+    /// The draft's id once it exists. Phase one of the two-phase write: receipts are uploaded against
+    /// this, and only then can the form be submitted.
+    /// </summary>
+    private Guid? _submissionId;
+
+    private IReadOnlyList<SectionRail.RailSection> Rail =>
+    [
+        new("1", Text.Section1Caption, "s1", Complete: !string.IsNullOrWhiteSpace(Model.SubmitterName)),
+        new("2", Text.Section2Caption, "s2", Complete: !string.IsNullOrWhiteSpace(Model.PurposeNarrative)),
+        new("3", Text.Section3Caption, "s3", Complete: Model.Lines.Any(x => x.GrossAmount > 0)),
+        new("—", "Attachments", "s3b", Complete: _attachments.Count > 0),
+        new("4", Text.Section4Caption, "s4", Complete: Model.Compliance.All(x => x is not null)),
+        // Only listed when a line says Missing - the paper form's own rule is "complete only when
+        // evidence is unavailable", and a rail entry for a section that is not on screen is a dead link.
+        .. Model.HasMissingEvidence
+            ? new[] { new SectionRail.RailSection("5", "Missing receipt", "s5", Model.MissingDeclared) }
+            : [],
+        new("6", Text.Section6Caption, "s6", Complete: Model.Declarations.All(x => x)),
+        // Pending forever, as far as this scope is concerned: an approver and finance fill these in, and
+        // neither is on this page.
+        new("7", "Independent approval", "s7", Complete: false, Pending: true),
+        new("8", "Finance use only", "s8", Complete: false, Pending: true)
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.SetTitle(Text.PageTitle);
+
+        // A draft belongs to this browser and nothing else - see DraftStore for why there is no
+        // server-side one.
+        ExpenseFormModel? draft = await Drafts.LoadAsync(SubmissionKind.DebitCardPurchase);
+
+        if (draft is not null)
+            Model = draft;
+    }
+
+#if DEBUG
+    private const bool MockDataAvailable = true;
+#else
+    private const bool MockDataAvailable = false;
+#endif
+
+    /// <summary>
+    /// Replaces the form with a randomly chosen plausible scenario. Two presses give visibly different
+    /// submissions, and roughly one in three exercises the awkward paths - a Missing line that unlocks
+    /// section 5, a Yes that opens a reveal, and a non-zero personal portion so the net differs from the
+    /// gross.
+    /// </summary>
+    private async Task FillWithMockData()
+    {
+#if DEBUG
+        // A fresh model rather than mutating the current one: leftover rows from a previous press would
+        // make two mock submissions differ in ways the generator did not choose, which defeats the point.
+        Model = new ExpenseFormModel { Kind = SubmissionKind.DebitCardPurchase };
+
+        MockData.Fill(Model);
+
+        // A new draft, not the one already created - otherwise the second press would silently add
+        // attachments and lines to the first submission.
+        _submissionId = null;
+        _attachments.Clear();
+        _errors.Clear();
+
+        await Touched();
+#else
+        // Unreachable: MockDataAvailable is a const false in Release, so the only call site is compiled
+        // away. The method itself has to stay declared, because Razor resolves @onclick against it while
+        // building the render tree even for a branch it then eliminates.
+        await Task.CompletedTask;
+#endif
+    }
+
+    private void SetRole(ClaimantRole role)
+    {
+        Model.Role = role;
+
+        // Dropping the free text when the role moves away from Other, so a stale "Other" answer cannot
+        // ride along on a submission that no longer says Other.
+        if (role != ClaimantRole.Other)
+            Model.RoleOther = null;
+    }
+
+    private static string RoleLabel(ClaimantRole role) => role switch
+    {
+        ClaimantRole.ResponsiblePerson => "Responsible Person",
+        _ => role.ToString()
+    };
+
+    /// <summary>Re-renders for the running totals, and persists the draft.</summary>
+    private async Task Touched()
+    {
+        StateHasChanged();
+        await Drafts.SaveAsync(Model);
+    }
+
+    /// <summary>
+    /// Returns the draft's id, creating it on first use.
+    /// </summary>
+    /// <remarks>
+    /// Called by the attachments card before its first upload, and by Save. Creating the draft lazily -
+    /// rather than on page load - means somebody who opens the form and walks away leaves no row behind,
+    /// which matters when nothing is authenticated and nothing cleans up.
+    /// </remarks>
+    private async Task<Guid?> EnsureSubmissionAsync()
+    {
+        // Cleared on EVERY attempt. Without this the banner accumulated the previous attempt's errors
+        // alongside the new ones, so a problem the claimant had just fixed stayed on screen - observed
+        // on 2026-08-31, where correcting the amount charged left the old mismatch listed twice.
+        _errors.Clear();
+
+        // The draft is created as soon as the first receipt is attached, long before the claimant has
+        // finished typing. Everything since then has to reach the server, or submit checks a row that no
+        // longer matches the screen.
+        if (_submissionId is not null)
+        {
+            try
+            {
+                BasicResponse update = await Submissions.Update(new UpdateExpenseSubmissionRequest
+                {
+                    SubmissionId = _submissionId.Value,
+                    Form = Model.ToCreateRequest()
+                });
+
+                if (update.Success)
+                    return _submissionId;
+
+                _errors.AddRange(update.Errors.Count > 0
+                    ? update.Errors
+                    : [update.Error ?? "The draft could not be saved."]);
+            }
+            catch (Exception ex)
+            {
+                _errors.Add($"Could not reach the server: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        try
+        {
+            BasicReadResponse<Guid?> response = await Submissions.Create(Model.ToCreateRequest());
+
+            if (response is { Success: true, Entity: not null })
+            {
+                _submissionId = response.Entity;
+
+                return _submissionId;
+            }
+
+            // Errors is the list; Error is only its first entry. Show all of them - a form that reveals
+            // its problems one at a time is the one people give up on.
+            _errors.AddRange(response.Errors.Count > 0
+                ? response.Errors
+                : [response.Error ?? "The submission was refused."]);
+        }
+        catch (Exception ex)
+        {
+            _errors.Add($"Could not reach the server: {ex.Message}");
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Phase two. Saves the draft if that has not happened, then asks the server to check it is complete.
+    /// </summary>
+    /// <remarks>
+    /// The server checks the STORED submission, not what this page currently holds - which is why the
+    /// draft has to be saved first. Every refusal comes back at once rather than one at a time.
+    /// </remarks>
+    private async Task SubmitForApproval()
+    {
+        _busy = true;
+        _submitted = false;
+
+        try
+        {
+            // Pushes any edits made since the draft was created, and clears the previous attempt's
+            // errors, before the server is asked to check what it now holds.
+            Guid? id = await EnsureSubmissionAsync();
+
+            if (id is null)
+                return;
+
+            BasicResponse response = await Submissions.Submit(new SubmitExpenseSubmissionRequest
+            {
+                SubmissionId = id.Value
+            });
+
+            if (response.Success)
+            {
+                _submitted = true;
+                await Drafts.ClearAsync(SubmissionKind.DebitCardPurchase);
+            }
+            else
+            {
+                _errors.AddRange(response.Errors.Count > 0
+                    ? response.Errors
+                    : [response.Error ?? "The submission was refused."]);
+            }
+        }
+        catch (Exception ex)
+        {
+            _errors.Add($"Could not reach the server: {ex.Message}");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task Save()
+    {
+        _busy = true;
+
+        try
+        {
+            Guid? id = await EnsureSubmissionAsync();
+
+            if (id is not null)
+            {
+                // The draft has become a row, so the browser copy stops being the record. Slice 7's
+                // submit step is what makes it final.
+                await Drafts.ClearAsync(SubmissionKind.DebitCardPurchase);
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

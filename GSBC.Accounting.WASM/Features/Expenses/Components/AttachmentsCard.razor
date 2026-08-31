@@ -1,0 +1,210 @@
+@using GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses
+@using GSBC.Accounting.WASM.Features.Expenses
+@inject AttachmentClient Attachments
+
+@*
+    The attachments card from the mockup. Two-phase by necessity: the upload endpoint needs a submission
+    id, so the first dropped file creates the draft, then the files go up against it. An endpoint that
+    accepted files with no id would be an open write endpoint to the object store.
+*@
+
+<section class="card" id="s3b">
+    <header>
+        <span class="num">&mdash;</span>
+        <h3>Attachments</h3>
+        <span class="hint">
+            @(Files.Count == 0 ? "No files yet" : $"{Files.Count} file{(Files.Count == 1 ? "" : "s")}")
+        </span>
+    </header>
+    <div class="body">
+        <label class="drop @(_busy ? "over" : "")" for="@_inputId">
+            <span class="big">
+                @(_busy ? "Uploading…" : "Choose receipts, or drop them here")
+            </span>
+            <span class="small">
+                PDF, JPG, PNG, HEIC or WebP &middot; up to 20&nbsp;MB each &middot; photos of paper
+                receipts are fine
+            </span>
+        </label>
+
+        @* InputFile renders its own <input type="file">; the label above targets it by id, which is what
+           makes the whole dashed panel clickable and keyboard-reachable without any JS interop. *@
+        <InputFile id="@_inputId" multiple OnChange="OnFilesChosen" disabled="@_busy"
+                   accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.webp" style="display:none"/>
+
+        @if (_errors.Count > 0)
+        {
+            <div class="notice bad" style="margin-top:14px" role="alert">
+                <span class="ico">!</span>
+                <div>
+                    @foreach (string error in _errors)
+                    {
+                        <div>@error</div>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (Files.Count > 0)
+        {
+            <ul class="files">
+                @foreach (ExpenseAttachment file in Files)
+                {
+                    <li class="file" @key="file.Id">
+                        <span class="thumb">@Extension(file)</span>
+                        <span class="meta">
+                            <span class="name">@file.FileName</span>
+                            <span class="sz">@Size(file.ByteSize)</span>
+                        </span>
+                        <span class="badge @(file.Kind == AttachmentKind.ItemisedReceipt ? "ok" : "neutral")">
+                            @KindLabel(file.Kind)
+                        </span>
+                        <button class="rowbtn" type="button" title="Remove this file"
+                                aria-label="@($"Remove {file.FileName}")" @onclick="() => Remove(file)">
+                            &times;
+                        </button>
+                    </li>
+                }
+            </ul>
+        }
+
+        <div class="f" style="margin-top:14px;max-width:320px">
+            <label for="attkind">What are you attaching?</label>
+            <select id="attkind" @bind="_kind">
+                @foreach (AttachmentKind kind in Enum.GetValues<AttachmentKind>())
+                {
+                    <option value="@kind">@KindLabel(kind)</option>
+                }
+            </select>
+            <span class="help">Applies to the next files you add.</span>
+        </div>
+
+        @if (!Files.Any(x => x.Kind is AttachmentKind.ItemisedReceipt or AttachmentKind.TaxInvoice))
+        {
+            <div class="notice bad" style="margin-top:14px">
+                <span class="ico">!</span>
+                <div>
+                    <b>At least one itemised receipt or tax invoice is required.</b> If evidence genuinely
+                    can't be obtained, mark the line &ldquo;Missing&rdquo; in section 3 and complete the
+                    missing receipt declaration.
+                </div>
+            </div>
+        }
+    </div>
+</section>
+
+@code
+{
+    /// <summary>Already-uploaded files. Owned by the page, because a submit has to see them.</summary>
+    [Parameter, EditorRequired] public required List<ExpenseAttachment> Files { get; set; }
+
+    /// <summary>
+    /// Creates the draft if there is not one yet and returns its id, or null if that failed. The card
+    /// cannot do this itself - only the page knows the form.
+    /// </summary>
+    [Parameter, EditorRequired] public required Func<Task<Guid?>> EnsureSubmission { get; set; }
+
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private readonly string _inputId = $"files-{Guid.NewGuid():N}";
+    private readonly List<string> _errors = [];
+    private AttachmentKind _kind = AttachmentKind.ItemisedReceipt;
+    private bool _busy;
+
+    private async Task OnFilesChosen(InputFileChangeEventArgs args)
+    {
+        _busy = true;
+        _errors.Clear();
+
+        try
+        {
+            Guid? submissionId = await EnsureSubmission();
+
+            if (submissionId is null)
+            {
+                _errors.Add("The form has to be saved before receipts can be attached. Fix the problems above and try again.");
+                return;
+            }
+
+            // GetMultipleFiles needs an explicit ceiling; its default is one file and it throws rather
+            // than truncating.
+            foreach (IBrowserFile file in args.GetMultipleFiles(25))
+            {
+                if (file.Size > AttachmentClient.MaxBytes)
+                {
+                    _errors.Add($"{file.Name} is larger than 20 MB.");
+                    continue;
+                }
+
+                try
+                {
+                    await using Stream stream = file.OpenReadStream(AttachmentClient.MaxBytes);
+
+                    AttachmentUploadResult result = await Attachments.UploadAsync(
+                        submissionId.Value, file.Name, file.ContentType, stream, _kind);
+
+                    if (result is { Success: true, Attachment: not null })
+                    {
+                        // The server answers with the existing row when the same bytes are uploaded
+                        // twice, so guard against showing it as a second file.
+                        if (Files.All(x => x.Id != result.Attachment.Id))
+                            Files.Add(result.Attachment);
+                    }
+                    else
+                    {
+                        _errors.Add($"{file.Name}: {result.Error}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _errors.Add($"{file.Name}: {ex.Message}");
+                }
+            }
+        }
+        finally
+        {
+            _busy = false;
+            await OnChanged.InvokeAsync();
+        }
+    }
+
+    /// <summary>
+    /// Removes the file from this page only.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately does not delete anything server-side. Nothing in this app hard-deletes evidence -
+    /// seven-year retention - and a soft-delete endpoint would be a second anonymous write path for no
+    /// gain while the form is still a draft. A file removed here simply stops being referenced by the
+    /// submission the reviewer sees.
+    /// </remarks>
+    private async Task Remove(ExpenseAttachment file)
+    {
+        Files.Remove(file);
+        await OnChanged.InvokeAsync();
+    }
+
+    private static string Extension(ExpenseAttachment file) =>
+        file.ContentType switch
+        {
+            "application/pdf" => "PDF",
+            "image/jpeg" => "JPG",
+            "image/png" => "PNG",
+            "image/heic" => "HEIC",
+            "image/webp" => "WEBP",
+            _ => "FILE"
+        };
+
+    private static string Size(long bytes) =>
+        bytes < 1024 ? $"{bytes} B"
+        : bytes < 1024 * 1024 ? $"{bytes / 1024.0:0.#} KB"
+        : $"{bytes / (1024.0 * 1024.0):0.#} MB";
+
+    private static string KindLabel(AttachmentKind kind) => kind switch
+    {
+        AttachmentKind.ItemisedReceipt => "Itemised receipt",
+        AttachmentKind.TaxInvoice => "Tax invoice",
+        AttachmentKind.BankOrCardStatement => "Bank / card statement",
+        AttachmentKind.QuoteOrOrder => "Quote or order",
+        _ => "Other"
+    };
+}

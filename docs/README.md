@@ -21,8 +21,18 @@ and the repo-wide rules are in [../AGENTS.md](../AGENTS.md).
 
 Present tense, kept current, no dates.
 
-Nothing yet — this repo has no shipped behaviour. Add a module doc when the first slice lands, not
-before; a `modules/` doc for a module that does not exist yet belongs in `work/`.
+- **expenses**
+  - [The expense submission model](modules/expenses/submission-model.md) — why the two paper forms are
+    one aggregate, what that does *not* let you share, and the money and retention rules.
+  - [The attachment store](modules/expenses/attachments.md) — the SeaweedFS chunk-encoding trap that
+    silently stores the wrong bytes, the magic-byte checks, and why the anonymous upload needs ceilings.
+  - [Rendered examples](examples/README.md) — the two PDFs `GET /api/submissions/{id}/pdf` produces,
+    checked in for the parked output-format conversation.
+
+- **frontend**
+  - [The theme, and why there is no component library](modules/frontend/theme.md) — `app.css` is a
+    lift of the approved mockup, the three theme states, and the duplicated dark palette that must
+    stay in sync.
 
 ## The other three directories
 
@@ -34,11 +44,9 @@ before; a `modules/` doc for a module that does not exist yet belongs in `work/`
 
 ### In flight now
 
-- [Debit card purchase and expense reimbursement forms](work/2026-08-expense-forms-scope.md) —
-  `accepted`, and written as a handover for whoever builds it. Why the two paper forms are one
-  aggregate, why anonymous is the design rather than a phase, the attachment store and which of
-  ImpactKids' object-store lessons actually transfer, the QuestPDF output, and the slice order. Read
-  it before writing any code here.
+Nothing. The expense forms scope landed on 2026-08-31 and is
+[archived](archive/2026-08-expense-forms-scope.md) — read it for why the app looks like this, and for
+the three places where building it proved the plan wrong. Never cite it as current behaviour.
 
 ### Open
 
