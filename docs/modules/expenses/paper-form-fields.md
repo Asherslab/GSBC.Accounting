@@ -1,9 +1,8 @@
 ---
-title: Field-by-field specification of the two paper forms
-kind: plan
-status: accepted
+title: What the two paper forms actually say
+kind: reference
+status: current
 module: expenses
-opened: 2026-08-31
 verified: 2026-08-31
 code:
   - Good Shepherd Baptist Church Debit Card Purchase Form.docx
@@ -12,7 +11,10 @@ code:
 
 # Field-by-field specification of the two paper forms
 
-The ground truth under [2026-08-expense-forms-scope.md](2026-08-expense-forms-scope.md). Every label, question and
+**The ground truth for every string this app prints.** It stays in `modules/` rather than going to
+`archive/` with the rest of the plan, because it is not a record of intent — it is what the source
+documents say, and it is what `ExpenseFormWording` and `SubmissionPdfWording` are checked against.
+Change a form's wording here only after re-reading the `.docx`. Every label, question and
 declaration below was read out of `word/document.xml` inside the two `.docx` files, not paraphrased from the scope
 doc. Read this before writing a contract, a page or a validator; where it disagrees with the scope doc, this
 document is the one that was checked against the files.
@@ -531,7 +533,7 @@ columns; never share the text.
 
 ## Where the scope doc is wrong
 
-Every claim below is from [2026-08-expense-forms-scope.md](2026-08-expense-forms-scope.md) and was checked against
+Every claim below is from [the archived scope](../../archive/2026-08-expense-forms-scope.md) and was checked against
 `word/document.xml`. None of them changes the one-aggregate decision — the structure really is shared — but several
 would produce a form that does not say what the paper form says, which on a compliance document is the failure that
 matters.

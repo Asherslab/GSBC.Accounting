@@ -24,6 +24,8 @@ Present tense, kept current, no dates.
 - **expenses**
   - [The expense submission model](modules/expenses/submission-model.md) — why the two paper forms are
     one aggregate, what that does *not* let you share, and the money and retention rules.
+  - [What the two paper forms actually say](modules/expenses/paper-form-fields.md) — the ground truth
+    for every string the app prints, read out of the `.docx` files.
   - [The attachment store](modules/expenses/attachments.md) — the SeaweedFS chunk-encoding trap that
     silently stores the wrong bytes, the magic-byte checks, and why the anonymous upload needs ceilings.
   - [Rendered examples](examples/README.md) — the two PDFs `GET /api/submissions/{id}/pdf` produces,
@@ -44,9 +46,13 @@ Present tense, kept current, no dates.
 
 ### In flight now
 
-Nothing. The expense forms scope landed on 2026-08-31 and is
-[archived](archive/2026-08-expense-forms-scope.md) — read it for why the app looks like this, and for
-the three places where building it proved the plan wrong. Never cite it as current behaviour.
+- [What is outstanding](work/2026-08-outstanding.md) — the short list of what is *not* done now the
+  expense forms scope has landed: the decisions parked with the accountant and with finance, the
+  cluster work outside this repo, and the known gaps. **Start here.**
+
+The scope itself is [archived](archive/2026-08-expense-forms-scope.md) — read it for why the app looks
+like this, and for the places where building it proved the plan wrong. Never cite it as current
+behaviour.
 
 ### Open
 
