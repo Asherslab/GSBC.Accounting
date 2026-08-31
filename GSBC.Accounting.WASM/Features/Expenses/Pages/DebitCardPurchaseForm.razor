@@ -1,4 +1,10 @@
 @page "/forms/debit-card-purchase"
+@* Resuming a saved draft. The id is in the path rather than the query so the browser's back button and
+   a bookmark both land on the same form - and it is checked against the caller's session at the
+   server, so pasting somebody else's id gets "could not be found" rather than their claim. *@
+@page "/forms/debit-card-purchase/{DraftId:guid}"
+@implements IDisposable
+@using Grpc.Core
 @using GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses
 @using GSBC.Accounting.Shared.Contracts.Messages.Requests.Features.Expenses
 @using GSBC.Accounting.Shared.Contracts.Messages.Responses.Base
@@ -6,7 +12,6 @@
 @using GSBC.Accounting.WASM.Features.Expenses
 @using GSBC.Accounting.WASM.Features.Expenses.Components
 @inject IExpenseSubmissionService Submissions
-@inject DraftStore Drafts
 
 <PageTitle>@Text.DocumentTitle</PageTitle>
 
@@ -20,6 +25,20 @@
 
     <main>
         <p class="lede">@Text.Banner</p>
+
+        @if (_draftUnavailable)
+        {
+            @* Said out loud rather than quietly handing back a blank form, which would read as "your
+               draft is gone" to somebody whose draft is in fact fine and on another device. *@
+            <div class="banner" role="alert">
+                <h4>That draft isn't available on this browser</h4>
+                <p>
+                    Drafts are kept for the browser they were written on. This one was either saved
+                    somewhere else, already submitted, or deleted. The form below is a new one.
+                </p>
+                <p><a href="/drafts">See the drafts this browser has</a></p>
+            </div>
+        }
 
         @if (_errors.Count > 0)
         {
@@ -50,8 +69,13 @@
             <div class="notice" role="status">
                 <span class="ico">OK</span>
                 <div>
-                    <b>Draft saved.</b> Reference <span class="mono">@_submissionId</span>. It is not
+                    <b>Draft saved.</b> This form saves itself as you type, and you can close the page
+                    and come back to it from <a href="/drafts">your saved drafts</a>. It is not
                     submitted yet &mdash; nobody is looking at it until you submit it for approval.
+                    <div class="help">
+                        Your drafts are kept for this browser. Clearing your cookies, or switching to
+                        another device, loses them. A draft nobody edits is deleted after 90 days.
+                    </div>
                 </div>
             </div>
         }
@@ -67,7 +91,14 @@
                 <div class="grid">
                     <div class="f c5">
                         <label for="cardholder">@Text.SubmitterNameLabel <span class="req">*</span></label>
-                        <input type="text" id="cardholder" @bind="Model.SubmitterName" @bind:event="oninput"/>
+                        @* autocomplete is the difference between one tap and typing a name out on a
+                           phone keyboard. Only on the fields that are genuinely about the person -
+                           ministry, supplier and the like are not autofillable and must not claim to be.
+                           Nothing on this form carries a card autocomplete token: the only card field
+                           here is the last four digits, and cc-number would invite the browser to fill
+                           the full number into a form that must never hold one. *@
+                        <input type="text" id="cardholder" autocomplete="name"
+                               @bind="Model.SubmitterName" @bind:event="oninput"/>
                     </div>
                     <div class="f c3">
                         <label for="formdate">@Text.FormDateLabel <span class="req">*</span></label>
@@ -124,7 +155,9 @@
                     <div class="f c3">
                         <label for="charged">Amount charged <span class="req">*</span></label>
                         <div class="money">
-                            <input type="number" step="0.01" min="0" id="charged"
+                            @* inputmode=decimal, not the browser's own type=number keyboard: iOS puts
+                               up numbers-and-punctuation for the latter, and a numeric pad for this. *@
+                            <input type="number" inputmode="decimal" step="0.01" min="0" id="charged"
                                    @bind="Model.AmountCharged" @bind:event="oninput" @bind:after="Touched"/>
                         </div>
                     </div>
@@ -256,10 +289,25 @@
     private bool _submitted;
 
     /// <summary>
+    /// The draft to resume, from the route. Null on the plain <c>/forms/debit-card-purchase</c> route,
+    /// which starts a new one.
+    /// </summary>
+    [Parameter] public Guid? DraftId { get; set; }
+
+    /// <summary>
     /// The draft's id once it exists. Phase one of the two-phase write: receipts are uploaded against
     /// this, and only then can the form be submitted.
     /// </summary>
     private Guid? _submissionId;
+
+    /// <summary>
+    /// Set when the route named a draft this session does not own, or one that has been submitted. The
+    /// page says so rather than silently handing back an empty form, which would look like the draft
+    /// had been lost.
+    /// </summary>
+    private bool _draftUnavailable;
+
+    private DraftAutosave? _autosave;
 
     private IReadOnlyList<SectionRail.RailSection> Rail =>
     [
@@ -284,13 +332,51 @@
     {
         Layout.SetTitle(Text.PageTitle);
 
-        // A draft belongs to this browser and nothing else - see DraftStore for why there is no
-        // server-side one.
-        ExpenseFormModel? draft = await Drafts.LoadAsync(SubmissionKind.DebitCardPurchase);
+        _autosave = new DraftAutosave(SaveQuietlyAsync);
 
-        if (draft is not null)
-            Model = draft;
+        if (DraftId is not { } id)
+            return;
+
+        // Resuming. The server decides whether this session may have it - see IExpenseSubmissionService
+        // - so nothing here needs to check, and a refusal is indistinguishable from a draft that does
+        // not exist, which is deliberate.
+        try
+        {
+            BasicReadResponse<ExpenseSubmission> response =
+                await Submissions.Read(new ReadExpenseSubmissionRequest { SubmissionId = id });
+
+            if (response is { Success: true, Entity: not null })
+            {
+                Model = ExpenseFormModel.FromSubmission(response.Entity);
+                _submissionId = response.Entity.Id;
+
+                // The receipts already attached. Without these the attachments card renders empty on a
+                // form that has three files against it, and attaching them again is the obvious next
+                // move - the one that would look like it worked.
+                _attachments.AddRange(response.Entity.Attachments);
+            }
+            else
+            {
+                _draftUnavailable = true;
+            }
+        }
+        // A REFUSAL IS NOT A SERVER FAULT. Read is behind the AnonymousSession policy, so a browser with
+        // no session - a link to a draft opened in a different browser, or after the cookie expired - is
+        // refused before the method runs. That has to land as "this draft is unavailable", the same
+        // answer as a draft that does not exist, rather than as "could not reach the server".
+        catch (RpcException rpc) when (rpc.StatusCode is StatusCode.Unauthenticated
+                                          or StatusCode.PermissionDenied)
+        {
+            _draftUnavailable = true;
+        }
+        catch (Exception ex)
+        {
+            _draftUnavailable = true;
+            _errors.Add($"Could not reach the server: {ex.Message}");
+        }
     }
+
+    public void Dispose() => _autosave?.Dispose();
 
 #if DEBUG
     private const bool MockDataAvailable = true;
@@ -344,11 +430,36 @@
         _ => role.ToString()
     };
 
-    /// <summary>Re-renders for the running totals, and persists the draft.</summary>
-    private async Task Touched()
+    /// <summary>Re-renders for the running totals, and starts the autosave clock.</summary>
+    private Task Touched()
     {
         StateHasChanged();
-        await Drafts.SaveAsync(Model);
+        _autosave?.Bump();
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// The autosave's save step. Deliberately silent about refusals.
+    /// </summary>
+    /// <remarks>
+    /// <b>A half-typed form is refused most of the time, and that is normal rather than an error.</b>
+    /// Create validates that there is a line with an amount and, on this form, an item description; a
+    /// claimant two fields into section 3 fails that on every keystroke. Showing them the banner would
+    /// mean a form that scolds while it is being filled in. So the errors are dropped, no draft exists
+    /// yet, and the next pause tries again - the claimant sees a problem only when they press Save or
+    /// Submit, which is when they have asked.
+    /// </remarks>
+    private async Task SaveQuietlyAsync()
+    {
+        if (_submitted)
+            return;
+
+        await EnsureSubmissionAsync();
+
+        _errors.Clear();
+
+        StateHasChanged();
     }
 
     /// <summary>
@@ -433,6 +544,11 @@
 
         try
         {
+            // EnsureSubmissionAsync below pushes the current state, so the pending autosave has nothing
+            // left to contribute - and would land a second later as an Update against a submission that
+            // is by then Submitted, putting a refusal on screen underneath the success message.
+            _autosave?.Cancel();
+
             // Pushes any edits made since the draft was created, and clears the previous attempt's
             // errors, before the server is asked to check what it now holds.
             Guid? id = await EnsureSubmissionAsync();
@@ -447,8 +563,9 @@
 
             if (response.Success)
             {
+                // Nothing to clear locally any more. The draft became a Submitted row, which is what
+                // takes it out of ListDrafts - the browser holds no copy of its own to go stale.
                 _submitted = true;
-                await Drafts.ClearAsync(SubmissionKind.DebitCardPurchase);
             }
             else
             {
@@ -467,20 +584,19 @@
         }
     }
 
+    /// <summary>
+    /// The explicit save. The autosave has usually beaten it to the punch; this is what a claimant
+    /// presses to be told whether the form is being kept, and the one place its refusals are shown.
+    /// </summary>
     private async Task Save()
     {
         _busy = true;
 
         try
         {
-            Guid? id = await EnsureSubmissionAsync();
+            _autosave?.Cancel();
 
-            if (id is not null)
-            {
-                // The draft has become a row, so the browser copy stops being the record. Slice 7's
-                // submit step is what makes it final.
-                await Drafts.ClearAsync(SubmissionKind.DebitCardPurchase);
-            }
+            await EnsureSubmissionAsync();
         }
         finally
         {

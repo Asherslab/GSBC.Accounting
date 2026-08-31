@@ -192,6 +192,12 @@ public record ExpenseSubmission : IIdentifiable
 
     public DateTime CreatedAt { get; init; }
 
+    /// <summary>
+    /// Last write of any kind, autosaves included. What the drafts list sorts on, and what the
+    /// abandoned-draft purge counts ninety days from.
+    /// </summary>
+    public DateTime UpdatedAt { get; init; }
+
     public DateTime? SubmittedAt { get; init; }
 
     /// <summary>
@@ -207,6 +213,16 @@ public record ExpenseSubmission : IIdentifiable
 
     /// <summary>Section 4's motor vehicle trip record. Reimbursement form only.</summary>
     public List<ExpenseTrip> Trips { get; init; } = [];
+
+    /// <summary>
+    /// The uploaded evidence.
+    /// </summary>
+    /// <remarks>
+    /// Carried on the aggregate so a claimant resuming a draft sees the receipts they already attached.
+    /// Without it the attachments card would come back empty on a page that had three files against it,
+    /// and the obvious next move - attaching them again - is the one that would look like it worked.
+    /// </remarks>
+    public List<ExpenseAttachment> Attachments { get; init; } = [];
 
     /// <summary>Section 5, present only when some line is marked Missing.</summary>
     public MissingReceiptDeclaration? MissingReceipt { get; init; }

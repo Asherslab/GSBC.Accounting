@@ -75,6 +75,86 @@ public class AttachmentClient(HttpClient http)
         return AttachmentUploadResult.Failed($"That file could not be uploaded ({(int)response.StatusCode}).");
     }
 
+    /// <summary>
+    /// Refiles an already-uploaded receipt as a different kind. Returns the updated row, or the
+    /// server's refusal.
+    /// </summary>
+    /// <remarks>
+    /// The kind is chosen before the file is picked, so getting it wrong is the ordinary case rather
+    /// than the exception. Only the label changes - re-uploading the same bytes to correct it would be
+    /// pointless work over a phone connection.
+    /// </remarks>
+    public async Task<AttachmentUploadResult> SetKindAsync(
+        Guid submissionId,
+        Guid attachmentId,
+        AttachmentKind kind,
+        CancellationToken token = default
+    )
+    {
+        HttpResponseMessage response = await http.PatchAsJsonAsync(
+            $"api/submissions/{submissionId}/attachments/{attachmentId}/kind",
+            new { Kind = kind },
+            Json,
+            token);
+
+        if (response.IsSuccessStatusCode)
+        {
+            ExpenseAttachment? attachment =
+                await response.Content.ReadFromJsonAsync<ExpenseAttachment>(Json, token);
+
+            return AttachmentUploadResult.Ok(attachment!);
+        }
+
+        try
+        {
+            ApiError? error = await response.Content.ReadFromJsonAsync<ApiError>(Json, token);
+
+            if (!string.IsNullOrWhiteSpace(error?.Error))
+                return AttachmentUploadResult.Failed(error.Error);
+        }
+        catch
+        {
+            // Not JSON - a proxy error page, or the connection died mid-response.
+        }
+
+        return AttachmentUploadResult.Failed($"That file could not be refiled ({(int)response.StatusCode}).");
+    }
+
+    /// <summary>
+    /// Removes a receipt from a draft. Returns the server's refusal, or null when it worked.
+    /// </summary>
+    /// <remarks>
+    /// Soft-delete at the other end - the file stops being part of the claim and the bytes stay in the
+    /// store. That distinction matters to what this method may be called from: it is safe on a draft
+    /// somebody is editing, and the server refuses it outright on a submitted one.
+    /// </remarks>
+    public async Task<string?> DetachAsync(
+        Guid submissionId,
+        Guid attachmentId,
+        CancellationToken token = default
+    )
+    {
+        HttpResponseMessage response = await http.DeleteAsync(
+            $"api/submissions/{submissionId}/attachments/{attachmentId}", token);
+
+        if (response.IsSuccessStatusCode)
+            return null;
+
+        try
+        {
+            ApiError? error = await response.Content.ReadFromJsonAsync<ApiError>(Json, token);
+
+            if (!string.IsNullOrWhiteSpace(error?.Error))
+                return error.Error;
+        }
+        catch
+        {
+            // Not JSON - a proxy error page, or the connection died mid-response.
+        }
+
+        return $"That file could not be removed ({(int)response.StatusCode}).";
+    }
+
     private record ApiError(string? Error);
 }
 

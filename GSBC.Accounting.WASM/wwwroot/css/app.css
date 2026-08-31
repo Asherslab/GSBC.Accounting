@@ -21,6 +21,13 @@
 */
 
 :root{
+  /*
+    Not in the mockup, and it is not decoration: color-scheme is what the browser paints its OWN
+    surfaces from - the date picker panel, the select dropdown, scrollbars, the caret. Left unset they
+    stay light, so a dark form opened a date picker that was a white sheet. It has to be redeclared in
+    each of the three theme blocks for the same reason every colour does.
+  */
+  color-scheme:light;
   --ground:#f7f6f3;
   --surface:#ffffff;
   --surface-sunk:#f1efea;
@@ -54,6 +61,7 @@
 */
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
+    color-scheme:dark;
     --ground:#16171a;
     --surface:#1e2024;
     --surface-sunk:#25272c;
@@ -76,6 +84,7 @@
   }
 }
 :root[data-theme="dark"]{
+  color-scheme:dark;
   --ground:#16171a;
   --surface:#1e2024;
   --surface-sunk:#25272c;
@@ -98,6 +107,12 @@
 }
 
 *{box-sizing:border-box}
+/*
+  Not in the mockup. iOS Safari inflates the font of any block it decides is a "column of text" when
+  the phone is turned to landscape, so a form reflows to a different type size on rotation and the
+  labels stop lining up with the fields. 100% keeps the sizes this file asks for.
+*/
+html{-webkit-text-size-adjust:100%}
 body{
   margin:0;
   background:var(--ground);
@@ -130,8 +145,32 @@ a{color:var(--brand)}
   margin:0;font-family:"Newsreader",Georgia,serif;
   font-size:19px;font-weight:600;letter-spacing:-.01em;line-height:1.15;
 }
+/*
+  Not in the mockup, which has no router. App.razor renders <FocusOnNavigate Selector="h1">, so every
+  navigation - including the first paint - moves focus to this heading and the :focus-visible rule
+  above draws a ring around the page title. It reads as a stray selection box on a title nobody
+  clicked, and it is the first thing on screen on a phone.
+
+  Nothing is lost by hiding it: FocusOnNavigate gives the element tabindex="-1", so it is reachable
+  only programmatically and never by Tab. The focus move still happens and is still announced.
+*/
+.topbar h1:focus,.topbar h1:focus-visible{outline:none}
+.topbar .titles{min-width:0}
 .topbar .sub{font-size:12px;color:var(--ink-3);letter-spacing:.04em;text-transform:uppercase}
 .topbar .spacer{flex:1}
+/*
+  The mockup's topbar buttons are text ("Theme", "Print / PDF"), which works when there are three of
+  them at desk width. There is one here and it has to survive a 390px topbar next to a wrapping page
+  title, so it is a square glyph button. The label it does not show is on title and aria-label.
+*/
+.iconbtn{
+  flex:none;display:grid;place-items:center;
+  width:34px;height:34px;padding:0;
+  border:1px solid var(--line);border-radius:var(--radius);
+  background:var(--surface);color:var(--ink-2);cursor:pointer;
+}
+.iconbtn:hover{border-color:var(--brand-2);background:var(--brand-wash);color:var(--brand)}
+.iconbtn svg{display:block}
 .draft{
   font-size:12px;color:var(--ink-3);
   font-family:"IBM Plex Mono",monospace;
@@ -155,6 +194,41 @@ a{color:var(--brand)}
   Any page with no rail - the landing page, not-found - uses .layout.norail.
 */
 .layout.norail{grid-template-columns:minmax(0,1fr)}
+
+/* ---------- breadcrumbs ---------- */
+/*
+  Sits between the topbar and .layout, full width, on every page except the landing page.
+
+  NOT sticky, deliberately. The topbar already is, and on a form the rail is too at mobile widths;
+  a third pinned strip would leave a phone reading a form through a letterbox. The way home is
+  needed once, at the moment somebody decides to leave, and scrolling up is what people already do
+  to leave a page.
+
+  Max-width and centring match .layout so the trail lines up with the rail beneath it rather than
+  floating at the window edge on a wide screen.
+*/
+.crumbs{
+  max-width:1320px;margin:0 auto;
+  padding:12px 28px 0;
+}
+.crumbs ol{
+  display:flex;flex-wrap:wrap;align-items:center;gap:7px;
+  list-style:none;margin:0;padding:0;
+  font-size:12.5px;color:var(--ink-3);
+}
+/*
+  The separator is a pseudo-element, so it is decoration a screen reader never announces - the trail
+  is read as its links plus the aria-current item, not as "Finance Forms slash Debit Card Purchase".
+*/
+.crumbs li + li::before{content:"/";margin-right:7px;color:var(--line-strong)}
+.crumbs a{
+  color:var(--ink-2);text-decoration:none;
+  border-bottom:1px solid transparent;
+}
+.crumbs a:hover{color:var(--brand-2);border-bottom-color:var(--brand-2)}
+.crumbs a:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:2px}
+.crumbs [aria-current="page"]{color:var(--ink-3)}
+
 /* ---------- rail ---------- */
 .rail{
   position:sticky;top:63px;
@@ -366,6 +440,13 @@ td .money input{padding-left:18px;text-align:right}
 }
 .thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .file .meta{min-width:0}
+/*
+  display:block on both, and it is load-bearing rather than tidiness. They are <span>s, so the name
+  and the size run together on one line as inline boxes - and an inline box cannot be ellipsised, so
+  a long receipt filename ran straight through the size and out under the remove button instead of
+  truncating. Blocks inside the min-width:0 grid item truncate as intended.
+*/
+.file .name,.file .sz{display:block}
 .file .name{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .file .sz{font-size:12px;color:var(--ink-3);font-family:"IBM Plex Mono",monospace}
 .file select{width:auto;font-size:12.5px;padding:5px 8px}
@@ -440,6 +521,235 @@ button.b.primary:hover{background:var(--brand-2);border-color:var(--brand-2)}
 .footnote{
   max-width:78ch;margin:26px 0 0;font-size:12.5px;line-height:1.6;color:var(--ink-3);
   border-top:1px solid var(--line);padding-top:14px;
+}
+
+/* ---------- phones and small tablets ---------- */
+/*
+  Not in the mockup, which was drawn at desk width and carries one breakpoint - the .grid collapse at
+  900px above. Everything below is this app's, and none of it is decoration: these forms get filled in
+  standing up, in a car park, one-handed, with the receipt in the other hand.
+
+  Four things in the desk design are broken rather than merely cramped on a phone, and each is fixed
+  here rather than worked around:
+
+  - The rail is 238px, which is 61% of an iPhone. It becomes a horizontal stepper pinned to the top of
+    the scroll, and the topbar gives up being sticky so the two do not both eat the viewport.
+  - The line table is ~990px of column min-widths. Sideways scrolling inside a form is a trap on touch
+    - a swipe meant for the page moves the table instead - so every row becomes a labelled card. That
+    is what the data-label attribute on each <td> is for; do not remove it.
+  - Table fields are borderless until hovered. A touch screen never hovers, so on a phone the whole
+    table would be invisible fields. They get their border back here.
+  - Every input is 14px, and iOS Safari zooms the page when a field under 16px takes focus - leaving
+    the user zoomed in with no gesture that undoes it. 16px on mobile is a functional requirement,
+    not a preference.
+
+  One breakpoint for all of it, the same 900px the .grid collapse uses. A layout that changes shape
+  twice at two widths has a broken state in between that nobody ever looks at.
+*/
+@media (max-width:900px){
+  /* the stepper is what sticks; two sticky bars would leave a phone with no viewport */
+  .topbar{position:static;padding:11px 16px;gap:12px}
+  .mark{width:30px;height:30px;font-size:15px}
+  .topbar h1{font-size:17px}
+  /* the theme button costs the title block 38px, which is what the church name no longer has. It
+     truncates rather than wrapping the whole topbar to a second line. */
+  .topbar .sub{
+    font-size:9.5px;letter-spacing:.03em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .iconbtn{width:38px;height:38px}
+
+  /*
+    The crumb is the only way back on a phone, so the link has to be a real tap target rather than a
+    12px word. The negative margin cancels the padding's effect on the strip's height, so it grows
+    the touch area without pushing the form down the page.
+
+    It is above the sticky rail in the source and is not sticky itself, so it scrolls away as soon as
+    somebody starts filling the form in - which is the point. Two pinned strips is one too many at
+    this width.
+  */
+  .crumbs{padding:8px 14px 0}
+  .crumbs ol{font-size:13px;gap:8px}
+  .crumbs li + li::before{margin-right:8px}
+  /* 12px of padding against a 20px line box is what gets this to the 44px a thumb needs - measured
+     at 390px, where 9px left it at 39px. The negative margin keeps the strip its original height. */
+  .crumbs a{display:inline-block;padding:12px 2px;margin:-12px 0}
+
+  .layout{grid-template-columns:minmax(0,1fr)}
+
+  /* ----- rail becomes a scrolling stepper ----- */
+  .rail{
+    position:sticky;top:0;z-index:35;
+    padding:0;max-height:none;
+    overflow-x:auto;overflow-y:hidden;
+    background:var(--surface);border-bottom:1px solid var(--line);
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;
+  }
+  .rail::-webkit-scrollbar{display:none}
+  .rail h2{display:none}
+  .rail ol{flex-direction:row;gap:6px;padding:9px 14px;width:max-content}
+  .rail a{
+    grid-template-columns:auto auto;gap:7px;align-items:center;
+    padding:7px 13px;border:1px solid var(--line);border-radius:99px;
+    white-space:nowrap;font-size:13px;
+  }
+  .rail a > span:last-child{display:inline-flex;align-items:center;gap:6px}
+  .rail .dot{margin-left:0}
+
+  /* ----- form column ----- */
+  /* no clearance to reserve - the action bar is not fixed at this width, see below */
+  main{padding:18px 14px 0}
+  .lede{font-size:16px;margin-bottom:20px;max-width:none}
+  section.card{margin-bottom:14px;scroll-margin-top:58px}
+  .card > header{padding:12px 14px;gap:9px}
+  /* flex:1 1 0 lets a long caption wrap its own text beside the number. Without it the h3 is an
+     unshrinkable flex item and wraps whole, leaving "04" orphaned on a line of its own. */
+  .card > header h3{font-size:15px;flex:1 1 0;min-width:0}
+  /* the hint drops to its own line rather than squeezing the heading into two words a line */
+  .card > header .hint{margin-left:0;flex:0 0 100%;font-size:12px}
+  .card .body{padding:14px}
+
+  /* ----- fields: 16px is the anti-zoom rule, the padding is the 44px touch target ----- */
+  input[type=text],input[type=date],input[type=time],input[type=number],input[type=email],
+  select,textarea{font-size:16px;padding:10px 12px}
+  .money input{padding-left:25px}
+  .money::before{left:11px;font-size:14px}
+  .chips{gap:8px}
+  .chip{padding:9px 14px;font-size:14px}
+  .yn label{padding:9px 20px;font-size:14px}
+  .checkline{padding:13px;font-size:14px;grid-template-columns:20px 1fr}
+  .checkline input{width:20px;height:20px;margin-top:1px}
+
+  /* a question and its No/Yes will not both fit on a line; stacking beats shrinking either */
+  .q{flex-direction:column;align-items:stretch;gap:11px;padding:15px 0}
+  .q p{max-width:none}
+  .q .yn{align-self:flex-start}
+  .reveal{padding:12px}
+
+  /* ----- tables become one card per row ----- */
+  .tablewrap{overflow:visible;border:0;border-radius:0}
+  .tablewrap table{display:block;width:100%;min-width:0}
+  .tablewrap thead{display:none}
+  .tablewrap tbody{display:block;counter-reset:row}
+  .tablewrap tr{
+    display:block;position:relative;counter-increment:row;
+    padding:0 12px 8px;margin-bottom:10px;
+    border:1px solid var(--line);border-radius:var(--radius);
+    background:var(--surface-sunk);
+  }
+  /*
+    A caption strip across the top of each row card. It earns its place twice: stacked rows otherwise
+    run together with nothing saying where one ends, and it gives the remove button somewhere to sit
+    that is not on top of the first field. Padding the first cell instead left that field visibly
+    shorter than the six below it, which reads as a bug rather than as a gap.
+  */
+  .tablewrap tr::before{
+    content:"Row " counter(row);
+    display:block;padding:9px 32px 8px 0;
+    border-bottom:1px solid var(--line);
+    font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);
+  }
+  .tablewrap.lines tr::before{content:"Line " counter(row)}
+  .tablewrap td{
+    /* 42% keeps "Supplier & item / service" and "Receipt / tax invoice" on one line at 390px, and
+       still leaves the field wider than a date picker needs */
+    display:grid;grid-template-columns:minmax(0,42%) minmax(0,1fr);
+    gap:12px;align-items:center;text-align:left;
+    padding:8px 0;border-bottom:1px solid var(--line);
+  }
+  .tablewrap td::before{
+    content:attr(data-label);
+    font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--ink-2);
+  }
+  /* the remove cell is always last, so the last field is the one before it */
+  .tablewrap td:nth-last-child(2){border-bottom:0}
+  .tablewrap td.num{text-align:left}
+  .tablewrap td input,.tablewrap td select{
+    border-color:var(--line-strong);background:var(--surface);padding:9px 11px;
+  }
+  .tablewrap td .money input{padding-left:25px;text-align:left}
+  .tablewrap td .money::before{left:11px}
+  /* remove is a control, not a field: it belongs on the row card's corner, not in the label column */
+  .tablewrap td.rowdel{display:block;position:absolute;top:3px;right:6px;padding:0;border:0}
+  .tablewrap td.rowdel::before{content:none}
+  .tablewrap .rowbtn{font-size:20px;padding:7px 10px}
+
+  .btn-add{padding:10px 16px;font-size:14px}
+
+  /* the totals stop being a right-hand column and become a panel */
+  .totals{
+    max-width:none;margin-left:0;margin-top:14px;
+    padding:12px 14px;border:1px solid var(--line);border-radius:var(--radius);
+    background:var(--surface-sunk);
+  }
+  .totals .money{width:150px;margin-left:auto}
+  .totals input{max-width:none;width:100%}
+
+  /* ----- attachments ----- */
+  .drop{padding:22px 14px}
+  .drop .big{font-size:15px}
+  .file{
+    grid-template-columns:40px minmax(0,1fr) 34px;
+    grid-template-areas:"thumb meta del" "badge badge badge";
+    row-gap:9px;padding:10px;
+  }
+  .file .thumb{grid-area:thumb}
+  .file .meta{grid-area:meta}
+  .file .badge,.file .kind{grid-area:badge;justify-self:start}
+  .file .rowbtn{grid-area:del;font-size:20px}
+
+  /* ----- action bar ----- */
+  /*
+    It stops being pinned. A fixed bottom bar and the on-screen keyboard fight each other: iOS shrinks
+    the visual viewport but not the layout viewport, so the bar either sits behind the keyboard or
+    floats halfway up the screen over the field being typed into, and it is doing that for most of the
+    time anyone spends on this page. Here it is the last block on the page, which is where somebody
+    who has finished a form is looking anyway.
+
+    env(safe-area-inset-bottom) still applies - unpinned or not, it is the last thing above the iPhone
+    home indicator. It needs viewport-fit=cover in index.html to be anything other than 0.
+  */
+  .actionbar{
+    position:static;
+    padding:14px 14px calc(18px + env(safe-area-inset-bottom));
+    gap:9px;box-shadow:none;
+  }
+  /*
+    Four figures do not fit across a phone, and the two that matter are first. The rest scroll - and
+    the fade on the right edge is the only thing that says so, because the scrollbar is hidden and a
+    value simply cut off at the edge reads as a clipping bug rather than as more to come.
+  */
+  .actionbar .sum{
+    flex:0 0 100%;gap:16px;flex-wrap:nowrap;
+    overflow-x:auto;scrollbar-width:none;
+    -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 26px),transparent);
+    mask-image:linear-gradient(to right,#000 calc(100% - 26px),transparent);
+  }
+  .actionbar .sum::-webkit-scrollbar{display:none}
+  .actionbar .sum div{flex:none}
+  .actionbar .sum .k{font-size:9.5px}
+  .actionbar .sum .v{font-size:14px}
+  .actionbar .spacer{display:none}
+  .actionbar .badge{flex:0 0 100%}
+  /* the buttons share the row below the figures, with submit weighted so the thumb finds it */
+  .actionbar button.b{flex:1 1 0;padding:12px 10px;font-size:14.5px}
+  .actionbar button.b.primary{flex:1.7 1 0}
+
+  /*
+    Buttons inside a card - Discard on the drafts page, and its confirm pair - get the same treatment
+    the action bar's already have. The base .b is 36px tall, which is under the 44px a thumb needs,
+    and these are the only buttons on this app that live in the page body rather than the action bar.
+  */
+  main button.b{padding:12px 16px;font-size:14.5px}
+
+  /* the landing page's two links become the tap targets they have to be on a phone */
+  .cardlink{
+    display:block;margin-top:2px;padding:13px 16px;
+    border:1px solid var(--brand-2);border-radius:var(--radius);background:var(--brand-wash);
+    text-align:center;text-decoration:none;font-size:15px;font-weight:600;
+  }
+
+  .footnote{max-width:none}
 }
 
 /* ---------- print / PDF ---------- */

@@ -52,6 +52,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "expenses", "expenses", "{FE9C5F40-FF95-42BE-A124-C516E7B61DFF}"
 	ProjectSection(SolutionItems) = preProject
 		docs\modules\expenses\attachments.md = docs\modules\expenses\attachments.md
+		docs\modules\expenses\drafts.md = docs\modules\expenses\drafts.md
 		docs\modules\expenses\paper-form-fields.md = docs\modules\expenses\paper-form-fields.md
 		docs\modules\expenses\submission-model.md = docs\modules\expenses\submission-model.md
 	EndProjectSection

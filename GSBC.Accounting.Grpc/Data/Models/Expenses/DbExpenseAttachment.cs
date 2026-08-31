@@ -35,6 +35,11 @@ public class DbExpenseAttachment
     /// Stored rather than recomputed. Recomputing it would tie every read to today's key scheme, so a
     /// future change to the layout would orphan every object written before it.
     /// </summary>
+    /// <remarks>
+    /// Never mapped to the contract. Where a file sits in the bucket is the server's business, and a
+    /// client that knew the key would be one refactor away from being handed a way to ask for it.
+    /// </remarks>
+    [MapperIgnore]
     public required string ObjectKey { get; set; }
 
     public required AttachmentKind Kind { get; set; }

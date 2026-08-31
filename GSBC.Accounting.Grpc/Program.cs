@@ -4,6 +4,7 @@ using Amazon.S3;
 using GSBC.Accounting.Grpc.Extensions;
 using GSBC.Accounting.Grpc.Features.Attachments;
 using GSBC.Accounting.Grpc.Features.Pdf;
+using GSBC.Accounting.Grpc.Features.Sessions;
 using QuestPDF.Infrastructure;
 using GSBC.Accounting.Grpc.Features.Expenses.ExpenseSubmissionServices;
 using GSBC.Accounting.ServiceDefaults;
@@ -58,6 +59,21 @@ builder.Services.AddScoped<AttachmentStore>();
 
 builder.Services.AddGsbcRateLimiting();
 
+// Draft ownership. AnonymousSessions reads the __gsbc_anon cookie off the current request, so it needs
+// the accessor - which is NOT registered by default in a gRPC-only host, and whose absence would show
+// up as a null HttpContext and a session that could never be resolved rather than as a startup error.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<AnonymousSessions>();
+
+// The anonymous-session scheme, the AnonymousSession policy, and a deny-by-default FallbackPolicy.
+// See Extensions/Authorization.cs - every endpoint that is genuinely open has to say so out loud.
+builder.Services.AddGsbcAuthorization();
+
+// Ninety days after its last edit, an abandoned draft is soft-deleted - it carries a claimant's name
+// and contact details for a claim nobody will ever submit. Hosted here rather than in a worker of its
+// own; every replica running it is harmless.
+builder.Services.AddHostedService<DraftPurgeService>();
+
 // Kestrel's own ceiling, below every application-level check. It is what stops a body being read at all
 // rather than being read and then refused, and it applies to the gRPC endpoints too - where a 20 MB
 // message would otherwise be buffered before anything looked at it.
@@ -84,15 +100,34 @@ app.MapDefaultEndpoints();
 // gRPC framing from fetch. DefaultEnabled = true is what lets it talk to this service at all.
 app.UseGrpcWeb(new GrpcWebOptions { DefaultEnabled = true });
 
-// There is no authentication here, and that is the design rather than a phase - see
-// docs/work/2026-08-expense-forms-scope.md, "Anonymous is the design". Every submission is verified by
-// a human before it goes anywhere. What that costs is that the submit and upload endpoints are open, so
-// they carry their own limits: per-IP rate limits, an attachment count cap, a total-bytes cap and a
-// content-type allow-list. Those land in slice 10 and are not optional.
+// AUTHENTICATION, but of a browser rather than of a person. Nobody signs in; the __gsbc_anon cookie
+// is authenticated as an "anonymous session" (Features/Sessions/AnonymousSessionDefaults.cs) so that
+// ownership is enforced by a policy and a deny-by-default fallback instead of by every method
+// remembering to resolve it. What it proves is "this is the browser that saved that draft" - it
+// identifies nobody, anybody holding the cookie is its owner, and no approval step, finance step or
+// audit trail naming a person may ever be hung off it.
+//
+// Satisfying the policy is only the floor. It proves a session exists, never that the session owns the
+// submission in the request, so the x.OwnerSessionId == sessionId predicate stays in every query.
+//
+// The pages are still reachable by strangers - Create has to be, or nobody could ever start - so the
+// limits are still not optional: per-IP rate limits, an attachment count cap, a total-bytes cap and a
+// content-type allow-list.
+//
+// After UseForwardedHeaders, because renewing the session re-sends the cookie and its Secure attribute
+// follows the scheme the browser used. After UseRateLimiter, so a flood is refused before it costs a
+// database lookup. Before the endpoints, which is what UseAuthorization requires.
+app.UseAuthentication();
+app.UseAuthorization();
 
 // A service that compiles and is not mapped fails at the client as an unimplemented method, not at build.
 app.MapGrpcService<ExpenseSubmissionService>()
-    .RequireRateLimiting(RateLimiting.SubmissionPolicy);
+    .RequireRateLimiting(RateLimiting.SubmissionPolicy)
+    // CREATE IS EXEMPT HERE RATHER THAN BY AN ATTRIBUTE ON THE METHOD, and it has to be:
+    // protobuf-net.Grpc does not carry method-level attributes onto the endpoint, so [AllowAnonymous]
+    // on Create compiled, read correctly and did nothing - every method answered 401, including the
+    // only one that can mint a session. See AllowAnonymousGrpcMethods.
+    .AllowAnonymousGrpcMethods<ExpenseSubmissionService>("Create");
 
 // Plain HTTP, never gRPC: a receipt is 1-20 MB and the gRPC channel must not carry file bytes.
 app.AddAttachmentEndpoints();
@@ -102,9 +137,12 @@ app.AddAttachmentEndpoints();
 app.AddPdfEndpoints();
 
 // A signpost for somebody who opened the address in a browser. Says nothing about this service's data.
+// Anonymous explicitly, because of the FallbackPolicy. A signpost that answered 401 would be a
+// confusing first impression of a service whose whole point is that nobody signs in.
 app.MapGet("/",
-    () => "Communication with gRPC endpoints must be made through a gRPC client. To learn how to "
-          + "create a client, visit: https://go.microsoft.com/fwlink/?linkid=2086909");
+        () => "Communication with gRPC endpoints must be made through a gRPC client. To learn how to "
+              + "create a client, visit: https://go.microsoft.com/fwlink/?linkid=2086909")
+    .AllowAnonymous();
 
 // Best effort at startup. There is no ordering guarantee in the cluster, so the object store may not be
 // up yet - and an unreachable store must not stop the service booting, because everything except

@@ -273,6 +273,9 @@ namespace GSBC.Accounting.Grpc.Data.Migrations
                         .HasPrecision(12, 2)
                         .HasColumnType("numeric(12,2)");
 
+                    b.Property<Guid?>("OwnerSessionId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("PaymentMethod")
                         .HasColumnType("text");
 
@@ -319,9 +322,14 @@ namespace GSBC.Accounting.Grpc.Data.Migrations
                     b.Property<string>("TransactionTime")
                         .HasColumnType("text");
 
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Kind", "CreatedAt");
+
+                    b.HasIndex("OwnerSessionId", "UpdatedAt");
 
                     b.ToTable("ExpenseSubmissions");
                 });
@@ -402,6 +410,39 @@ namespace GSBC.Accounting.Grpc.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("MissingReceiptDeclarations");
+                });
+
+            modelBuilder.Entity("GSBC.Accounting.Grpc.Data.Models.Sessions.DbAnonymousSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.ToTable("AnonymousSessions");
                 });
 
             modelBuilder.Entity("GSBC.Accounting.Grpc.Data.Models.Expenses.DbExpenseAttachment", b =>

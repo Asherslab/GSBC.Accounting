@@ -4,7 +4,7 @@ kind: handover
 status: accepted
 module: expenses
 opened: 2026-08-31
-verified: 2026-08-31
+verified: 2026-09-01
 code:
   - GSBC.Accounting.Grpc/Features/Pdf
   - GSBC.Accounting.Grpc/Extensions/RateLimiting.cs
@@ -51,15 +51,25 @@ local only in the endpoint. Three things live in the cluster, not here:
 whole office in one bucket, and it trusts the ingress to set `X-Forwarded-For`. Real protection needs
 authentication or something in front. See [attachments.md](../modules/expenses/attachments.md).
 
-**A draft lives on one browser on one device.** `localStorage`, by design — a draft belonging to nobody
-would be either unrecoverable or enumerable by anyone who guesses a URL. The honest cost is that
-clearing site data, switching to a phone, or using a private window loses it. Worth saying out loud to
-whoever writes the instructions for claimants.
+**A draft still lives on one browser on one device** — but it is now a server-side draft owned by a
+`__gsbc_anon` session cookie rather than a `localStorage` copy, so a claimant can list, resume and
+discard their own drafts, and drafts are no longer readable by anyone holding a submission id. See
+[drafts.md](../modules/expenses/drafts.md), which supersedes what this section used to say.
 
-**Nothing reads a submission back.** No list page, no approval queue, no finance screen — that is the
-scope, not an omission. Sections 7 and 8 are captured in the model and rendered locked, so the work
-that fills them in is additive. But today a reviewer needs `psql` or the PDF link, and somebody has to
-hand them the submission id.
+The honest cost is unchanged and still worth saying out loud to whoever writes the claimant
+instructions: clearing cookies, switching to a phone or using a private window loses them, and an
+unedited draft is deleted after 90 days.
+
+**No approval queue and no finance screen.** A claimant can read their own unsubmitted drafts back, and
+nothing else can be read back. Sections 7 and 8 are captured in the model and rendered locked, so the
+work that fills them in is additive. A reviewer still needs `psql` or the PDF link, and somebody still
+has to hand them the submission id — that link deliberately keeps working for a **submitted** claim
+without a cookie, because it is the only review path there is.
+
+**Attachment objects for purged and discarded drafts stay in the object store.** Rows are soft-deleted;
+bytes are not touched, because destroying uploaded files is a decision nobody has taken. The daily
+purge logs the reclaimable byte count. If that number grows enough to matter, reclaiming it is a
+deliberate piece of work, not a tidy-up.
 
 **There is no test project.** Until there is, "seen working in the running app" is the only gate, which
 is what `AGENTS.md` says. The arithmetic in `ExpenseTotals` and the signature detection in

@@ -31,12 +31,18 @@ public partial class ExpenseSubmissionService
         if (errors.Count > 0)
             return BasicResponse.WithErrors(errors);
 
+        // No session, no draft to rewrite. Answered with the same "could not be found" as a genuinely
+        // missing row, because the two must be indistinguishable from outside.
+        if (await sessions.CurrentAsync(token) is not { } sessionId)
+            return BasicResponse.WithError(SubmissionNotFound);
+
         DbExpenseSubmission? submission = await db.ExpenseSubmissions
             .Include(x => x.Lines)
             .Include(x => x.Attendees)
             .Include(x => x.Trips)
             .Include(x => x.MissingReceipt)
-            .FirstOrDefaultAsync(x => x.Id == request.SubmissionId, token);
+            .FirstOrDefaultAsync(
+                x => x.Id == request.SubmissionId && x.OwnerSessionId == sessionId, token);
 
         if (submission is null)
             return BasicResponse.WithError(SubmissionNotFound);
@@ -98,6 +104,11 @@ public partial class ExpenseSubmissionService
         submission.Declaration5 = form.Declaration5;
 
         submission.SignatureName = form.SignatureName;
+
+        // What the abandoned-draft purge counts from. A claimant who edits a form every few weeks
+        // keeps it indefinitely; one who never comes back loses it ninety days after their last edit,
+        // not ninety days after they started.
+        submission.UpdatedAt = DateTimeOffset.UtcNow;
 
         foreach (DbExpenseLine line in submission.Lines)
             line.Deleted = true;

@@ -1,0 +1,33 @@
+# Scoped to this folder deliberately, and NOT declared `root = true`, so a repo-wide .editorconfig
+# added later still applies and this only ever adds the one rule below.
+
+[Converters.cs]
+
+# RMG013 ("<type> has no accessible constructor with mappable arguments") is a FALSE POSITIVE HERE, and
+# it comes from the IDE rather than from the compiler.
+#
+# Riok.Mapperly ships seven Roslyn-specific builds of its source generator
+# (analyzers/roslyn4.0, 4.4, 4.5, 4.7, 4.11, 4.14, 5.0) and the host's Roslyn version decides which one
+# runs. They do not agree:
+#
+#   dotnet build / Rider's build   Roslyn 5.x        -> roslyn5.0 build -> no diagnostics
+#   Rider's inspection host        Roslyn 4.0/4.2    -> roslyn4.0 build -> 11 x RMG013
+#
+# Rider's ReSharperHost carries Microsoft.CodeAnalysis.CSharp 4.0.0.0/4.2.2.0 while building with its
+# own bundled SDK, so the same IDE is green in the build output and red in the editor. Verified on
+# 2026-09-01: a full --no-incremental build emits zero RMG diagnostics, and the generated mappings
+# (MapToExpenseLine, MapToExpenseAttendee, MapToListOfExpenseAttendee, ...) are present in the compiled
+# assembly. The mappings are also exercised end to end - the rendered PDF goes through
+# ExpenseSubmissionConverter.
+#
+# The mappings themselves are well formed: Guid -> Guid is identity, and DateTimeOffset? -> DateTime? is
+# the [UseMapper] converter lifted over a nullable. The roslyn4.0 build appears not to perform that lift
+# and falls back to trying to construct the target, which is where the diagnostic comes from.
+#
+# WHY THIS IS SCOPED TO ONE FILE. RMG013 is a real error worth seeing - it fires when Mapperly genuinely
+# cannot construct a target type - so silencing it project-wide would hide a class of mapping bug. It is
+# off for this file only, and if a mapper is ever added elsewhere it keeps its diagnostics.
+#
+# Revisit when Rider's inspection host ships Roslyn 5.x: delete this file and confirm the editor is clean
+# rather than assuming it.
+dotnet_diagnostic.RMG013.severity = none

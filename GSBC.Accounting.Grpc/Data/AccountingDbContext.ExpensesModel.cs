@@ -1,4 +1,5 @@
 using GSBC.Accounting.Grpc.Data.Models.Expenses;
+using GSBC.Accounting.Grpc.Data.Models.Sessions;
 using Microsoft.EntityFrameworkCore;
 
 namespace GSBC.Accounting.Grpc.Data;
@@ -20,6 +21,13 @@ public partial class AccountingDbContext
     public DbSet<DbExpenseTrip> ExpenseTrips => Set<DbExpenseTrip>();
 
     public DbSet<DbMissingReceiptDeclaration> MissingReceiptDeclarations => Set<DbMissingReceiptDeclaration>();
+
+    /// <summary>
+    /// One row per browser that has ever saved a draft - the principal the <c>AnonymousSession</c>
+    /// authentication scheme resolves. Not an expense entity, but it lives in this model file because
+    /// drafts are the only thing it owns and the only reason it exists.
+    /// </summary>
+    public DbSet<DbAnonymousSession> AnonymousSessions => Set<DbAnonymousSession>();
 
     private static void BuildExpensesModel(ModelBuilder modelBuilder)
     {
@@ -132,5 +140,26 @@ public partial class AccountingDbContext
 
         modelBuilder.Entity<DbExpenseAttendee>().HasIndex(x => new { x.SubmissionId, x.Ordinal });
         modelBuilder.Entity<DbExpenseTrip>().HasIndex(x => new { x.SubmissionId, x.Ordinal });
+
+        // ---- Draft sessions ----
+
+        // THE ONLY LOOKUP THIS TABLE EVER DOES, and it runs on every call that touches a draft. Unique
+        // as well as indexed: two rows with one hash would mean two sessions sharing a credential, and
+        // a unique constraint is the cheapest place to be certain that cannot happen.
+        modelBuilder.Entity<DbAnonymousSession>().HasIndex(x => x.TokenHash).IsUnique();
+
+        // SHA-256 as lowercase hex is exactly 64 characters, same as the attachment content hash.
+        modelBuilder.Entity<DbAnonymousSession>().Property(x => x.TokenHash).HasMaxLength(64);
+
+        // No soft-delete filter and no Deleted column, unlike everything else here. A session is not a
+        // financial record - it holds no claim, no money and no personal data - so the seven-year
+        // retention rule has nothing to say about it, and an expired one is genuinely rubbish. Keeping
+        // it would mean keeping a credential's fingerprint for seven years for no reader.
+        modelBuilder.Entity<DbAnonymousSession>().HasIndex(x => x.ExpiresAt);
+
+        // Every draft is fetched as "this session's, newest first". Filtered to drafts because a
+        // submitted claim never appears in the list this index serves.
+        modelBuilder.Entity<DbExpenseSubmission>()
+            .HasIndex(x => new { x.OwnerSessionId, x.UpdatedAt });
     }
 }

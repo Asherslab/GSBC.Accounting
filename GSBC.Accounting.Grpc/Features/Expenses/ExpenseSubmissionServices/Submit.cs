@@ -32,11 +32,17 @@ public partial class ExpenseSubmissionService
     {
         CancellationToken token = context.CancellationToken;
 
+        // Only the session that filled the form in may submit it. Without this, holding an id was
+        // enough to turn somebody else's half-finished draft into a claim standing in their name.
+        if (await sessions.CurrentAsync(token) is not { } sessionId)
+            return BasicResponse.WithError(SubmissionNotFound);
+
         DbExpenseSubmission? submission = await db.ExpenseSubmissions
             .Include(x => x.Lines)
             .Include(x => x.Attachments)
             .Include(x => x.MissingReceipt)
-            .FirstOrDefaultAsync(x => x.Id == request.SubmissionId, token);
+            .FirstOrDefaultAsync(
+                x => x.Id == request.SubmissionId && x.OwnerSessionId == sessionId, token);
 
         if (submission is null)
             return BasicResponse.WithError(SubmissionNotFound);

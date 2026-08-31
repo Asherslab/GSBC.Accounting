@@ -16,10 +16,15 @@ builder.AddServiceDefaults();
 // instead, before anything is forwarded.
 builder.WebHost.ConfigureKestrel(kestrel => kestrel.Limits.MaxRequestBodySize = 24L * 1024 * 1024);
 
-// The BFF layer, kept even though there is nothing to authenticate yet. Both form pages are
-// anonymous by design (docs/work/2026-08-expense-forms-scope.md), but the proxy is where a sign-in
-// would be hung when finance eventually wants an approval queue - and putting it here now costs
-// nothing while retrofitting it would mean rearranging every client address.
+// The BFF layer. Nobody signs in, but the gRPC service now authenticates the __gsbc_anon cookie as an
+// anonymous session (docs/modules/expenses/drafts.md) - so there IS something being authenticated,
+// just not here. The proxy holds no signing key and no database connection, so it can neither mint that
+// cookie nor check it; it forwards the Cookie header in and Set-Cookie back out, and the browser stores
+// the result against this origin because everything - the WASM app, /gRPC/ and /api/ - is served from
+// here. A sealed envelope the proxy cannot open, which is the shape ImpactKids' display auth uses.
+//
+// This is still where a real sign-in would be hung when finance wants an approval queue, and putting
+// the layer here now costs nothing while retrofitting it would mean rearranging every client address.
 //
 // Deliberately absent, compared with GSBC.ImpactKids' proxy: no OpenID Connect, no cookie schemes, no
 // authorization policies and no bearer-token transform. There is no identity provider, so a

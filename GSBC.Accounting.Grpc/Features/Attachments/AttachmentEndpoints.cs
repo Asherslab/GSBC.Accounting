@@ -1,5 +1,7 @@
 using GSBC.Accounting.Grpc.Data;
 using GSBC.Accounting.Grpc.Extensions;
+using GSBC.Accounting.Grpc.Features.Sessions;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using GSBC.Accounting.Grpc.Data.Models.Expenses;
 using GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses;
@@ -14,22 +16,34 @@ namespace GSBC.Accounting.Grpc.Features.Attachments;
 /// <b>Not gRPC, deliberately.</b> A receipt is 1-20 MB and the gRPC channel should never carry file
 /// bytes; YARP forwards <c>/api/</c> straight through.
 /// <para>
-/// <b>Both endpoints are anonymous</b>, and the submission id is the only credential either has - which
-/// is why that id is a <c>Guid</c> and never a sequence. The upload is bounded on every axis that
-/// matters: bytes per file, bytes per submission, files per submission, and a content type the bytes
-/// themselves have to agree with.
+/// <b>Both endpoints check the <c>__gsbc_anon</c> cookie, and the submission id is no longer a
+/// credential on its own.</b> Before that cookie existed, anyone holding an id could attach files to
+/// somebody else's draft or download the receipts on it - and that id is printed on screen after a save
+/// and baked into the PDF's filename, so it leaks by being shared rather than by being guessed. The
+/// upload is still bounded on every other axis too: bytes per file, bytes per submission, files per
+/// submission, and a content type the bytes themselves have to agree with.
 /// </para>
 /// <para>
-/// Note what a client cannot do here: it cannot upload against a submission that does not exist, and it
-/// cannot upload against one that is no longer a <c>Draft</c>. Together those make this an endpoint that
-/// only ever adds evidence to a form somebody is in the middle of filling in.
+/// <b>The two endpoints do not share one rule, and the difference is deliberate.</b> An upload is
+/// owner-only. A download is allowed either to the owner or to anyone holding the id of a
+/// <b>submitted</b> claim - because a submitted claim's evidence is what a reviewer is handed a link
+/// to, and there is no approval screen in this scope to hand it to them any other way. A draft's
+/// receipts are private to the person still filling the form in.
+/// </para>
+/// <para>
+/// Note what a client cannot do here: it cannot upload against a submission that does not exist, that
+/// it does not own, or that is no longer a <c>Draft</c>. Together those make this an endpoint that only
+/// ever adds evidence to a form the caller is in the middle of filling in.
 /// </para>
 /// </remarks>
 public static class AttachmentEndpoints
 {
     public static void AddAttachmentEndpoints(this WebApplication app)
     {
-        RouteGroupBuilder group = app.MapGroup("/api/submissions/{submissionId:guid}/attachments");
+        RouteGroupBuilder group = app.MapGroup("/api/submissions/{submissionId:guid}/attachments")
+            // Policy on the GROUP, so a route added here later inherits it rather than having to
+            // remember it. The download opts back out below, out loud.
+            .RequireAuthorization(Policies.AnonymousSession);
 
         group.MapPost("", UploadAsync)
             // The body is read as a stream, so model binding must not try to buffer or parse it first.
@@ -38,7 +52,26 @@ public static class AttachmentEndpoints
             // authenticated is standing in front of.
             .RequireRateLimiting(RateLimiting.UploadPolicy);
 
+        // THE ONE READ THAT LEAVES THE POLICY, and it is the same exemption the PDF endpoint takes.
+        // A submitted claim's evidence has to be readable by whoever is handed its id, because that is
+        // the only review path this scope has - there is no approval screen to hand a reviewer instead.
+        // A DRAFT's receipts are still owner-only: the handler resolves the session itself and the
+        // predicate below refuses a draft to anyone else. The exemption widens who may ask, never what
+        // they get back.
         group.MapGet("{attachmentId:guid}", DownloadAsync)
+            .RequireRateLimiting(RateLimiting.UploadPolicy)
+            .AllowAnonymous();
+
+        // Removing a receipt from a draft. This exists because drafts are resumable: without it the
+        // attachments card could only forget a file on screen, and the next time the claimant opened
+        // the draft it would be back - a page that ignores what somebody just did.
+        group.MapDelete("{attachmentId:guid}", DetachAsync)
+            .RequireRateLimiting(RateLimiting.UploadPolicy);
+
+        // Correcting what a file was filed as. Picking the kind happens before the file is chosen, so
+        // getting it wrong is easy - and without this the only remedy is to remove the receipt and
+        // upload it again, which is a lot of ceremony for a mislabelled dropdown.
+        group.MapPatch("{attachmentId:guid}/kind", RekindAsync)
             .RequireRateLimiting(RateLimiting.UploadPolicy);
     }
 
@@ -46,6 +79,7 @@ public static class AttachmentEndpoints
         Guid submissionId,
         HttpRequest request,
         AccountingDbContext db,
+        AnonymousSessions sessions,
         AttachmentStore store,
         AttachmentStoreConfig config,
         ILogger<AttachmentStore> logger,
@@ -64,10 +98,19 @@ public static class AttachmentEndpoints
         if (request.ContentLength is { } declaredLength && declaredLength > config.MaxBytesPerFile)
             return TooLarge(config);
 
-        DbExpenseSubmission? submission = await db.ExpenseSubmissions
-            .Include(x => x.Attachments)
-            .FirstOrDefaultAsync(x => x.Id == submissionId, token);
+        // Resolved before the body is touched. There is no point streaming 20 MB to disk to discover
+        // the caller has no business writing here - and never mints a session, because a browser that
+        // has not created a draft has nothing to attach a file to.
+        Guid? sessionId = await sessions.CurrentAsync(token);
 
+        DbExpenseSubmission? submission = sessionId is null
+            ? null
+            : await db.ExpenseSubmissions
+                .Include(x => x.Attachments)
+                .FirstOrDefaultAsync(x => x.Id == submissionId && x.OwnerSessionId == sessionId, token);
+
+        // The same answer for "no such submission", "not yours" and "no cookie". Distinguishing them
+        // would turn this into a way to ask the server which submission ids are real.
         if (submission is null)
             return Results.NotFound(new { error = "No such submission." });
 
@@ -125,11 +168,31 @@ public static class AttachmentEndpoints
 
             // Same bytes, same submission, same object. Uploading a receipt twice is a slip, not two
             // pieces of evidence.
-            DbExpenseAttachment? existing = submission.Attachments
-                .FirstOrDefault(x => x.ContentHash == staged.ContentHash);
+            //
+            // IGNOREQUERYFILTERS IS LOAD-BEARING, and the reason is the unique index on
+            // (SubmissionId, ContentHash). That index does not know about soft deletes, so a claimant
+            // who removes a receipt and then attaches the same file again would sail past a filtered
+            // duplicate check and straight into a unique-constraint violation - a 500 for what is a
+            // perfectly ordinary change of mind. Finding the flagged row and un-flagging it is both the
+            // fix and the behaviour somebody re-attaching a file expects.
+            DbExpenseAttachment? existing = await db.ExpenseAttachments
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(
+                    x => x.SubmissionId == submissionId && x.ContentHash == staged.ContentHash, token);
 
             if (existing is not null)
+            {
+                if (existing.Deleted)
+                {
+                    existing.Deleted = false;
+                    existing.Kind = kind;
+                    existing.UploadedAt = DateTimeOffset.UtcNow;
+
+                    await db.SaveChangesAsync(token);
+                }
+
                 return Results.Ok(ToContract(existing));
+            }
 
             string key = AttachmentStore.KeyFor(submissionId, staged.ContentHash, staged.DetectedContentType);
 
@@ -160,16 +223,131 @@ public static class AttachmentEndpoints
         }
     }
 
+    /// <summary>
+    /// Changes what one attachment on a draft is filed as.
+    /// </summary>
+    /// <remarks>
+    /// <b>Only the label moves - the bytes, the hash and the object key are untouched.</b> This is a
+    /// correction to the claimant's own description of a file, not a re-upload, so nothing about the
+    /// evidence itself changes.
+    /// <para>
+    /// <b>Drafts only, owner only</b>, for the same reason the delete is: the kind is what Submit
+    /// checks when it insists on an itemised receipt or tax invoice, so relabelling a submitted claim's
+    /// evidence would be editing the thing a reviewer is reading.
+    /// </para>
+    /// </remarks>
+    private static async Task<IResult> RekindAsync(
+        Guid submissionId,
+        Guid attachmentId,
+        RekindRequest body,
+        AccountingDbContext db,
+        AnonymousSessions sessions,
+        CancellationToken token
+    )
+    {
+        if (!Enum.IsDefined(body.Kind))
+            return Results.BadRequest(new { error = "That is not a kind of attachment." });
+
+        Guid? sessionId = await sessions.CurrentAsync(token);
+
+        DbExpenseSubmission? submission = sessionId is null
+            ? null
+            : await db.ExpenseSubmissions
+                .Include(x => x.Attachments)
+                .FirstOrDefaultAsync(x => x.Id == submissionId && x.OwnerSessionId == sessionId, token);
+
+        if (submission is null)
+            return Results.NotFound(new { error = "No such submission." });
+
+        if (submission.Status != SubmissionStatus.Draft)
+            return Results.Conflict(new { error = "This submission has already been submitted." });
+
+        DbExpenseAttachment? attachment = submission.Attachments.FirstOrDefault(x => x.Id == attachmentId);
+
+        if (attachment is null)
+            return Results.NotFound(new { error = "No such attachment." });
+
+        attachment.Kind = body.Kind;
+
+        await db.SaveChangesAsync(token);
+
+        return Results.Ok(ToContract(attachment));
+    }
+
+    /// <summary>
+    /// Soft-deletes one attachment from a draft the caller owns.
+    /// </summary>
+    /// <remarks>
+    /// <b>The object is not deleted from the store, and this is not an oversight.</b> Nothing in this
+    /// app destroys uploaded bytes; the row is flagged, the global query filter stops every later read
+    /// from seeing it, and the submission the reviewer eventually reads does not reference it. What the
+    /// claimant is promised is that the file is no longer part of their claim, which is exactly what
+    /// happens.
+    /// <para>
+    /// <b>Drafts only.</b> A submitted claim's evidence is fixed - somebody removing a receipt from a
+    /// claim already under review would be removing evidence, and that needs a person rather than a
+    /// button on a form.
+    /// </para>
+    /// </remarks>
+    private static async Task<IResult> DetachAsync(
+        Guid submissionId,
+        Guid attachmentId,
+        AccountingDbContext db,
+        AnonymousSessions sessions,
+        CancellationToken token
+    )
+    {
+        Guid? sessionId = await sessions.CurrentAsync(token);
+
+        DbExpenseSubmission? submission = sessionId is null
+            ? null
+            : await db.ExpenseSubmissions
+                .Include(x => x.Attachments)
+                .FirstOrDefaultAsync(x => x.Id == submissionId && x.OwnerSessionId == sessionId, token);
+
+        if (submission is null)
+            return Results.NotFound(new { error = "No such submission." });
+
+        if (submission.Status != SubmissionStatus.Draft)
+            return Results.Conflict(new { error = "This submission has already been submitted." });
+
+        DbExpenseAttachment? attachment = submission.Attachments.FirstOrDefault(x => x.Id == attachmentId);
+
+        if (attachment is null)
+            return Results.NotFound(new { error = "No such attachment." });
+
+        attachment.Deleted = true;
+
+        await db.SaveChangesAsync(token);
+
+        return Results.NoContent();
+    }
+
     private static async Task<IResult> DownloadAsync(
         Guid submissionId,
         Guid attachmentId,
         AccountingDbContext db,
+        AnonymousSessions sessions,
         AttachmentStore store,
         ILogger<AttachmentStore> logger,
         HttpResponse response,
         CancellationToken token
     )
     {
+        Guid? sessionId = await sessions.CurrentAsync(token);
+
+        // THE OWNER, OR ANYONE HOLDING THE ID OF A SUBMITTED CLAIM. The second half is what keeps the
+        // only review path this scope has working: somebody is handed a submission id and reads the
+        // claim and its evidence. A draft has no reviewer yet, so its receipts are the claimant's alone.
+        bool readable = await db.ExpenseSubmissions.AnyAsync(
+            x => x.Id == submissionId
+                 && (x.Status == SubmissionStatus.Submitted
+                     || (sessionId != null && x.OwnerSessionId == sessionId)),
+            token);
+
+        if (!readable)
+            return Results.NotFound();
+
         DbExpenseAttachment? attachment = await db.ExpenseAttachments
             .FirstOrDefaultAsync(x => x.Id == attachmentId && x.SubmissionId == submissionId, token);
 
@@ -255,4 +433,7 @@ public static class AttachmentEndpoints
         Kind = attachment.Kind,
         UploadedAt = attachment.UploadedAt.UtcDateTime
     };
+
+    /// <summary>The one field a claimant may change about a file once it is stored.</summary>
+    private record RekindRequest(AttachmentKind Kind);
 }

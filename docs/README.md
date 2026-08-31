@@ -28,6 +28,10 @@ Present tense, kept current, no dates.
     for every string the app prints, read out of the `.docx` files.
   - [The attachment store](modules/expenses/attachments.md) — the SeaweedFS chunk-encoding trap that
     silently stores the wrong bytes, the magic-byte checks, and why the anonymous upload needs ceilings.
+  - [Drafts and the draft session cookie](modules/expenses/drafts.md) — who owns an unsubmitted form,
+    why the submission id stopped being sufficient authority, the cookie's attributes and lifetimes,
+    the 90-day purge, and the upgrade path to real accounts. **Read before touching any read or write
+    of a submission.**
   - [Rendered examples](examples/README.md) — the two PDFs `GET /api/submissions/{id}/pdf` produces,
     checked in for the parked output-format conversation.
 
