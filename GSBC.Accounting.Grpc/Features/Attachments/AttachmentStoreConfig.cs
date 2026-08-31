@@ -5,15 +5,16 @@ namespace GSBC.Accounting.Grpc.Features.Attachments;
 /// fills locally and a Kubernetes ConfigMap plus Secret fills in the cluster.
 /// </summary>
 /// <remarks>
-/// <b>Production is one SeaweedFS with two buckets</b> — GSBC.ImpactKids' existing <c>photos</c> and
-/// this app's <c>accounting</c> — so the deployed configuration differs from the local one only in
-/// <see cref="ServiceUrl"/>. Locally this stack runs its own container on its own port so the two do
-/// not interfere.
+/// <b>This app has its own SeaweedFS, in its own namespace, sharing nothing with GSBC.ImpactKids'</b> —
+/// decided 2026-09-01, because each instance is one small container and separate identities mean a
+/// credential or capacity problem on one side cannot reach the other's objects. So the deployed
+/// configuration differs from the local one only in <see cref="ServiceUrl"/>.
 /// <para>
-/// Two follow-ons live outside this repo and belong to whoever deploys it: the Backblaze backup
-/// identity is bucket-scoped (<c>Read:photos</c>, <c>List:photos</c>) and needs <c>accounting</c>
-/// added, with a second <c>rclone copy</c> in the CronJob; and <b>SeaweedFS reads its identities once
-/// at startup</b>, so a changed Secret updates nothing until the pod restarts, with no error either way.
+/// Two follow-ons live outside this repo and belong to whoever deploys it: the offsite backup needs its
+/// <i>own</i> Backblaze bucket and application key, since adding <c>Read:accounting</c> to ImpactKids'
+/// backup identity would do nothing — that identity lives in the other SeaweedFS; and <b>SeaweedFS reads
+/// its identities once at startup</b>, so a changed Secret updates nothing until the pod restarts, with
+/// no error either way. See <c>docs/modules/infrastructure/deployment.md</c>.
 /// </para>
 /// </remarks>
 public class AttachmentStoreConfig

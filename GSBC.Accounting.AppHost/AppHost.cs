@@ -26,11 +26,12 @@ IResourceBuilder<PostgresServerResource> sql = builder.AddPostgres("sql")
 
 IResourceBuilder<PostgresDatabaseResource> db = sql.AddDatabase("accounting");
 
-// SeaweedFS, S3-compatible, holds the receipts. Locally this stack runs its OWN container on its own
-// port and its own volume, so it and ImpactKids do not interfere. In production there is one SeaweedFS
-// with two buckets - ImpactKids' `photos` and this app's `accounting` - so the only difference between
-// the two configurations is the endpoint. Not MinIO: the community edition was archived in early 2026
-// and takes no security patches.
+// SeaweedFS, S3-compatible, holds the receipts. This stack runs its OWN container on its own port and
+// its own volume, locally AND in the cluster - a sharing arrangement with ImpactKids was considered and
+// rejected on 2026-09-01: each instance is one small container, so sharing saves nothing worth the
+// coupling, and separate identities mean a credential or capacity problem on one side cannot reach the
+// other's objects. So the deployed configuration differs from this one only in the endpoint. Not MinIO:
+// the community edition was archived in early 2026 and takes no security patches.
 IResourceBuilder<ParameterResource> s3AccessKey =
     builder.AddParameter("s3-access-key", "gsbc-accounting", publishValueAsDefault: true);
 

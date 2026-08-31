@@ -181,11 +181,15 @@ own message while 25 MB gave 502; with the proxy limit set, both give 413.
 
 ## Deployment, outside this repo
 
-Production is **one SeaweedFS with two buckets** — ImpactKids' `photos` and this app's `accounting` —
-so the deployed config differs from local only in the endpoint. Two follow-ons belong to whoever
-deploys it:
+[How this deploys](../infrastructure/deployment.md) is the full picture. What matters from here:
 
-- The Backblaze backup identity is bucket-scoped (`Read:photos`, `List:photos`) and needs `accounting`
-  added, plus a second `rclone copy` in the CronJob.
+Production runs **its own SeaweedFS**, in its own namespace, sharing nothing with ImpactKids' — so the
+deployed config differs from local only in the endpoint. Sharing one instance was considered and
+rejected on 2026-09-01: each is one small container, so sharing saves nothing worth the coupling.
+
+- The bucket creates itself. `EnsureBucketAsync()` runs at startup and `PutAsync` creates it on demand
+  anyway, which is why the app's SeaweedFS identity carries `Admin`.
+- The offsite backup needs its **own** Backblaze bucket and application key. Adding `Read:accounting`
+  to ImpactKids' backup identity would do nothing — that identity lives in the other SeaweedFS.
 - **SeaweedFS reads its identities once at startup.** A changed Secret updates nothing until the pod
   restarts, with no error either way — so an identity change must be followed by a rollout restart.

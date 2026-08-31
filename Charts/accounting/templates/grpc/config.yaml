@@ -1,0 +1,19 @@
+---
+apiVersion: "v1"
+kind: "ConfigMap"
+metadata:
+  name: "grpc-config"
+  labels:
+    app.kubernetes.io/name: "accounting-app"
+    app.kubernetes.io/component: "grpc"
+    app.kubernetes.io/instance: "{{.Release.Name}}"
+data:
+  ASPNETCORE_URLS: "{{ .Values.config.grpc.ASPNETCORE_URLS }}"
+  OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EXCEPTION_LOG_ATTRIBUTES: "{{ .Values.config.grpc.OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EXCEPTION_LOG_ATTRIBUTES }}"
+  OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EVENT_LOG_ATTRIBUTES: "{{ .Values.config.grpc.OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EVENT_LOG_ATTRIBUTES }}"
+  OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "{{ .Values.config.grpc.OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY }}"
+  ASPNETCORE_FORWARDEDHEADERS_ENABLED: "{{ .Values.config.grpc.ASPNETCORE_FORWARDEDHEADERS_ENABLED }}"
+  # The receipt object store. Cluster-internal — no ingress, no tunnel, no YARP route, and this
+  # service is its only client. The credentials are NOT here; they are in attachments-secret.
+  Attachments__ServiceUrl: "http://s3-service:{{ .Values.parameters.s3.port_s3 }}"
+  Attachments__BucketName: "{{ .Values.config.s3.bucket }}"

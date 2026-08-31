@@ -1,0 +1,12 @@
+apiVersion: "v2"
+name: "accounting-app"
+kubeVersion: ">= 1.18.0-0"
+description: "Aspire Helm Chart"
+type: "application"
+keywords:
+  - "aspire"
+  - "kubernetes"
+deprecated: false
+# Rewritten by .github/workflows/chart-publish.yml from the semantic version. The value committed here
+# is never what ships.
+version: 0.0.1

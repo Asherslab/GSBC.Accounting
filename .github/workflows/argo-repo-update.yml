@@ -1,0 +1,56 @@
+# The deploy. Rewrites the chart version in gsbc.argo and pushes; Argo CD's automated sync does the
+# rest, so nothing here talks to the cluster and no cluster credential exists in this repo.
+#
+# Requires an ARGO_REPO_TOKEN secret with write access to asherslab/gsbc.argo — GITHUB_TOKEN is scoped
+# to this repository and cannot push there.
+name: Release Charts
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'The version to update to'
+        required: true
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          repository: asherslab/gsbc.argo
+          path: argo
+          token: ${{ secrets.ARGO_REPO_TOKEN }}
+
+      - name: Update Helm Chart Version
+        working-directory: argo/clusters/mini/app-definitions
+        run: |
+          # The `#helm` marker is what makes this safe. accounting.yaml has three sources and more than
+          # one targetRevision — the other two are `HEAD` for the git sources — so the replace has to
+          # match the trailing comment rather than the key. Removing that comment in gsbc.argo silently
+          # stops deployments: this sed then matches nothing, exits 0, and the "no changes" branch below
+          # reports success.
+          echo "Updating accounting.yaml version to ${{ inputs.version }}"
+          sed -i "s/targetRevision: \(.*\) #helm/targetRevision: ${{ inputs.version }} #helm/g" accounting.yaml
+          grep 'targetRevision' accounting.yaml
+
+      - name: Commit and push changes (if any)
+        shell: bash
+        env:
+          CI_COMMIT_MESSAGE: update accounting.yaml with latest chart version
+          CI_COMMIT_AUTHOR: github-actions[bot]
+          CI_COMMIT_EMAIL: username@users.noreply.github.com
+        run: |
+          cd argo
+          git config --global user.name "${{ env.CI_COMMIT_AUTHOR }}"
+          git config --global user.email "${{ env.CI_COMMIT_EMAIL }}"
+          if [[ `git status --porcelain --untracked-files=no` ]]; then
+            git add clusters/mini/app-definitions/accounting.yaml
+            git commit -m "${{ env.CI_COMMIT_MESSAGE }}"
+            git push
+          else
+            echo "no changes"
+            exit 0
+          fi

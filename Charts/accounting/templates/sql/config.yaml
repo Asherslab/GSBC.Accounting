@@ -1,0 +1,17 @@
+---
+apiVersion: "v1"
+kind: "ConfigMap"
+metadata:
+  name: "sql-config"
+  labels:
+    app.kubernetes.io/name: "accounting-app"
+    app.kubernetes.io/component: "sql"
+    app.kubernetes.io/instance: "{{.Release.Name}}"
+data:
+  POSTGRES_HOST_AUTH_METHOD: "{{ .Values.config.sql.POSTGRES_HOST_AUTH_METHOD }}"
+  POSTGRES_INITDB_ARGS: "{{ .Values.config.sql.POSTGRES_INITDB_ARGS }}"
+  POSTGRES_USER: "{{ .Values.config.sql.POSTGRES_USER }}"
+  # The AppHost names the database `accounting` and both the gRPC service and the migrations worker
+  # resolve it by that name. Postgres only honours POSTGRES_DB when it initialises an empty data
+  # directory, so changing this after first start creates nothing and changes nothing.
+  POSTGRES_DB: "{{ .Values.config.sql.POSTGRES_DB }}"

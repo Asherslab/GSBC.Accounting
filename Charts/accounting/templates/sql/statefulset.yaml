@@ -1,0 +1,58 @@
+---
+apiVersion: "apps/v1"
+kind: "StatefulSet"
+metadata:
+  name: "sql-statefulset"
+  labels:
+    app.kubernetes.io/name: "accounting-app"
+    app.kubernetes.io/component: "sql"
+    app.kubernetes.io/instance: "{{.Release.Name}}"
+spec:
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: "accounting-app"
+        app.kubernetes.io/component: "sql"
+        app.kubernetes.io/instance: "{{.Release.Name}}"
+    spec:
+      containers:
+        - image: "{{ .Values.parameters.sql.sql_image }}"
+          name: "sql"
+          env:
+            # A subdirectory, not the mount point. The PVC's mount root can carry a lost+found on some
+            # provisioners and initdb refuses a non-empty directory.
+            - name: PGDATA
+              value: "/var/lib/postgresql/data/postgres"
+          envFrom:
+            - configMapRef:
+                name: "sql-config"
+            # POSTGRES_PASSWORD. Created out of band; the chart renders no Secret.
+            #
+            # Postgres applies POSTGRES_PASSWORD only when it initialises an empty data directory, so
+            # rotating this Secret does NOT change the database's password — it changes what the
+            # containers present. The volume keeps the original and every caller is locked out with
+            # "28P01: password authentication failed for user postgres". Rotating means an ALTER USER
+            # inside the database first, then the Secret, then a restart.
+            - secretRef:
+                name: "sql-secrets"
+          ports:
+            - name: "tcp"
+              protocol: "TCP"
+              containerPort: 5432
+          volumeMounts:
+            - name: "sql-data"
+              mountPath: "/var/lib/postgresql/data"
+          imagePullPolicy: "IfNotPresent"
+      volumes:
+        - name: "sql-data"
+          persistentVolumeClaim:
+            claimName: "sql-data-pvc"
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: "accounting-app"
+      app.kubernetes.io/component: "sql"
+      app.kubernetes.io/instance: "{{.Release.Name}}"
+  replicas: 1
+  persistentVolumeClaimRetentionPolicy: {}
+  updateStrategy:
+    type: "RollingUpdate"

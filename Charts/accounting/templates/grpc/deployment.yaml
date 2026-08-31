@@ -1,0 +1,53 @@
+---
+apiVersion: "apps/v1"
+kind: "Deployment"
+metadata:
+  name: "grpc-deployment"
+  labels:
+    app.kubernetes.io/name: "accounting-app"
+    app.kubernetes.io/component: "grpc"
+    app.kubernetes.io/instance: "{{.Release.Name}}"
+spec:
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: "accounting-app"
+        app.kubernetes.io/component: "grpc"
+        app.kubernetes.io/instance: "{{.Release.Name}}"
+    spec:
+      containers:
+        - image: "{{ .Values.parameters.grpc.grpc_image }}:{{ .Values.image_tag }}"
+          name: "grpc"
+          envFrom:
+            - configMapRef:
+                name: "grpc-config"
+            # ConnectionStrings__accounting, plus the anonymous-session cookie's data-protection
+            # settings if any are ever added. Created out of band with kubectl.
+            - secretRef:
+                name: "grpc-secrets"
+            # Attachments__AccessKey / Attachments__SecretKey.
+            #
+            # NOT optional, unlike GSBC.ImpactKids' photos-secret. There, a missing photo credential
+            # means avatars fall back to coloured initials and sign-in still works, so failing the pod
+            # would be worse than degrading. Here the receipt is the point of the form: a deployment
+            # that accepts claims it cannot attach evidence to is a worse outcome than a pod that will
+            # not start, and CrashLoopBackOff at least says what is wrong.
+            - secretRef:
+                name: "attachments-secret"
+          ports:
+            - name: "http"
+              protocol: "TCP"
+              containerPort: {{ .Values.parameters.grpc.port_http }}
+          imagePullPolicy: "IfNotPresent"
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: "accounting-app"
+      app.kubernetes.io/component: "grpc"
+      app.kubernetes.io/instance: "{{.Release.Name}}"
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: "RollingUpdate"

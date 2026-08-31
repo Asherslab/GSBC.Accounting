@@ -1,0 +1,63 @@
+# Publishes Charts/accounting to this repo's gh-pages branch as a Helm repository, which Argo reads as
+# https://asherslab.github.io/GSBC.Accounting.
+#
+# The chart version and image_tag committed in the tree are placeholders. They are rewritten here from
+# the semantic version so a single number identifies the images and the chart that references them.
+name: Release Charts
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'The version to release'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  statuses: write
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # chart-releaser diffs against the existing gh-pages index to decide what is new.
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Update Helm Chart Version
+        working-directory: Charts/accounting
+        run: |
+          # Anchored to the start of the line in both files. `version:` and `image_tag:` also appear
+          # inside comments and nested blocks, and an unanchored replace would rewrite those too.
+          echo "Updating Chart.yaml version to ${{ inputs.version }}"
+          sed -i "s/^version: \(.*\)/version: ${{ inputs.version }}/g" Chart.yaml
+          sed -i "s/^image_tag: \(.*\)/image_tag: ${{ inputs.version }}/g" values.yaml
+
+          # Helm chart versions are semver and must not carry the `v` prefix the git tag uses. Line 1
+          # only, so a `v` anywhere else in the file is untouched.
+          sed -i "1s/version: v\(.*\)/version: \1/g" Chart.yaml
+
+          echo "--- Chart.yaml"
+          cat Chart.yaml
+
+      - name: Run chart-releaser
+        uses: helm/chart-releaser-action@v1.7.0
+        with:
+          charts_dir: 'Charts'
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
