@@ -4,7 +4,22 @@
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
-        <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+
+        <!--
+            OverrideHtmlAssetPlaceholders is deliberately NOT set, and setting it breaks the published
+            site. It arrived with the slice 0 scaffold for no recorded reason and took the deployment
+            down on 2026-08-31.
+
+            With it on, `dotnet publish` content-hashes the Blazor loader itself
+            (blazor.webassembly.66stpp682q.js) but does NOT rewrite index.html's reference to match -
+            neither the plain name nor a `#[.{fingerprint}]` marker is substituted; both were tried.
+            The result is a 404 on the loader, refused by nosniff because nginx's SPA fallback answers
+            it as text/html, and a blank page.
+
+            It fails ONLY when published. The dev server serves unfingerprinted assets, so nothing is
+            wrong locally. GSBC.ImpactKids does not set this either, which is why its plain reference
+            has always worked in the cluster.
+        -->
     </PropertyGroup>
 
     <ItemGroup>
