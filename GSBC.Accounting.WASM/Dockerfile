@@ -2,18 +2,22 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
+# Referenced projects are copied too, so this restore layer is complete. `dotnet restore` does not
+# fail without them - it prints "Skipping project ... because it was not found" and restores only the
+# leaf, which means the cached layer is partial and the publish below silently restores the rest again.
+# GSBC.ImpactKids' Dockerfiles do exactly that; this is the same practice with the gap closed.
 COPY ["GSBC.Accounting.WASM/GSBC.Accounting.WASM.csproj", "GSBC.Accounting.WASM/"]
 COPY ["GSBC.Accounting.Shared.Contracts/GSBC.Accounting.Shared.Contracts.csproj", "GSBC.Accounting.Shared.Contracts/"]
 RUN dotnet restore "GSBC.Accounting.WASM/GSBC.Accounting.WASM.csproj"
 
 COPY . .
 
-# InvariantGlobalization trims the ICU data. Safe here: every date and money value this app prints is
-# formatted with an explicit culture or an invariant format, and the two paper forms are Australian
-# English only.
+# NO /p:InvariantGlobalization here, unlike GSBC.ImpactKids' otherwise-identical Dockerfile. Program.cs
+# pins en-AU and `new CultureInfo("en-AU")` throws in invariant mode - copying that flag over loaded the
+# runtime and then failed with Argument_CultureNotSupportedInInvariantMode, rendering nothing. See the
+# csproj, which now states InvariantGlobalization=false so a hand-run publish cannot reintroduce it.
 RUN dotnet publish ./GSBC.Accounting.WASM/GSBC.Accounting.WASM.csproj \
     -c Release -o /app/publish \
-    /p:InvariantGlobalization=true \
     /p:DebuggerSupport=false \
     /p:StartupTracing=false \
     /p:LinkerDumpDependencies=false
