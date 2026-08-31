@@ -77,5 +77,16 @@ subtitle. It does **not** render the `.layout` grid — the section rail in the 
 per-page, because each form owns its own section list and the landing page has none. A page therefore
 opens its own `<div class="layout">`.
 
+**A page with no rail must say `class="layout norail"`.** `.layout` is a two-column grid and the first
+column is the 238px rail; a page that renders `<main>` with no `nav.rail` before it puts main in the
+rail's slot, so every card is squeezed to 238px with the rest of the window empty. Nothing errors and
+the styling still looks correct — it reads as "the design is just narrow", which is why it survived
+the first run of the app on 2026-08-31 without being noticed. `.layout.norail` collapses the grid to
+one column.
+
+`index.html` deliberately does **not** link `GSBC.Accounting.WASM.styles.css`. That bundle is emitted
+only when some component has a scoped `.razor.css`, and none does — the whole design is in `app.css` —
+so the template's unconditional link is a 404 on every page load.
+
 A page sets the topbar title by taking `MainLayout` as a `[CascadingParameter]` and calling
 `SetTitle` from `OnInitialized`.

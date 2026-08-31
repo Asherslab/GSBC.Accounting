@@ -21,6 +21,45 @@ the values. Where the two disagree, **this file wins** — it is written against
 | `{{DB_NAME}}` | `accounting` |
 | `{{AUTHED_PAGE}}` | none — see Auth below |
 
+## Restarting after a change — read this before debugging a blank page
+
+**`execute_run_configuration` on an already-running AppHost does not restart it.** It returns success
+and a fresh log path, so it looks like a restart, and nothing about the result says otherwise. On
+2026-08-31 this cost an hour: the reported "new" run's processes still had the *original* start time.
+
+Check the process, not the tool's answer:
+
+```bash
+ps -o pid,lstart,command -p "$(pgrep -f 'GSBC.Accounting.AppHost/bin')" | cut -c1-110
+```
+
+To actually restart, stop it first — `kill <apphost pid>` takes the whole DCP tree with it — then run
+the configuration again.
+
+### The symptom when you skip that
+
+**The page hangs on the boot spinner at 0%, with no error anywhere.** The Blazor dev server holds the
+static-web-asset manifest it started with, and a rebuild refingerprints the app assembly, so the
+manifest names a file that no longer exists. It is a 404 for one asset and a silent stall for the user.
+
+Confirm it in one request — the fingerprint comes from the build output:
+
+```bash
+f=$(grep -o 'GSBC.Accounting.WASM\.[a-z0-9]*\.wasm' \
+      GSBC.Accounting.WASM/bin/Debug/net10.0/GSBC.Accounting.WASM.staticwebassets.endpoints.json |
+    sort -u | head -1)
+curl -sk -o /dev/null -w "$f -> %{http_code}\n" "https://localhost:7273/_framework/$f"
+```
+
+404 means the running dev server is stale — restart, do not go looking for a bug. **Check it against
+the dev server directly as well as through YARP** (`lsof -nP -iTCP -sTCP:LISTEN -a -p <devserver pid>`
+gives its port): identical answers from both prove the proxy is innocent, which is worth thirty seconds
+before suspecting the routing.
+
+A related red herring: `_framework/blazor.boot.json` 404s, and `_framework/dotnet.js` answers 200 with
+**0 bytes**. Both are normal on .NET 10 — the boot manifest is inlined into `blazor.webassembly.js` and
+the real runtime files are fingerprinted. Neither is evidence of anything.
+
 ## Auth
 
 **There is none, by design.** Both form pages are anonymous, and the whole sign-in section of the

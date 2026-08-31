@@ -144,6 +144,17 @@ a{color:var(--brand)}
   align-items:start;
   max-width:1320px;margin:0 auto;
 }
+/*
+  Not in the mockup, which only ever has the one page and always draws the rail.
+
+  .layout is two columns, and the FIRST is the 238px rail. A page that renders <main> without a
+  nav.rail before it therefore puts main in the rail's slot and every card is squeezed to 238px, with
+  the rest of the window left empty. There is no error and the styling still looks correct, which is
+  what makes it hard to spot - it reads as "the design is just narrow".
+
+  Any page with no rail - the landing page, not-found - uses .layout.norail.
+*/
+.layout.norail{grid-template-columns:minmax(0,1fr)}
 /* ---------- rail ---------- */
 .rail{
   position:sticky;top:63px;
