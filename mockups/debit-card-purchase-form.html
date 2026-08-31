@@ -1,0 +1,1019 @@
+<title>Debit Card Purchase Form</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --ground:#f7f6f3;
+    --surface:#ffffff;
+    --surface-sunk:#f1efea;
+    --ink:#1b1c20;
+    --ink-2:#4a4d55;
+    --ink-3:#7c7f88;
+    --line:#dfdcd4;
+    --line-strong:#c6c2b8;
+    --brand:#33415c;
+    --brand-2:#4a5c80;
+    --brand-wash:#eaedf4;
+    --ok:#2f6e4e;
+    --ok-wash:#e6f0e9;
+    --warn:#8a5a17;
+    --warn-wash:#f6eeda;
+    --bad:#9d3427;
+    --bad-wash:#f7e7e3;
+    --focus:#8aa0cc;
+    --radius:4px;
+    --shadow:0 1px 2px rgba(27,28,32,.06), 0 8px 24px -16px rgba(27,28,32,.28);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#16171a;
+      --surface:#1e2024;
+      --surface-sunk:#25272c;
+      --ink:#eceae5;
+      --ink-2:#b3b5bc;
+      --ink-3:#83868f;
+      --line:#33363d;
+      --line-strong:#464a53;
+      --brand:#a9bce2;
+      --brand-2:#8fa4cd;
+      --brand-wash:#232833;
+      --ok:#7fc39c;
+      --ok-wash:#1e2a24;
+      --warn:#d7a75a;
+      --warn-wash:#2c2519;
+      --bad:#e0897c;
+      --bad-wash:#2e1f1d;
+      --line-strong:#4a4e57;
+      --focus:#7d93c0;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#16171a;
+    --surface:#1e2024;
+    --surface-sunk:#25272c;
+    --ink:#eceae5;
+    --ink-2:#b3b5bc;
+    --ink-3:#83868f;
+    --line:#33363d;
+    --line-strong:#4a4e57;
+    --brand:#a9bce2;
+    --brand-2:#8fa4cd;
+    --brand-wash:#232833;
+    --ok:#7fc39c;
+    --ok-wash:#1e2a24;
+    --warn:#d7a75a;
+    --warn-wash:#2c2519;
+    --bad:#e0897c;
+    --bad-wash:#2e1f1d;
+    --focus:#7d93c0;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:var(--ground);
+    color:var(--ink);
+    font-family:"Public Sans","Helvetica Neue",Arial,sans-serif;
+    font-size:15px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--brand)}
+  :focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:2px}
+
+  /* ---------- shell ---------- */
+  .topbar{
+    position:sticky;top:0;z-index:40;
+    display:flex;align-items:center;gap:18px;
+    padding:14px 28px;
+    background:var(--surface);
+    border-bottom:1px solid var(--line);
+  }
+  .mark{
+    width:34px;height:34px;flex:none;border-radius:2px;
+    background:var(--brand);color:var(--surface);
+    display:grid;place-items:center;
+    font-family:"Newsreader",Georgia,serif;font-size:17px;font-weight:600;letter-spacing:.02em;
+  }
+  :root[data-theme="dark"] .mark, :root:not([data-theme="light"]) .mark{color:var(--ground)}
+  @media (prefers-color-scheme: light){:root:not([data-theme="dark"]) .mark{color:#fff}}
+  .topbar h1{
+    margin:0;font-family:"Newsreader",Georgia,serif;
+    font-size:19px;font-weight:600;letter-spacing:-.01em;line-height:1.15;
+  }
+  .topbar .sub{font-size:12px;color:var(--ink-3);letter-spacing:.04em;text-transform:uppercase}
+  .topbar .spacer{flex:1}
+  .draft{
+    font-size:12px;color:var(--ink-3);
+    font-family:"IBM Plex Mono",monospace;
+  }
+
+  .layout{
+    display:grid;
+    grid-template-columns:238px minmax(0,1fr);
+    gap:0;
+    align-items:start;
+    max-width:1320px;margin:0 auto;
+  }
+  /* ---------- rail ---------- */
+  .rail{
+    position:sticky;top:63px;
+    padding:26px 18px 40px 28px;
+    align-self:start;
+    max-height:calc(100vh - 63px);
+    overflow-y:auto;
+  }
+  .rail h2{
+    font-size:11px;text-transform:uppercase;letter-spacing:.11em;
+    color:var(--ink-3);margin:0 0 12px;font-weight:600;
+  }
+  .rail ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px}
+  .rail a{
+    display:grid;grid-template-columns:20px 1fr;gap:9px;align-items:baseline;
+    padding:7px 8px;border-radius:var(--radius);
+    color:var(--ink-2);text-decoration:none;font-size:13.5px;line-height:1.35;
+  }
+  .rail a:hover{background:var(--surface-sunk);color:var(--ink)}
+  .rail a.active{background:var(--brand-wash);color:var(--ink);font-weight:600}
+  .rail .n{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-3)}
+  .rail a.active .n{color:var(--brand)}
+  .rail .dot{
+    display:inline-block;width:6px;height:6px;border-radius:50%;
+    background:var(--line-strong);margin-left:6px;vertical-align:middle;
+  }
+  .rail .dot.done{background:var(--ok)}
+  .rail .dot.err{background:var(--bad)}
+
+  /* ---------- form column ---------- */
+  main{padding:26px 28px 160px;min-width:0}
+  .lede{
+    max-width:64ch;margin:0 0 26px;
+    font-family:"Newsreader",Georgia,serif;font-size:17px;line-height:1.55;color:var(--ink-2);
+  }
+  .lede strong{color:var(--ink);font-weight:600}
+
+  section.card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    margin-bottom:18px;
+    box-shadow:var(--shadow);
+    scroll-margin-top:78px;
+  }
+  .card > header{
+    display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;
+    padding:15px 20px;border-bottom:1px solid var(--line);
+    background:linear-gradient(to bottom, var(--surface), var(--surface));
+  }
+  .card > header .num{
+    font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:500;
+    color:var(--brand);letter-spacing:.06em;
+  }
+  .card > header h3{
+    margin:0;font-size:15.5px;font-weight:600;letter-spacing:-.005em;
+  }
+  .card > header .hint{font-size:13px;color:var(--ink-3);margin-left:auto}
+  .card .body{padding:20px}
+
+  .grid{display:grid;gap:16px 18px;grid-template-columns:repeat(12,1fr)}
+  .f{display:flex;flex-direction:column;gap:6px;min-width:0}
+  .c3{grid-column:span 3}.c4{grid-column:span 4}.c5{grid-column:span 5}
+  .c6{grid-column:span 6}.c7{grid-column:span 7}.c8{grid-column:span 8}.c12{grid-column:span 12}
+  @media (max-width:900px){
+    .c3,.c4,.c5,.c6,.c7,.c8{grid-column:span 12}
+  }
+
+  label,.lbl{
+    font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--ink-2);
+  }
+  .req{color:var(--bad);font-weight:600}
+  .help{font-size:12px;color:var(--ink-3);line-height:1.45}
+
+  input[type=text],input[type=date],input[type=time],input[type=number],input[type=email],select,textarea{
+    width:100%;padding:8px 10px;
+    font:inherit;font-size:14px;color:var(--ink);
+    background:var(--surface);
+    border:1px solid var(--line-strong);border-radius:var(--radius);
+  }
+  input[type=number],.mono{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+  textarea{resize:vertical;min-height:78px;line-height:1.5}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--focus);outline-offset:0;border-color:var(--brand-2)}
+  input::placeholder,textarea::placeholder{color:var(--ink-3)}
+  .money{position:relative}
+  .money input{padding-left:22px}
+  .money::before{
+    content:"$";position:absolute;left:9px;top:50%;transform:translateY(-50%);
+    color:var(--ink-3);font-family:"IBM Plex Mono",monospace;font-size:13px;pointer-events:none;
+  }
+
+  .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chip{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:6px 11px;border:1px solid var(--line-strong);border-radius:99px;
+    font-size:13px;color:var(--ink-2);cursor:pointer;background:var(--surface);
+    user-select:none;
+  }
+  .chip:hover{border-color:var(--brand-2);color:var(--ink)}
+  .chip input{position:absolute;opacity:0;width:0;height:0}
+  .chip:has(input:checked){background:var(--brand-wash);border-color:var(--brand-2);color:var(--ink);font-weight:600}
+  .chip:has(input:focus-visible){outline:2px solid var(--focus);outline-offset:2px}
+
+  .yn{display:inline-flex;border:1px solid var(--line-strong);border-radius:99px;overflow:hidden;flex:none}
+  .yn label{
+    padding:4px 14px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--ink-3);
+    background:var(--surface);letter-spacing:.02em;
+  }
+  .yn label + label{border-left:1px solid var(--line-strong)}
+  .yn input{position:absolute;opacity:0;width:0;height:0}
+  .yn label:has(input:checked){background:var(--brand);color:#fff}
+  :root[data-theme="dark"] .yn label:has(input:checked),
+  :root:not([data-theme="light"]) .yn label:has(input:checked){color:var(--ground)}
+  @media (prefers-color-scheme: light){:root:not([data-theme="dark"]) .yn label:has(input:checked){color:#fff}}
+  .yn label:has(input[value="yes"]:checked){background:var(--warn);border-color:var(--warn)}
+
+  .checkline{
+    display:grid;grid-template-columns:18px 1fr;gap:11px;align-items:start;
+    padding:11px 12px;border:1px solid var(--line);border-radius:var(--radius);
+    background:var(--surface-sunk);font-size:13.5px;line-height:1.5;color:var(--ink-2);
+    cursor:pointer;
+  }
+  .checkline:has(input:checked){background:var(--ok-wash);border-color:color-mix(in srgb, var(--ok) 35%, transparent);color:var(--ink)}
+  .checkline input{margin-top:3px;accent-color:var(--brand);width:16px;height:16px}
+  .checkline b{font-weight:700;color:var(--ink)}
+  .stack{display:flex;flex-direction:column;gap:9px}
+
+  /* question rows in section 4 */
+  .q{
+    display:flex;gap:14px;align-items:flex-start;justify-content:space-between;
+    padding:13px 0;border-top:1px solid var(--line);
+  }
+  .q:first-child{border-top:0;padding-top:0}
+  .q p{margin:0;font-size:13.5px;line-height:1.5;color:var(--ink-2);max-width:66ch}
+  .q .qlabel{font-weight:600;color:var(--ink);display:block;font-size:14px;margin-bottom:2px}
+  .reveal{
+    margin:2px 0 4px;padding:14px;border-left:2px solid var(--warn);
+    background:var(--warn-wash);border-radius:0 var(--radius) var(--radius) 0;
+  }
+  .reveal .lbl{color:var(--warn)}
+  [hidden]{display:none !important}
+
+  /* ---------- tables ---------- */
+  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius)}
+  table{border-collapse:collapse;width:100%;min-width:840px;font-size:13.5px}
+  th{
+    text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.07em;
+    color:var(--ink-3);font-weight:600;padding:9px 10px;background:var(--surface-sunk);
+    border-bottom:1px solid var(--line);white-space:nowrap;
+  }
+  td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tbody tr:last-child td{border-bottom:0}
+  td input,td select{border-color:transparent;background:transparent;padding:6px 7px}
+  td input:hover,td select:hover{border-color:var(--line-strong)}
+  td input:focus,td select:focus{background:var(--surface)}
+  th.num,td.num{text-align:right}
+  td .money::before{left:6px}
+  td .money input{padding-left:18px;text-align:right}
+  .rowbtn{
+    border:0;background:transparent;color:var(--ink-3);cursor:pointer;
+    font-size:16px;line-height:1;padding:5px 7px;border-radius:var(--radius);
+  }
+  .rowbtn:hover{background:var(--bad-wash);color:var(--bad)}
+  .btn-add{
+    margin-top:10px;display:inline-flex;align-items:center;gap:7px;
+    border:1px dashed var(--line-strong);background:transparent;color:var(--brand);
+    padding:7px 13px;border-radius:var(--radius);font:inherit;font-size:13px;font-weight:600;cursor:pointer;
+  }
+  .btn-add:hover{border-color:var(--brand-2);background:var(--brand-wash)}
+
+  .totals{
+    margin-top:16px;margin-left:auto;max-width:420px;
+    display:grid;grid-template-columns:1fr auto;gap:8px 20px;align-items:center;
+    font-size:13.5px;
+  }
+  .totals .k{color:var(--ink-2)}
+  .totals .v{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;text-align:right}
+  .totals .rule{grid-column:1/-1;height:1px;background:var(--line);margin:2px 0}
+  .totals .net{font-weight:700;color:var(--ink);font-size:15px}
+  .totals .net .v{font-size:16px}
+  .totals input{max-width:130px}
+
+  /* ---------- attachments ---------- */
+  .drop{
+    border:1.5px dashed var(--line-strong);border-radius:var(--radius);
+    padding:26px 20px;text-align:center;background:var(--surface-sunk);
+    cursor:pointer;transition:border-color .12s, background .12s;
+  }
+  .drop:hover,.drop.over{border-color:var(--brand-2);background:var(--brand-wash)}
+  .drop .big{font-size:14.5px;font-weight:600;color:var(--ink);display:block;margin-bottom:3px}
+  .drop .small{font-size:12.5px;color:var(--ink-3)}
+  .files{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .file{
+    display:grid;grid-template-columns:44px 1fr auto auto;gap:12px;align-items:center;
+    padding:9px 11px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);
+  }
+  .thumb{
+    width:44px;height:44px;border-radius:3px;background:var(--surface-sunk);
+    display:grid;place-items:center;overflow:hidden;border:1px solid var(--line);
+    font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:600;color:var(--ink-3);letter-spacing:.04em;
+  }
+  .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .file .meta{min-width:0}
+  .file .name{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .file .sz{font-size:12px;color:var(--ink-3);font-family:"IBM Plex Mono",monospace}
+  .file select{width:auto;font-size:12.5px;padding:5px 8px}
+
+  .badge{
+    display:inline-flex;align-items:center;gap:5px;
+    font-size:11.5px;font-weight:600;letter-spacing:.03em;
+    padding:3px 9px;border-radius:99px;white-space:nowrap;
+  }
+  .badge.ok{background:var(--ok-wash);color:var(--ok)}
+  .badge.warn{background:var(--warn-wash);color:var(--warn)}
+  .badge.bad{background:var(--bad-wash);color:var(--bad)}
+  .badge.neutral{background:var(--surface-sunk);color:var(--ink-3)}
+
+  .notice{
+    display:grid;grid-template-columns:auto 1fr;gap:11px;align-items:start;
+    padding:12px 14px;border-radius:var(--radius);font-size:13px;line-height:1.5;
+    background:var(--brand-wash);color:var(--ink-2);border-left:2px solid var(--brand-2);
+  }
+  .notice.warn{background:var(--warn-wash);border-left-color:var(--warn);color:var(--ink-2)}
+  .notice.bad{background:var(--bad-wash);border-left-color:var(--bad)}
+  .notice b{color:var(--ink)}
+  .notice .ico{font-family:"IBM Plex Mono",monospace;font-weight:700;color:var(--brand)}
+  .notice.warn .ico{color:var(--warn)} .notice.bad .ico{color:var(--bad)}
+
+  .locked{opacity:.72}
+  .locked .body{pointer-events:none}
+  .sig{
+    display:grid;grid-template-columns:1fr 190px;gap:18px;align-items:end;
+    padding:16px;border:1px solid var(--line-strong);border-radius:var(--radius);
+    background:var(--surface-sunk);
+  }
+  @media (max-width:700px){.sig{grid-template-columns:1fr}}
+  .sig .typed{
+    font-family:"Newsreader",Georgia,serif;font-style:italic;font-size:22px;
+    border:0;border-bottom:1px solid var(--line-strong);border-radius:0;background:transparent;padding:4px 2px;
+  }
+
+  /* ---------- action bar ---------- */
+  .actionbar{
+    position:fixed;left:0;right:0;bottom:0;z-index:50;
+    background:var(--surface);border-top:1px solid var(--line);
+    padding:11px 28px;
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    box-shadow:0 -8px 24px -20px rgba(0,0,0,.5);
+  }
+  .actionbar .sum{display:flex;gap:22px;align-items:baseline;flex-wrap:wrap}
+  .actionbar .sum div{display:flex;flex-direction:column;gap:1px}
+  .actionbar .sum .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-weight:600}
+  .actionbar .sum .v{font-family:"IBM Plex Mono",monospace;font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
+  .actionbar .spacer{flex:1}
+  button.b{
+    font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;
+    padding:9px 17px;border-radius:var(--radius);border:1px solid var(--line-strong);
+    background:var(--surface);color:var(--ink);
+  }
+  button.b:hover{border-color:var(--brand-2);color:var(--brand)}
+  button.b.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+  :root[data-theme="dark"] button.b.primary,
+  :root:not([data-theme="light"]) button.b.primary{color:var(--ground)}
+  @media (prefers-color-scheme: light){:root:not([data-theme="dark"]) button.b.primary{color:#fff}}
+  button.b.primary:hover{background:var(--brand-2);border-color:var(--brand-2)}
+
+  .banner{
+    margin:0 0 18px;padding:14px 16px;border-radius:var(--radius);
+    background:var(--bad-wash);border-left:2px solid var(--bad);
+  }
+  .banner h4{margin:0 0 6px;font-size:13.5px;color:var(--bad)}
+  .banner ul{margin:0;padding-left:18px;font-size:13px;color:var(--ink-2);line-height:1.6}
+  .banner a{color:var(--ink-2)}
+
+  .footnote{
+    max-width:78ch;margin:26px 0 0;font-size:12.5px;line-height:1.6;color:var(--ink-3);
+    border-top:1px solid var(--line);padding-top:14px;
+  }
+
+  /* ---------- print / PDF ---------- */
+  .printonly{display:none}
+  @media print{
+    @page{size:A4;margin:14mm 13mm}
+    body{background:#fff;color:#000;font-size:10pt}
+    .topbar,.rail,.actionbar,.btn-add,.rowbtn,.drop,.banner,.no-print{display:none !important}
+    .layout{display:block;max-width:none}
+    main{padding:0}
+    .printonly{display:block}
+    .card{break-inside:avoid;box-shadow:none;border:1px solid #999;margin-bottom:8pt}
+    .card > header{background:#eee;padding:6pt 8pt}
+    .card .body{padding:8pt}
+    .grid{gap:8pt 10pt}
+    input,select,textarea{border:0;border-bottom:1px solid #999;border-radius:0;background:#fff;padding:1pt 2pt;font-size:10pt;color:#000}
+    textarea{border:1px solid #999;min-height:auto}
+    .chip{border-color:#999}
+    .file{break-inside:avoid;border-color:#999}
+    .thumb{display:none}
+    .file{grid-template-columns:1fr auto}
+    .pagebreak{break-before:page}
+    .totals{max-width:none}
+  }
+  .printhead{
+    border-bottom:2px solid #000;padding-bottom:6pt;margin-bottom:10pt;
+  }
+  .printhead h2{font-family:"Newsreader",Georgia,serif;margin:0;font-size:16pt}
+  .printhead p{margin:2pt 0 0;font-size:9pt}
+</style>
+
+<div class="topbar no-print">
+  <div class="mark">GS</div>
+  <div>
+    <h1>Debit Card Purchase</h1>
+    <div class="sub">Good Shepherd Baptist Church &middot; Finance</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="draft" id="draftstamp">Draft &middot; autosaved 12:04</div>
+  <button class="b no-print" id="btnTheme" type="button">Theme</button>
+  <button class="b no-print" id="btnPrint" type="button">Print / PDF</button>
+  <button class="b primary no-print" id="btnSubmit" type="button">Submit for approval</button>
+</div>
+
+<div class="printonly printhead">
+  <h2>Church Debit Card Purchase Form</h2>
+  <p>Good Shepherd Baptist Church &mdash; one form per transaction. Itemised receipt or tax invoice attached.</p>
+</div>
+
+<div class="layout">
+  <nav class="rail no-print" aria-label="Form sections">
+    <h2>Sections</h2>
+    <ol id="railList">
+      <li><a href="#s1"><span class="n">1</span><span>Cardholder &amp; transaction<span class="dot" data-dot="s1"></span></span></a></li>
+      <li><a href="#s2"><span class="n">2</span><span>Church purpose<span class="dot" data-dot="s2"></span></span></a></li>
+      <li><a href="#s3"><span class="n">3</span><span>Purchase &amp; evidence<span class="dot" data-dot="s3"></span></span></a></li>
+      <li><a href="#s3b"><span class="n">—</span><span>Attachments<span class="dot" data-dot="s3b"></span></span></a></li>
+      <li><a href="#s4"><span class="n">4</span><span>Compliance checks<span class="dot" data-dot="s4"></span></span></a></li>
+      <li><a href="#s5"><span class="n">5</span><span>Missing receipt<span class="dot" data-dot="s5"></span></span></a></li>
+      <li><a href="#s6"><span class="n">6</span><span>Declaration<span class="dot" data-dot="s6"></span></span></a></li>
+      <li><a href="#s7"><span class="n">7</span><span>Independent approval<span class="dot" data-dot="s7"></span></span></a></li>
+      <li><a href="#s8"><span class="n">8</span><span>Finance use only<span class="dot" data-dot="s8"></span></span></a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <p class="lede no-print">
+      Complete one form for each card transaction. Attach the <strong>itemised</strong> receipt or tax invoice &mdash;
+      a terminal receipt or bank line alone doesn&rsquo;t show what was bought. Sections 7 and 8 are completed by
+      the approver and finance after you submit.
+    </p>
+
+    <div class="banner no-print" id="errBanner" hidden>
+      <h4>This form isn&rsquo;t ready to submit</h4>
+      <ul id="errList"></ul>
+    </div>
+
+    <!-- 1 -->
+    <section class="card" id="s1">
+      <header><span class="num">01</span><h3>Cardholder and transaction details</h3><span class="hint">Complete all applicable fields</span></header>
+      <div class="body">
+        <div class="grid">
+          <div class="f c5"><label for="cardholder">Cardholder name <span class="req">*</span></label>
+            <input type="text" id="cardholder" data-req value="Marion Ellery"></div>
+          <div class="f c3"><label for="formdate">Form date <span class="req">*</span></label>
+            <input type="date" id="formdate" data-req value="2026-08-31"></div>
+          <div class="f c4"><label for="card4">Card last 4 digits <span class="req">*</span></label>
+            <input type="text" id="card4" class="mono" data-req inputmode="numeric" maxlength="4" placeholder="0000" value="4417">
+            <span class="help">Never record the full number, PIN or CVV.</span></div>
+
+          <div class="f c12"><span class="lbl">Role / relationship <span class="req">*</span></span>
+            <div class="chips" id="roleChips">
+              <label class="chip"><input type="radio" name="role" value="Employee">Employee</label>
+              <label class="chip"><input type="radio" name="role" value="Volunteer" checked>Volunteer</label>
+              <label class="chip"><input type="radio" name="role" value="Pastor">Pastor</label>
+              <label class="chip"><input type="radio" name="role" value="Responsible Person">Responsible Person</label>
+              <label class="chip"><input type="radio" name="role" value="Other">Other</label>
+            </div>
+          </div>
+
+          <div class="f c4"><label for="ministry">Ministry / department <span class="req">*</span></label>
+            <input type="text" id="ministry" data-req value="Youth"></div>
+          <div class="f c4"><label for="txdate">Transaction date <span class="req">*</span></label>
+            <input type="date" id="txdate" data-req value="2026-08-27"></div>
+          <div class="f c4"><label for="txtime">Time</label>
+            <input type="time" id="txtime" value="16:20"></div>
+
+          <div class="f c5"><label for="supplier">Supplier / merchant <span class="req">*</span></label>
+            <input type="text" id="supplier" data-req value="Bunnings Warehouse Springwood"></div>
+          <div class="f c3"><label for="charged">Amount charged <span class="req">*</span></label>
+            <div class="money"><input type="number" step="0.01" id="charged" data-req value="184.60"></div></div>
+          <div class="f c4"><label for="bankref">Bank reference</label>
+            <input type="text" id="bankref" class="mono" placeholder="e.g. EFTPOS 27/08" value="EFTPOS 2708-4417"></div>
+        </div>
+
+        <div class="notice" style="margin-top:16px">
+          <span class="ico">!</span>
+          <div><b>Card security.</b> Record only the last four digits. The full card number, PIN or security code must never be entered here or attached in an image.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2 -->
+    <section class="card" id="s2">
+      <header><span class="num">02</span><h3>Church purpose and authorisation</h3></header>
+      <div class="body">
+        <div class="grid">
+          <div class="f c6"><label for="event">Event / project</label>
+            <input type="text" id="event" value="Friday Night Youth &mdash; games shed fit-out"></div>
+          <div class="f c3"><label for="approvedby">Prior approval by <span class="req">*</span></label>
+            <input type="text" id="approvedby" data-req value="Pr. Daniel Okafor"></div>
+          <div class="f c3"><label for="approvaldate">Approval date</label>
+            <input type="date" id="approvaldate" value="2026-08-20"></div>
+          <div class="f c12"><label for="purpose">What was purchased, who used or benefited from it, and how did it further the Church&rsquo;s charitable / religious purposes? <span class="req">*</span></label>
+            <textarea id="purpose" data-req rows="4">Shelving, hooks and storage tubs to fit out the games shed used by Friday Night Youth (approx. 35 attendees, ages 12-17). Replaces stacked cartons that were a trip hazard and lets volunteers set up and pack down safely. Approved at the 20 August leadership meeting under the youth ministry budget.</textarea>
+            <span class="help">Enough detail that someone outside the ministry could see the church purpose without asking.</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3 -->
+    <section class="card" id="s3">
+      <header><span class="num">03</span><h3>Purchase and evidence details</h3><span class="hint">Itemise the complete card transaction</span></header>
+      <div class="body">
+        <div class="tablewrap">
+          <table id="itemsTable">
+            <thead>
+              <tr>
+                <th style="min-width:180px">Item</th>
+                <th style="min-width:130px">Qty / details</th>
+                <th style="min-width:170px">Church purpose / user</th>
+                <th style="min-width:120px">Receipt</th>
+                <th class="num" style="width:110px">Gross incl. GST</th>
+                <th class="num" style="width:100px">GST shown</th>
+                <th class="num" style="width:105px">Church use %</th>
+                <th style="width:38px"></th>
+              </tr>
+            </thead>
+            <tbody id="itemsBody"></tbody>
+          </table>
+        </div>
+        <button class="btn-add no-print" type="button" id="addItem">+ Add line</button>
+
+        <div class="totals">
+          <span class="k">Total card transaction</span><span class="v mono" id="tTotal">$0.00</span>
+          <span class="k">GST shown on evidence</span><span class="v mono" id="tGst">$0.00</span>
+          <span class="k">Less personal portion to be repaid</span>
+          <span class="v"><div class="money"><input type="number" step="0.01" id="personal" value="0.00"></div></span>
+          <span class="rule"></span>
+          <span class="k net">Net authorised church expense</span><span class="v net mono" id="tNet">$0.00</span>
+        </div>
+
+        <div class="notice warn" id="mismatchNotice" hidden style="margin-top:14px">
+          <span class="ico">≠</span>
+          <div><b>Lines don&rsquo;t match the card charge.</b> Itemised lines total <span id="mmLines" class="mono"></span> but the amount charged in section 1 is <span id="mmCharged" class="mono"></span>. Add the missing lines or correct the charge before submitting.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- attachments -->
+    <section class="card" id="s3b">
+      <header><span class="num">—</span><h3>Attachments</h3><span class="hint" id="attCount">No files yet</span></header>
+      <div class="body">
+        <div class="drop" id="drop" tabindex="0" role="button" aria-label="Add receipts and supporting evidence">
+          <span class="big">Drop receipts here, or click to choose files</span>
+          <span class="small">PDF, JPG, PNG, HEIC or email (.eml) &middot; up to 20&nbsp;MB each &middot; photos of paper receipts are fine</span>
+        </div>
+        <input type="file" id="fileInput" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.eml,.webp" hidden>
+        <ul class="files" id="fileList"></ul>
+        <div class="notice bad" id="noAttachNotice" style="margin-top:14px">
+          <span class="ico">!</span>
+          <div><b>At least one itemised receipt or tax invoice is required.</b> If evidence genuinely can&rsquo;t be obtained, mark the line &ldquo;Missing&rdquo; in section 3 and complete the missing receipt declaration.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 -->
+    <section class="card" id="s4">
+      <header><span class="num">04</span><h3>Special purchase details and compliance checks</h3></header>
+      <div class="body" id="checksBody">
+        <!-- built by script -->
+      </div>
+    </section>
+
+    <!-- 5 -->
+    <section class="card" id="s5">
+      <header><span class="num">05</span><h3>Missing receipt declaration</h3><span class="hint" id="s5hint">Not required &mdash; all lines have evidence</span></header>
+      <div class="body">
+        <div id="s5inner" hidden>
+          <div class="grid">
+            <div class="f c5"><label for="mrSupplier">Supplier</label><input type="text" id="mrSupplier"></div>
+            <div class="f c3"><label for="mrDate">Date</label><input type="date" id="mrDate"></div>
+            <div class="f c4"><label for="mrAmount">Amount</label><div class="money"><input type="number" step="0.01" id="mrAmount"></div></div>
+            <div class="f c12"><label for="mrReason">Reason evidence cannot be supplied, and steps taken to obtain a copy</label>
+              <textarea id="mrReason" rows="3" placeholder="e.g. Receipt not issued at the till; requested a reprint from the store on 28 Aug, awaiting response."></textarea></div>
+            <div class="f c12">
+              <label class="checkline"><input type="checkbox" id="mrDeclare">
+                <span>I declare that the card charge was made for the stated Church purpose, the details are accurate, and I have supplied all available evidence. I understand <b>GST must not be claimed</b> unless the Church holds the evidence required by law.</span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="notice" id="s5idle">
+          <span class="ico">✓</span>
+          <div>Every line in section 3 is marked as having a receipt attached. This section unlocks automatically if you mark a line <b>Missing</b>.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6 -->
+    <section class="card pagebreak" id="s6">
+      <header><span class="num">06</span><h3>Cardholder declaration</h3><span class="hint">All five must be ticked</span></header>
+      <div class="body">
+        <div class="stack" id="declStack">
+          <label class="checkline"><input type="checkbox" class="decl">
+            <span><b>Strictly church expense.</b> Every amount treated as a Church expense was incurred solely for an authorised Church purpose. No personal, private or family expense is included.</span></label>
+          <label class="checkline"><input type="checkbox" class="decl">
+            <span>Where my spouse, child, family member or another private companion attended, accompanied me or received any benefit, I have <b>separately identified and excluded</b> all of their costs and their fair share of every joint or shared expense (meals, travel, accommodation, tickets, transport).</span></label>
+          <label class="checkline"><input type="checkbox" class="decl">
+            <span>If any personal or unauthorised amount was inadvertently charged, I have disclosed it and <b>repaid or arranged immediate repayment</b>. I understand the Church debit card must not be used for personal purchases.</span></label>
+          <label class="checkline"><input type="checkbox" class="decl">
+            <span>The attached evidence is <b>genuine and itemised</b>. I have disclosed discounts, refunds, credits, loyalty benefits used as payment, insurance recoveries and any private use.</span></label>
+          <label class="checkline"><input type="checkbox" class="decl">
+            <span>I have identified meal attendees, gift recipients and beneficiaries where applicable, and disclosed any conflict of interest or related-party connection.</span></label>
+        </div>
+
+        <div class="sig" style="margin-top:18px">
+          <div class="f"><label for="sigName">Cardholder signature &mdash; type your full name to sign</label>
+            <input type="text" id="sigName" class="typed" placeholder="Your full name"></div>
+          <div class="f"><label for="sigDate">Date</label><input type="date" id="sigDate" value="2026-08-31"></div>
+        </div>
+        <p class="help" style="margin-top:8px">Typing your name records an electronic signature against your church account, with a timestamp and IP address.</p>
+      </div>
+    </section>
+
+    <!-- 7 -->
+    <section class="card locked" id="s7">
+      <header><span class="num">07</span><h3>Independent approval</h3><span class="badge neutral">Approver &mdash; after submission</span></header>
+      <div class="body">
+        <p class="help" style="margin-top:0">The approver must not be the cardholder. Routed automatically to the ministry&rsquo;s delegate; if the cardholder is a Responsible Person or related party, it routes to an independent approver instead.</p>
+        <div class="grid" style="margin-top:14px">
+          <div class="f c12"><span class="lbl">Decision</span>
+            <div class="chips">
+              <label class="chip"><input type="radio" name="decision">Approved in full</label>
+              <label class="chip"><input type="radio" name="decision">Church expense approved $&hellip;</label>
+              <label class="chip"><input type="radio" name="decision">Repayment required $&hellip;</label>
+              <label class="chip"><input type="radio" name="decision">Declined</label>
+            </div></div>
+          <div class="f c6"><label>Approver name / role</label><input type="text" disabled></div>
+          <div class="f c3"><label>Signature</label><input type="text" class="typed" disabled></div>
+          <div class="f c3"><label>Date</label><input type="date" disabled></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8 -->
+    <section class="card locked" id="s8">
+      <header><span class="num">08</span><h3>Finance use only</h3><span class="badge neutral">Finance team</span></header>
+      <div class="body">
+        <div class="grid">
+          <div class="f c4"><label>Transaction reference</label><input type="text" disabled></div>
+          <div class="f c4"><label>Statement date</label><input type="date" disabled></div>
+          <div class="f c4"><label>BAS period</label><input type="text" disabled></div>
+          <div class="f c4"><label>Account / GL code</label><input type="text" disabled></div>
+          <div class="f c4"><label>Cost centre / ministry</label><input type="text" disabled></div>
+          <div class="f c4"><label>GST credit claimed</label><div class="money"><input type="number" disabled></div></div>
+          <div class="f c6"><span class="lbl">GST treatment</span>
+            <div class="chips">
+              <label class="chip"><input type="radio" name="gst">GST credit</label>
+              <label class="chip"><input type="radio" name="gst">No GST credit</label>
+              <label class="chip"><input type="radio" name="gst">Mixed</label>
+            </div></div>
+          <div class="f c6"><span class="lbl">Evidence check</span>
+            <div class="chips">
+              <label class="chip"><input type="checkbox">Valid tax invoice(s)</label>
+              <label class="chip"><input type="checkbox">Other acceptable evidence</label>
+            </div></div>
+          <div class="f c12"><span class="lbl">Finance checklist</span>
+            <div class="stack" style="margin-top:4px">
+              <label class="checkline"><input type="checkbox"><span>Supplier, date, description and amount are evidenced; GST information is sufficient for the credit claimed.</span></label>
+              <label class="checkline"><input type="checkbox"><span>Coded to the correct activity/fund; restricted funds and grant conditions checked.</span></label>
+              <label class="checkline"><input type="checkbox"><span>No personal or family costs remain as a Church expense; joint costs apportioned, private amounts repaid and reconciled.</span></label>
+              <label class="checkline"><input type="checkbox"><span>Meal attendees, gift recipients and travel purpose documented; refunds, credits and duplicate charges checked.</span></label>
+              <label class="checkline"><input type="checkbox"><span>Related-party, conflict and overseas-activity registers updated where required.</span></label>
+              <label class="checkline"><input type="checkbox"><span>Form, approvals and supporting records filed together and retained under the record-retention policy (minimum seven years for ACNC records).</span></label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="footnote">
+      This form supports compliance but does not replace the Church constitution, delegations, debit card policy,
+      grant conditions, employment obligations, or professional advice. Finance applies the ATO and ACNC
+      requirements current at the payment date.
+    </p>
+  </main>
+</div>
+
+<div class="actionbar no-print">
+  <div class="sum">
+    <div><span class="k">Card charge</span><span class="v" id="barCharged">$0.00</span></div>
+    <div><span class="k">Net church expense</span><span class="v" id="barNet">$0.00</span></div>
+    <div><span class="k">Attachments</span><span class="v" id="barFiles">0</span></div>
+  </div>
+  <div class="spacer"></div>
+  <span class="badge" id="barStatus">&nbsp;</span>
+  <button class="b" type="button" id="btnSave">Save draft</button>
+  <button class="b" type="button" id="btnPrint2">Print / PDF</button>
+  <button class="b primary" type="button" id="btnSubmit2">Submit for approval</button>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const $ = (s,r) => (r||document).querySelector(s);
+  const $$ = (s,r) => Array.from((r||document).querySelectorAll(s));
+  const money = n => "$" + (Number(n)||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+  /* ---------- section 3: line items ---------- */
+  const seed = [
+    {item:"Heavy duty shelving unit 1800mm", qty:"2 @ $59.00", purpose:"Games shed storage — youth", rec:"attached", gross:118.00, gst:10.73, pct:100},
+    {item:"Storage tubs 52L", qty:"4 @ $12.90", purpose:"Board games / craft supplies", rec:"attached", gross:51.60, gst:4.69, pct:100},
+    {item:"Wall hooks (pack of 6)", qty:"1 pack", purpose:"Sports equipment hanging", rec:"attached", gross:15.00, gst:1.36, pct:100}
+  ];
+  const tbody = $("#itemsBody");
+
+  function row(d){
+    d = d || {item:"",qty:"",purpose:"",rec:"attached",gross:"",gst:"",pct:100};
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      '<td><input type="text" class="i-item" placeholder="What was bought"></td>'+
+      '<td><input type="text" class="i-qty" placeholder="Qty / details"></td>'+
+      '<td><input type="text" class="i-purpose" placeholder="Who used it / why"></td>'+
+      '<td><select class="i-rec"><option value="attached">Attached</option><option value="missing">Missing</option></select></td>'+
+      '<td class="num"><div class="money"><input type="number" step="0.01" class="i-gross"></div></td>'+
+      '<td class="num"><div class="money"><input type="number" step="0.01" class="i-gst"></div></td>'+
+      '<td class="num"><input type="number" step="1" min="0" max="100" class="i-pct mono" style="text-align:right"></td>'+
+      '<td><button type="button" class="rowbtn" aria-label="Remove line">&times;</button></td>';
+    $(".i-item",tr).value=d.item; $(".i-qty",tr).value=d.qty; $(".i-purpose",tr).value=d.purpose;
+    $(".i-rec",tr).value=d.rec; $(".i-gross",tr).value=d.gross; $(".i-gst",tr).value=d.gst; $(".i-pct",tr).value=d.pct;
+    $(".rowbtn",tr).addEventListener("click", () => {
+      if (tbody.rows.length > 1) { tr.remove(); recalc(); }
+    });
+    tr.addEventListener("input", recalc);
+    tr.addEventListener("change", recalc);
+    return tr;
+  }
+  seed.forEach(d => tbody.appendChild(row(d)));
+  $("#addItem").addEventListener("click", () => { tbody.appendChild(row()); recalc(); });
+
+  /* ---------- section 4: compliance questions ---------- */
+  const checks = [
+    { id:"travel", q:"Parking, toll, fuel, taxi or other travel?",
+      then:"Record the destination or event and the Church purpose, and attach the receipt or trip evidence.",
+      fields:[["Destination / event","text"],["Church purpose for the trip","text"]] },
+    { id:"hosp", q:"Meal, restaurant, catering, gift or hospitality?",
+      then:"List every attendee or recipient, their relationship to the Church, the ministry purpose and any private share.",
+      table:true },
+    { id:"family", q:"Did a spouse, child, family member or private companion attend, travel, dine or benefit?",
+      then:"Identify them and fully exclude their costs and fair share of every joint expense.",
+      fields:[["Who attended or benefited","text"],["Amount excluded as private","money"]] },
+    { id:"overseas", q:"Expense incurred outside Australia or for an overseas activity?",
+      then:"Specify the country and link it to the relevant activity or project records.",
+      fields:[["Country","text"],["Related activity / project record","text"]] },
+    { id:"related", q:"Is the cardholder, supplier or recipient a Responsible Person, senior manager, close family member, or related entity?",
+      then:"Disclose the connection below. The form will route to an independent approver.",
+      fields:[["Who, and what is the connection","text"]] },
+    { id:"coi", q:"Actual, potential or perceived conflict of interest?",
+      then:"Disclose it below; it will be recorded and managed under the Church conflict-of-interest process.",
+      fields:[["Nature of the conflict and how it is managed","text"]] }
+  ];
+
+  const cb = $("#checksBody");
+  checks.forEach(c => {
+    const wrap = document.createElement("div");
+    const q = document.createElement("div");
+    q.className = "q";
+    q.innerHTML =
+      '<p><span class="qlabel">'+c.q+'</span><span class="thenline">'+c.then+'</span></p>'+
+      '<div class="yn">'+
+        '<label><input type="radio" name="'+c.id+'" value="no" checked>No</label>'+
+        '<label><input type="radio" name="'+c.id+'" value="yes">Yes</label>'+
+      '</div>';
+    wrap.appendChild(q);
+
+    const rev = document.createElement("div");
+    rev.className = "reveal"; rev.hidden = true;
+    if (c.table){
+      rev.innerHTML =
+        '<span class="lbl">Attendees, recipients and private share</span>'+
+        '<div class="tablewrap" style="margin-top:8px;background:var(--surface)">'+
+          '<table style="min-width:720px"><thead><tr>'+
+            '<th style="min-width:110px">Date</th><th style="min-width:150px">Person / recipient</th>'+
+            '<th style="min-width:140px">Relationship / role</th><th class="num" style="width:100px">Amount</th>'+
+            '<th class="num" style="width:110px">Private share</th><th style="min-width:180px">Reason &amp; church purpose</th>'+
+          '</tr></thead><tbody id="hospBody"></tbody></table>'+
+        '</div>'+
+        '<button type="button" class="btn-add" id="addHosp">+ Add person</button>';
+    } else {
+      rev.innerHTML = '<div class="grid">' + c.fields.map(f =>
+        '<div class="f c6"><label>'+f[0]+'</label>'+
+        (f[1]==="money" ? '<div class="money"><input type="number" step="0.01"></div>' : '<input type="text">')+
+        '</div>').join("") + '</div>';
+    }
+    wrap.appendChild(rev);
+    cb.appendChild(wrap);
+
+    $$('input[name="'+c.id+'"]', q).forEach(r => r.addEventListener("change", () => {
+      rev.hidden = !$('input[name="'+c.id+'"][value="yes"]', q).checked;
+      updateDots();
+    }));
+  });
+
+  const hospBody = $("#hospBody");
+  function hospRow(){
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      '<td><input type="date"></td><td><input type="text" placeholder="Name"></td>'+
+      '<td><input type="text" placeholder="e.g. Youth leader"></td>'+
+      '<td class="num"><div class="money"><input type="number" step="0.01"></div></td>'+
+      '<td class="num"><div class="money"><input type="number" step="0.01"></div></td>'+
+      '<td><input type="text" placeholder="Reason"></td>';
+    return tr;
+  }
+  if (hospBody){ hospBody.appendChild(hospRow()); hospBody.appendChild(hospRow()); }
+  const addHosp = $("#addHosp");
+  if (addHosp) addHosp.addEventListener("click", () => hospBody.appendChild(hospRow()));
+
+  /* ---------- attachments ---------- */
+  const files = [];
+  const fileList = $("#fileList");
+  const kinds = ["Itemised receipt / tax invoice","Card terminal receipt","Quote or order confirmation","Approval email","Photo of goods / event","Other supporting evidence"];
+
+  function fmtSize(b){ return b < 1024*1024 ? Math.max(1,Math.round(b/1024))+" KB" : (b/1048576).toFixed(1)+" MB"; }
+
+  function renderFiles(){
+    fileList.innerHTML = "";
+    files.forEach((f,i) => {
+      const li = document.createElement("li");
+      li.className = "file";
+      const ext = (f.name.split(".").pop()||"?").toUpperCase().slice(0,4);
+      li.innerHTML =
+        '<div class="thumb"></div>'+
+        '<div class="meta"><div class="name"></div><div class="sz"></div></div>'+
+        '<select aria-label="Evidence type">'+kinds.map(k=>'<option>'+k+'</option>').join("")+'</select>'+
+        '<button type="button" class="rowbtn" aria-label="Remove attachment">&times;</button>';
+      $(".name",li).textContent = f.name;
+      $(".sz",li).textContent = fmtSize(f.size);
+      const thumb = $(".thumb",li);
+      if (f.url) { const img = new Image(); img.src = f.url; img.alt = ""; thumb.appendChild(img); }
+      else thumb.textContent = ext;
+      if (/receipt|invoice|tax/i.test(f.name)) $("select",li).selectedIndex = 0;
+      $(".rowbtn",li).addEventListener("click", () => { files.splice(i,1); renderFiles(); recalc(); });
+      fileList.appendChild(li);
+    });
+    $("#attCount").textContent = files.length ? files.length + (files.length===1?" file":" files") + " attached" : "No files yet";
+    $("#noAttachNotice").hidden = files.length > 0;
+    $("#barFiles").textContent = String(files.length);
+  }
+
+  function addFiles(list){
+    Array.from(list).forEach(f => {
+      const rec = { name:f.name, size:f.size, url:null };
+      if (/^image\//.test(f.type)) rec.url = URL.createObjectURL(f);
+      files.push(rec);
+    });
+    renderFiles(); recalc();
+  }
+
+  const drop = $("#drop"), input = $("#fileInput");
+  drop.addEventListener("click", () => input.click());
+  drop.addEventListener("keydown", e => { if (e.key==="Enter"||e.key===" "){ e.preventDefault(); input.click(); }});
+  input.addEventListener("change", e => { addFiles(e.target.files); input.value=""; });
+  ["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", e => { if (e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files); });
+
+  // seed one demo attachment so the mockup reads as a real submission
+  files.push({name:"bunnings-tax-invoice-27aug.pdf", size:214_000, url:null});
+  renderFiles();
+
+  /* ---------- totals & state ---------- */
+  function recalc(){
+    let total = 0, gst = 0, missing = false;
+    $$("#itemsBody tr").forEach(tr => {
+      total += Number($(".i-gross",tr).value)||0;
+      gst   += Number($(".i-gst",tr).value)||0;
+      if ($(".i-rec",tr).value === "missing") missing = true;
+    });
+    const personal = Number($("#personal").value)||0;
+    const charged = Number($("#charged").value)||0;
+    const net = Math.max(0, total - personal);
+
+    $("#tTotal").textContent = money(total);
+    $("#tGst").textContent = money(gst);
+    $("#tNet").textContent = money(net);
+    $("#barCharged").textContent = money(charged);
+    $("#barNet").textContent = money(net);
+
+    const mismatch = Math.abs(total - charged) > 0.005 && charged > 0;
+    $("#mismatchNotice").hidden = !mismatch;
+    if (mismatch){ $("#mmLines").textContent = money(total); $("#mmCharged").textContent = money(charged); }
+
+    $("#s5inner").hidden = !missing;
+    $("#s5idle").hidden = missing;
+    $("#s5hint").textContent = missing ? "Required — a line is marked Missing" : "Not required — all lines have evidence";
+
+    updateDots();
+  }
+  $("#personal").addEventListener("input", recalc);
+  $("#charged").addEventListener("input", recalc);
+
+  /* ---------- validation ---------- */
+  function problems(){
+    const p = [];
+    $$("[data-req]").forEach(el => {
+      if (!String(el.value).trim()){
+        const lab = el.closest(".f") && $("label",el.closest(".f"));
+        p.push({ msg:(lab ? lab.textContent.replace("*","").trim() : el.id) + " is required", to:"#"+(el.closest("section")||{}).id });
+      }
+    });
+    if (!files.length) p.push({msg:"At least one receipt or tax invoice must be attached", to:"#s3b"});
+    const total = $$("#itemsBody tr").reduce((s,tr)=>s+(Number($(".i-gross",tr).value)||0),0);
+    const charged = Number($("#charged").value)||0;
+    if (charged>0 && Math.abs(total-charged) > 0.005) p.push({msg:"Itemised lines ("+money(total)+") don’t match the card charge ("+money(charged)+")", to:"#s3"});
+    const decls = $$(".decl");
+    if (decls.some(d => !d.checked)) p.push({msg:"All five cardholder declarations must be ticked", to:"#s6"});
+    if (!$("#sigName").value.trim()) p.push({msg:"Type your name to sign the declaration", to:"#s6"});
+    if ($("#s5inner").hidden === false && !$("#mrDeclare").checked) p.push({msg:"Complete the missing receipt declaration", to:"#s5"});
+    return p;
+  }
+
+  function updateDots(){
+    const sectionOk = {
+      s1: $$("#s1 [data-req]").every(e=>e.value.trim()),
+      s2: $$("#s2 [data-req]").every(e=>e.value.trim()),
+      s3: $$("#itemsBody tr").some(tr=>$(".i-item",tr).value.trim()) && $("#mismatchNotice").hidden,
+      s3b: files.length>0,
+      s4: true,
+      s5: $("#s5inner").hidden || $("#mrDeclare").checked,
+      s6: $$(".decl").every(d=>d.checked) && !!$("#sigName").value.trim(),
+      s7: false, s8: false
+    };
+    Object.keys(sectionOk).forEach(k => {
+      const dot = $('[data-dot="'+k+'"]');
+      if (!dot) return;
+      dot.classList.toggle("done", !!sectionOk[k]);
+      dot.classList.toggle("err", false);
+    });
+    const n = problems().length;
+    const bar = $("#barStatus");
+    if (n === 0){ bar.className = "badge ok"; bar.textContent = "Ready to submit"; }
+    else { bar.className = "badge warn"; bar.textContent = n + (n===1?" item outstanding":" items outstanding"); }
+  }
+  document.addEventListener("input", e => { if (e.target.closest("main")) updateDots(); });
+  document.addEventListener("change", e => { if (e.target.closest("main")) updateDots(); });
+
+  function submit(){
+    const p = problems();
+    const banner = $("#errBanner"), list = $("#errList");
+    if (p.length){
+      list.innerHTML = p.map(x => '<li><a href="'+x.to+'">'+x.msg+'</a></li>').join("");
+      banner.hidden = false;
+      banner.scrollIntoView({behavior:"smooth", block:"center"});
+    } else {
+      banner.hidden = true;
+      $("#draftstamp").textContent = "Submitted — awaiting approval";
+      $("#barStatus").className = "badge ok";
+      $("#barStatus").textContent = "Submitted to Pr. Daniel Okafor";
+    }
+  }
+  $("#btnSubmit").addEventListener("click", submit);
+  $("#btnSubmit2").addEventListener("click", submit);
+  $("#btnSave").addEventListener("click", () => {
+    const t = new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+    $("#draftstamp").textContent = "Draft · autosaved " + t;
+  });
+  $("#btnPrint").addEventListener("click", () => window.print());
+  $("#btnPrint2").addEventListener("click", () => window.print());
+
+  /* theme toggle */
+  $("#btnTheme").addEventListener("click", () => {
+    const cur = document.documentElement.getAttribute("data-theme");
+    const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+  });
+
+  /* rail active state */
+  const secs = $$("section.card");
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(en => {
+      if (en.isIntersecting){
+        $$(".rail a").forEach(a => a.classList.toggle("active", a.getAttribute("href") === "#"+en.target.id));
+      }
+    });
+  }, {rootMargin:"-70px 0px -70% 0px"});
+  secs.forEach(s => obs.observe(s));
+
+  recalc();
+})();
+</script>
