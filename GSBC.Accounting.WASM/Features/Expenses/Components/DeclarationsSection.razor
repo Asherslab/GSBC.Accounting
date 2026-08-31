@@ -1,0 +1,111 @@
+@using GSBC.Accounting.WASM.Features.Expenses
+
+@*
+    Sections 5 and 6.
+
+    Section 5 appears only when some line in section 3 says Missing - that is what the paper form means
+    by "Complete only when evidence is unavailable". Section 6 is always there.
+
+    Every declaration is quoted from its own form. Only declaration 4 is word-for-word identical between
+    the two documents, and declaration 3 is a DIFFERENT declaration on each: repayment on the debit card
+    form, no-double-claim on the reimbursement form. Neither form carries the other's, and closing that
+    gap is a decision for finance, not for this page.
+*@
+
+@if (Model.HasMissingEvidence)
+{
+    <section class="card" id="s5">
+        <header>
+            <span class="num">05</span>
+            <h3>Missing receipt declaration</h3>
+            <span class="hint">Complete only when evidence is unavailable</span>
+        </header>
+        <div class="body">
+            <div class="grid">
+                <div class="f c5">
+                    <label for="misssupplier">Supplier</label>
+                    <input type="text" id="misssupplier" @bind="Model.MissingSupplier" @bind:event="oninput"/>
+                </div>
+                <div class="f c3">
+                    <label for="missdate">Date</label>
+                    <input type="date" id="missdate" @bind="Model.MissingDate" @bind:event="oninput"/>
+                </div>
+                <div class="f c4">
+                    <label for="missamount">Amount</label>
+                    <div class="money">
+                        <input type="number" step="0.01" min="0" id="missamount"
+                               @bind="Model.MissingAmount" @bind:event="oninput"/>
+                    </div>
+                </div>
+                <div class="f c12">
+                    <label for="missreason">
+                        Reason evidence cannot be supplied and steps taken to obtain a copy
+                    </label>
+                    <textarea id="missreason" rows="3" @bind="Model.MissingReason" @bind:event="oninput"></textarea>
+                </div>
+            </div>
+
+            <div class="stack" style="margin-top:14px">
+                <label class="checkline">
+                    <input type="checkbox" @bind="Model.MissingDeclared" @bind:after="Changed"/>
+                    <span>@Text.MissingReceiptDeclaration</span>
+                </label>
+            </div>
+        </div>
+    </section>
+}
+
+<section class="card" id="s6">
+    <header>
+        <span class="num">06</span>
+        <h3>@Text.Section6Caption</h3>
+        <span class="hint">@Ticked of @Text.Declarations.Count agreed</span>
+    </header>
+    <div class="body">
+        <div class="stack">
+            @for (int i = 0; i < Text.Declarations.Count; i++)
+            {
+                int index = i;
+
+                <label class="checkline">
+                    <input type="checkbox" checked="@Model.Declarations[index]"
+                           @onchange="e => Tick(index, e)"/>
+                    <span>@Text.Declarations[index]</span>
+                </label>
+            }
+        </div>
+
+        <div class="sig" style="margin-top:16px">
+            <div class="f">
+                <label for="signature">@Text.SignatureLabel</label>
+                @* Typed, and not a signature in any legal sense - it is a name somebody typed beside the
+                   declarations above. Section 7's independent approval is what carries authority. *@
+                <input type="text" id="signature" class="typed"
+                       @bind="Model.SignatureName" @bind:event="oninput" @bind:after="Changed"/>
+            </div>
+            <div class="f">
+                <label for="sigdate">Date</label>
+                <input type="date" id="sigdate" @bind="Model.FormDate" @bind:event="oninput"/>
+            </div>
+        </div>
+    </div>
+</section>
+
+@code
+{
+    [Parameter, EditorRequired] public required ExpenseFormModel Model { get; set; }
+
+    [Parameter, EditorRequired] public required ExpenseFormText Text { get; set; }
+
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private int Ticked => Model.Declarations.Count(x => x);
+
+    private async Task Tick(int index, ChangeEventArgs e)
+    {
+        Model.Declarations[index] = e.Value is true;
+        await Changed();
+    }
+
+    private async Task Changed() => await OnChanged.InvokeAsync();
+}
