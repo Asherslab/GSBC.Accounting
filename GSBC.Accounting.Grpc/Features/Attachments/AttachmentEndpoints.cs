@@ -1,4 +1,6 @@
 using GSBC.Accounting.Grpc.Data;
+using GSBC.Accounting.Grpc.Extensions;
+using Microsoft.AspNetCore.RateLimiting;
 using GSBC.Accounting.Grpc.Data.Models.Expenses;
 using GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses;
 using Microsoft.EntityFrameworkCore;
@@ -31,9 +33,13 @@ public static class AttachmentEndpoints
 
         group.MapPost("", UploadAsync)
             // The body is read as a stream, so model binding must not try to buffer or parse it first.
-            .DisableAntiforgery();
+            .DisableAntiforgery()
+            // The tightest limit in the app, because this one writes bytes to storage that nothing
+            // authenticated is standing in front of.
+            .RequireRateLimiting(RateLimiting.UploadPolicy);
 
-        group.MapGet("{attachmentId:guid}", DownloadAsync);
+        group.MapGet("{attachmentId:guid}", DownloadAsync)
+            .RequireRateLimiting(RateLimiting.UploadPolicy);
     }
 
     private static async Task<IResult> UploadAsync(

@@ -1,4 +1,6 @@
 using GSBC.Accounting.Grpc.Data;
+using GSBC.Accounting.Grpc.Extensions;
+using Microsoft.AspNetCore.RateLimiting;
 using GSBC.Accounting.Grpc.Data.Models.Expenses;
 using Microsoft.EntityFrameworkCore;
 using QuestPDF.Fluent;
@@ -49,7 +51,9 @@ public static class PdfEndpoints
                 $"attachment; filename=\"{FileName(submission)}\"";
 
             return Results.File(pdf, "application/pdf");
-        });
+        })
+        // Rendering costs CPU rather than storage, so this has its own, lower ceiling.
+        .RequireRateLimiting(RateLimiting.RenderPolicy);
     }
 
     /// <summary>

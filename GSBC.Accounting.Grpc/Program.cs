@@ -7,6 +7,8 @@ using GSBC.Accounting.Grpc.Features.Pdf;
 using QuestPDF.Infrastructure;
 using GSBC.Accounting.Grpc.Features.Expenses.ExpenseSubmissionServices;
 using GSBC.Accounting.ServiceDefaults;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using ProtoBuf.Grpc.Server;
 
@@ -54,7 +56,27 @@ builder.Services.AddSingleton<IAmazonS3>(_ => new AmazonS3Client(
     }));
 builder.Services.AddScoped<AttachmentStore>();
 
+builder.Services.AddGsbcRateLimiting();
+
+// Kestrel's own ceiling, below every application-level check. It is what stops a body being read at all
+// rather than being read and then refused, and it applies to the gRPC endpoints too - where a 20 MB
+// message would otherwise be buffered before anything looked at it.
+//
+// 24 MB rather than 20: the attachment endpoint's own limit is the real one, and leaving a margin means
+// an over-size upload gets this app's readable "larger than 20 MB" message instead of Kestrel's abrupt
+// connection reset.
+builder.WebHost.ConfigureKestrel(kestrel => kestrel.Limits.MaxRequestBodySize = 24L * 1024 * 1024);
+
 var app = builder.Build();
+
+// Before the rate limiter, so partitions are keyed on the caller's address rather than on YARP's.
+// In the cluster this trusts the ingress to set the headers; nothing else may.
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
+
+app.UseRateLimiter();
 
 app.MapDefaultEndpoints();
 
@@ -69,7 +91,8 @@ app.UseGrpcWeb(new GrpcWebOptions { DefaultEnabled = true });
 // content-type allow-list. Those land in slice 10 and are not optional.
 
 // A service that compiles and is not mapped fails at the client as an unimplemented method, not at build.
-app.MapGrpcService<ExpenseSubmissionService>();
+app.MapGrpcService<ExpenseSubmissionService>()
+    .RequireRateLimiting(RateLimiting.SubmissionPolicy);
 
 // Plain HTTP, never gRPC: a receipt is 1-20 MB and the gRPC channel must not carry file bytes.
 app.AddAttachmentEndpoints();

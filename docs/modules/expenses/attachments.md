@@ -108,6 +108,40 @@ evidence under seven-year retention: "is this the file that was uploaded" needs 
 depend on the object store still being trustworthy. ImpactKids stores none of this, because a photo
 does not need it.
 
+## Rate limits and body ceilings
+
+Per-IP fixed windows, because the pages are anonymous and nothing else stands between the open internet
+and the object store:
+
+| Policy | Limit | Applies to |
+|---|---|---|
+| `uploads` | 30/min | attachment upload and download |
+| `submissions` | 120/min | the gRPC service (create, update, submit) |
+| `renders` | 20/min | the PDF endpoint |
+
+Rejections answer **429** with `Retry-After: 60` and a readable message, not the default 503 — a
+throttled client needs to be told that, and a 503 reads as "the server is broken" in a log. Queue length
+is zero: holding an over-limit request ties up a connection and delays the one answer the caller needs.
+
+**Be honest about what this is.** Partitioning by remote IP is a speed bump against casual abuse, not a
+defence against a determined attacker. `UseForwardedHeaders` runs first so the partition key is the
+caller rather than YARP, which means the ingress has to be trusted to set the header, and a shared NAT
+puts a whole office in one bucket. Real protection needs authentication or something in front.
+
+### Three ceilings, and they have to be ordered
+
+| Where | Limit | Why |
+|---|---|---|
+| App (`MaxBytesPerFile`) | 20 MB | The one that produces a readable message |
+| gRPC service Kestrel | 24 MB | A margin, so the app's check answers first |
+| **YARP Kestrel** | 24 MB | See below |
+
+**The proxy needs its own, and it is not optional.** Without it a 25 MB upload came back **502**: the
+service refuses an over-size body early from its `Content-Length` and closes without draining it, YARP is
+still writing and sees a broken pipe, and reports a bad gateway. The caller learns nothing and the log
+points at the proxy rather than at the file. Measured 2026-08-31 — 22 MB gave a clean 413 with the app's
+own message while 25 MB gave 502; with the proxy limit set, both give 413.
+
 ## Deployment, outside this repo
 
 Production is **one SeaweedFS with two buckets** — ImpactKids' `photos` and this app's `accounting` —
