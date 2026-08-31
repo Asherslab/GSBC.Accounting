@@ -90,8 +90,37 @@ public class DbExpenseSubmission
     public string? SignatureName { get; set; }
     public DateTimeOffset? SignedAt { get; set; }
 
+    // ---- Ownership ----
+
+    /// <summary>
+    /// The browser session that created this. Null only on rows written before drafts had owners.
+    /// </summary>
+    /// <remarks>
+    /// <b>Every read and write of a draft filters on this, and that is the whole point of it.</b>
+    /// Before it existed the submission id was the only credential a submission had, so anyone holding
+    /// one could rewrite the draft, attach files to it or download its PDF - and that id is printed on
+    /// screen after a save and baked into the PDF's filename, so it leaks by being shared rather than
+    /// by being guessed.
+    /// <para>
+    /// <b>A null here is unreachable rather than unowned.</b> An ownership check compares this against
+    /// the caller's session id, which is never null once a session has resolved, so the rows written
+    /// before this column existed match no caller at all. They stay reachable exactly where they were
+    /// before: through the database, and through the PDF link.
+    /// </para>
+    /// </remarks>
+    [MapperIgnore]
+    public Guid? OwnerSessionId { get; set; }
+
     // ---- Audit ----
     public DateTimeOffset CreatedAt { get; set; }
+
+    /// <summary>
+    /// Last write of any kind, autosaves included. <b>This is what the abandoned-draft purge counts
+    /// from</b>, so <c>Update</c> has to bump it and not only <c>Create</c> set it - counting from
+    /// <see cref="CreatedAt"/> would delete a draft somebody was still working on.
+    /// </summary>
+    public DateTimeOffset UpdatedAt { get; set; }
+
     public DateTimeOffset? SubmittedAt { get; set; }
 
     public bool IsMockData { get; set; }

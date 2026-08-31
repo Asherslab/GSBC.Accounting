@@ -83,14 +83,17 @@
                             <tbody>
                             @foreach (AttendeeModel row in Model.Attendees)
                             {
+                                @* data-label on every cell, and rowdel on the last: under 900px app.css
+                                   hides the <thead> and rebuilds each row as a card of labelled
+                                   fields. See the same note in LineTable. *@
                                 <tr @key="row.Key">
-                                    <td><input type="date" aria-label="Date" @bind="row.Date" @bind:event="oninput"/></td>
-                                    <td><input type="text" aria-label="Person or recipient" @bind="row.Person" @bind:event="oninput"/></td>
-                                    <td><input type="text" aria-label="Relationship or role" @bind="row.Relationship" @bind:event="oninput"/></td>
-                                    <td class="num"><div class="money"><input type="number" step="0.01" min="0" aria-label="Amount" @bind="row.Amount" @bind:event="oninput"/></div></td>
-                                    <td class="num"><div class="money"><input type="number" step="0.01" min="0" aria-label="Private share" @bind="row.PrivateShare" @bind:event="oninput"/></div></td>
-                                    <td><input type="text" aria-label="Reason and Church purpose" @bind="row.Reason" @bind:event="oninput"/></td>
-                                    <td>
+                                    <td data-label="Date"><input type="date" aria-label="Date" @bind="row.Date" @bind:event="oninput"/></td>
+                                    <td data-label="Person / recipient"><input type="text" aria-label="Person or recipient" @bind="row.Person" @bind:event="oninput"/></td>
+                                    <td data-label="Relationship / role"><input type="text" aria-label="Relationship or role" @bind="row.Relationship" @bind:event="oninput"/></td>
+                                    <td class="num" data-label="Amount"><div class="money"><input type="number" inputmode="decimal" step="0.01" min="0" aria-label="Amount" @bind="row.Amount" @bind:event="oninput"/></div></td>
+                                    <td class="num" data-label="Private share"><div class="money"><input type="number" inputmode="decimal" step="0.01" min="0" aria-label="Private share" @bind="row.PrivateShare" @bind:event="oninput"/></div></td>
+                                    <td data-label="Reason and Church purpose"><input type="text" aria-label="Reason and Church purpose" @bind="row.Reason" @bind:event="oninput"/></td>
+                                    <td class="rowdel">
                                         <button class="rowbtn" type="button" aria-label="Remove row"
                                                 @onclick="() => RemoveAttendee(row)">&times;</button>
                                     </td>
@@ -120,13 +123,13 @@
                             @foreach (TripModel row in Model.Trips)
                             {
                                 <tr @key="row.Key">
-                                    <td><input type="date" aria-label="Date" @bind="row.Date" @bind:event="oninput"/></td>
-                                    <td><input type="text" aria-label="From" @bind="row.From" @bind:event="oninput"/></td>
-                                    <td><input type="text" aria-label="To" @bind="row.To" @bind:event="oninput"/></td>
-                                    <td class="num"><input type="number" step="0.1" min="0" class="mono" aria-label="Business kilometres" @bind="row.BusinessKm" @bind:event="oninput"/></td>
-                                    <td class="num"><div class="money"><input type="number" step="0.001" min="0" aria-label="Approved rate per kilometre" @bind="row.ApprovedRate" @bind:event="oninput"/></div></td>
-                                    <td><input type="text" aria-label="Church purpose" @bind="row.Purpose" @bind:event="oninput"/></td>
-                                    <td>
+                                    <td data-label="Date"><input type="date" aria-label="Date" @bind="row.Date" @bind:event="oninput"/></td>
+                                    <td data-label="From"><input type="text" aria-label="From" @bind="row.From" @bind:event="oninput"/></td>
+                                    <td data-label="To"><input type="text" aria-label="To" @bind="row.To" @bind:event="oninput"/></td>
+                                    <td class="num" data-label="Business km"><input type="number" inputmode="decimal" step="0.1" min="0" class="mono" aria-label="Business kilometres" @bind="row.BusinessKm" @bind:event="oninput"/></td>
+                                    <td class="num" data-label="Approved rate"><div class="money"><input type="number" inputmode="decimal" step="0.001" min="0" aria-label="Approved rate per kilometre" @bind="row.ApprovedRate" @bind:event="oninput"/></div></td>
+                                    <td data-label="Church purpose"><input type="text" aria-label="Church purpose" @bind="row.Purpose" @bind:event="oninput"/></td>
+                                    <td class="rowdel">
                                         <button class="rowbtn" type="button" aria-label="Remove row"
                                                 @onclick="() => RemoveTrip(row)">&times;</button>
                                     </td>

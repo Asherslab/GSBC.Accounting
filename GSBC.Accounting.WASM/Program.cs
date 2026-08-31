@@ -27,21 +27,31 @@ builder.Logging.AddConfiguration(builder.Configuration.GetSection("Logging"));
 // Aspire4Wasm.WebAssembly, not from the ServiceDefaults project - a WASM app cannot reference that.
 builder.AddServiceDefaults();
 
-// Same-origin, because everything this app talks to arrives through the YARP proxy that served it.
-builder.Services.AddScoped(_ => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
+// Same-origin, because everything this app talks to arrives through the YARP proxy that served it -
+// which is also what lets the draft session cookie ride on these requests. BrowserCredentialsHandler
+// states that dependency rather than leaving it to the fetch default.
+builder.Services.AddScoped(_ => new HttpClient(new BrowserCredentialsHandler
+{
+    InnerHandler = new HttpClientHandler()
+})
+{
+    BaseAddress = new Uri(builder.HostEnvironment.BaseAddress)
+});
 
-// There is no authentication handler to add: both form pages are anonymous by design - see
-// docs/work/2026-08-expense-forms-scope.md. A page injecting an unregistered service fails at RUNTIME,
-// not at build, so a new service contract needs a line here as well as a MapGrpcService on the server.
+// No authentication handler to add HERE, and there is still no token: the server authenticates the
+// __gsbc_anon cookie itself as an anonymous session (docs/modules/expenses/drafts.md), and the browser
+// attaches it. What that means for this client is that almost every call is gated - a browser that has
+// never saved a draft gets Unauthenticated from everything except Create - so callers have to treat a
+// refusal as "no drafts" or "unavailable" rather than as a server fault. A page injecting an unregistered service fails at RUNTIME, not at build, so a new service
+// contract needs a line here as well as a MapGrpcService on the server.
 builder.Services.AddCodeFirstClient<IExpenseSubmissionService>();
 
-// In-progress forms live in the browser, never on the server - a draft belonging to nobody is either
-// unrecoverable or enumerable by anyone with the URL, and a half-filled reimbursement form carries a
-// claimant's contact details.
-builder.Services.AddScoped<DraftStore>();
-
+// In-progress forms live on the server, owned by an anonymous session cookie - see
+// docs/modules/expenses/drafts.md. There is deliberately no localStorage copy any more: two places to
+// look for the same draft is how a claimant ends up resuming the older one.
+//
 // Receipts go up a plain HTTP body, not the gRPC channel - see AttachmentClient. Same-origin, so it
-// reuses the HttpClient registered above.
+// reuses the HttpClient registered above, and the cookie rides along with it.
 builder.Services.AddScoped<AttachmentClient>();
 
 await builder.Build().RunAsync();

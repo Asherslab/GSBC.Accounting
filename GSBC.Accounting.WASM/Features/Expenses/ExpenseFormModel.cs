@@ -149,6 +149,124 @@ public class ExpenseFormModel
             Lines.Remove(line);
     }
 
+    /// <summary>
+    /// Fills a form back in from a saved draft. The inverse of <see cref="ToCreateRequest"/>.
+    /// </summary>
+    /// <remarks>
+    /// <b>Every field this does not copy is a field a claimant silently loses on resuming.</b> That is
+    /// the failure mode to watch for here: nothing errors, the form simply comes back with an empty box
+    /// where an answer was, and the person fills it in again without ever knowing. When a field is
+    /// added to the form, it needs a line in three places - here, in <see cref="ToCreateRequest"/>, and
+    /// in the service's write path.
+    /// <para>
+    /// <see cref="ExpenseFormModel.Kind"/> comes from the stored submission rather than from the page.
+    /// The two agree in every normal case, but the stored one is authoritative: it is what the server
+    /// validated and what decides which half of section 1 the row's columns mean.
+    /// </para>
+    /// </remarks>
+    public static ExpenseFormModel FromSubmission(ExpenseSubmission submission)
+    {
+        ExpenseFormModel model = new()
+        {
+            Kind = submission.Kind,
+
+            SubmitterName = submission.SubmitterName,
+            FormDate = FromUtc(submission.FormDate),
+            Role = submission.Role,
+            RoleOther = submission.RoleOther,
+            MinistryDepartment = submission.MinistryDepartment,
+
+            CardLastFourDigits = submission.CardLastFourDigits,
+            TransactionDate = FromUtc(submission.TransactionDate),
+            // Stored as free text because the paper form prints a bare rule and a claimant may well
+            // have written "about 4pm". Anything the time picker cannot represent is dropped rather
+            // than guessed at - a picker showing 00:00 would be a claim nobody made.
+            TransactionTime = TimeOnly.TryParse(submission.TransactionTime, out TimeOnly time) ? time : null,
+            SupplierMerchant = submission.SupplierMerchant,
+            AmountCharged = submission.AmountCharged,
+            BankReference = submission.BankReference,
+
+            ContactPhoneEmail = submission.ContactPhoneEmail,
+            ExpensePeriodFrom = FromUtc(submission.ExpensePeriodFrom),
+            ExpensePeriodTo = FromUtc(submission.ExpensePeriodTo),
+            PaymentMethod = submission.PaymentMethod,
+            PaymentMethodOther = submission.PaymentMethodOther,
+            BankDetailsOnFile = submission.BankDetailsOnFile,
+
+            PurposeActivity = submission.PurposeActivity,
+            EventProject = submission.EventProject,
+            PriorApprovalBy = submission.PriorApprovalBy,
+            ApprovalDate = FromUtc(submission.ApprovalDate),
+            PurposeNarrative = submission.PurposeNarrative,
+
+            LessPersonalAmount = submission.LessPersonalAmount,
+
+            Compliance =
+            [
+                submission.ComplianceQ1, submission.ComplianceQ2, submission.ComplianceQ3,
+                submission.ComplianceQ4, submission.ComplianceQ5, submission.ComplianceQ6
+            ],
+            ComplianceDetails = submission.ComplianceDetails,
+
+            Declarations =
+            [
+                submission.Declaration1 == true, submission.Declaration2 == true,
+                submission.Declaration3 == true, submission.Declaration4 == true,
+                submission.Declaration5 == true
+            ],
+
+            SignatureName = submission.SignatureName,
+            IsMockData = submission.IsMockData,
+
+            // A draft with no lines would render a table with no rows, which reads as a broken page
+            // rather than an empty one - the same reason RemoveLine refuses to take the last row.
+            Lines = submission.Lines.Count > 0
+                ? submission.Lines.Select(line => new ExpenseLineModel
+                {
+                    ItemDescription = line.ItemDescription,
+                    LineDate = FromUtc(line.LineDate),
+                    Details = line.Details,
+                    Purpose = line.Purpose,
+                    Evidence = line.Evidence,
+                    GrossAmount = line.GrossAmount,
+                    GstAmount = line.GstAmount,
+                    ChurchUsePercent = line.ChurchUsePercent
+                }).ToList()
+                : [new ExpenseLineModel()],
+
+            Attendees = submission.Attendees.Select(attendee => new AttendeeModel
+            {
+                Date = FromUtc(attendee.Date),
+                Person = attendee.Person,
+                Relationship = attendee.Relationship,
+                Amount = attendee.Amount,
+                PrivateShare = attendee.PrivateShare,
+                Reason = attendee.Reason
+            }).ToList(),
+
+            Trips = submission.Trips.Select(trip => new TripModel
+            {
+                Date = FromUtc(trip.Date),
+                From = trip.From,
+                To = trip.To,
+                BusinessKm = trip.BusinessKm,
+                ApprovedRate = trip.ApprovedRate,
+                Purpose = trip.Purpose
+            }).ToList()
+        };
+
+        if (submission.MissingReceipt is { } missing)
+        {
+            model.MissingSupplier = missing.Supplier;
+            model.MissingDate = FromUtc(missing.Date);
+            model.MissingAmount = missing.Amount;
+            model.MissingReason = missing.Reason;
+            model.MissingDeclared = missing.Declared;
+        }
+
+        return model;
+    }
+
     public CreateExpenseSubmissionRequest ToCreateRequest() => new()
     {
         Kind = Kind,
@@ -261,6 +379,19 @@ public class ExpenseFormModel
     /// </summary>
     private static DateTime? ToUtc(DateOnly? date) =>
         date is null ? null : DateTime.SpecifyKind(date.Value.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
+
+    /// <summary>
+    /// Midnight UTC becomes the calendar day it was. The inverse of <see cref="ToUtc"/>.
+    /// </summary>
+    /// <remarks>
+    /// <b><c>DateOnly.FromDateTime</c> on the value as it arrives, with no <c>ToLocalTime</c>.</b> The
+    /// stored instant is midnight UTC of the day the claimant picked; converting it to Brisbane time
+    /// first would move it to 10am the same day, which is harmless - and to the previous day for
+    /// anywhere west of UTC, which is not. A form date that shifts by one day every time somebody
+    /// reopens a draft is the sort of thing an auditor notices and nobody can explain.
+    /// </remarks>
+    private static DateOnly? FromUtc(DateTime? value) =>
+        value is null ? null : DateOnly.FromDateTime(value.Value);
 
     /// <summary>Whitespace-only becomes null, so an untouched field is absent rather than blank.</summary>
     private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

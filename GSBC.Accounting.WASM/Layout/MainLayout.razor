@@ -1,4 +1,7 @@
 @inherits LayoutComponentBase
+@implements IDisposable
+@inject IJSRuntime JS
+@inject NavigationManager Nav
 
 @*
     The shell from mockups/debit-card-purchase-form.html: a sticky topbar, then a two-column layout of
@@ -6,18 +9,76 @@
     landing page has none - so this layout renders only the topbar and hands @Body the whole .layout
     grid to fill.
 
-    The topbar's trailing buttons in the mockup (Theme, Print / PDF, Submit for approval) belong to a
-    form page rather than to the shell, and arrive with the first form in slice 2.
+    Of the mockup's three trailing topbar buttons only Theme is here. Print belongs to a page (and the
+    artefact that matters is the server-rendered PDF, not the browser's print view), and Submit belongs
+    to the form's own action bar next to the totals it acts on. Theme is genuinely the shell's: it is
+    the same control on every page and it is the only one the landing page has any use for.
 *@
 
 <div class="topbar no-print">
     <div class="mark">GS</div>
-    <div>
+    @* Classed so the CSS can give it min-width:0. A flex item will not shrink below its content by
+       default, so without it the subtitle cannot ellipsise - it wraps the topbar to two lines. *@
+    <div class="titles">
         <h1>@Title</h1>
         <div class="sub">Good Shepherd Baptist Church &middot; Finance</div>
     </div>
     <div class="spacer"></div>
+
+    @*
+        The glyph names the state the theme is IN, not the state the button would move to - a button
+        showing a sun while the page is light is read by about half of people as "you are in light" and
+        by the other half as "press for light". Saying which it is in the label is what settles it, so
+        both title and aria-label spell the whole thing out.
+    *@
+    <button class="iconbtn" type="button" @onclick="CycleTheme" title="@ThemeLabel" aria-label="@ThemeLabel">
+        @if (_theme == "light")
+        {
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                 stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
+                <circle cx="8" cy="8" r="3.1"/>
+                <path d="M8 1v1.5M8 13.5V15M15 8h-1.5M2.5 8H1M12.9 3.1l-1.1 1.1M4.2 11.8l-1.1 1.1M12.9 12.9l-1.1-1.1M4.2 4.2L3.1 3.1"/>
+            </svg>
+        }
+        else if (_theme == "dark")
+        {
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                 stroke-width="1.4" stroke-linejoin="round" aria-hidden="true">
+                <path d="M13.5 9.6A5.9 5.9 0 0 1 6.4 2.5a5.9 5.9 0 1 0 7.1 7.1Z"/>
+            </svg>
+        }
+        else
+        {
+            @* Half filled: the page is whichever half the device says. *@
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                 stroke-width="1.4" aria-hidden="true">
+                <circle cx="8" cy="8" r="5.6"/>
+                <path d="M8 2.4a5.6 5.6 0 0 1 0 11.2Z" fill="currentColor" stroke="none"/>
+            </svg>
+        }
+    </button>
 </div>
+
+@*
+    The way back. Every page except the landing page gets one, derived rather than declared - a page
+    that had to remember to call SetCrumbs would eventually be a page that forgot, and a form with no
+    way out is a dead end on a phone where there is no visible browser chrome to fall back on.
+
+    Two levels only. The trail is genuinely two deep, and a resumed draft arriving via /drafts is not
+    worth a third: a crumb that changes shape depending on how somebody got to the same page is a
+    crumb people stop trusting.
+*@
+@if (!IsHome)
+{
+    <nav class="crumbs no-print" aria-label="Breadcrumb">
+        <ol>
+            <li><a href="/">Finance Forms</a></li>
+            @* aria-current tells a screen reader this is the page rather than a link to it, which is
+               what makes the trail readable when the separator is a CSS pseudo-element it cannot see. *@
+            <li aria-current="page">@Title</li>
+        </ol>
+    </nav>
+}
 
 <CascadingValue Value="this" IsFixed="true">
     @Body
@@ -36,4 +97,76 @@
         Title = title;
         StateHasChanged();
     }
+
+    /// <summary>
+    /// True on the landing page, which is the one page with nothing to go back to.
+    /// </summary>
+    /// <remarks>
+    /// Derived from the URL rather than declared by each page. A page that had to opt in would
+    /// eventually be a page that forgot, and the failure is invisible in review - the crumb is simply
+    /// absent, on the one screen where somebody is looking for the way out.
+    /// <para>
+    /// <c>ToBaseRelativePath</c> rather than comparing <c>Uri</c>: the app is served from the proxy
+    /// root today, but a base path would make every absolute comparison silently wrong. Query and
+    /// fragment are trimmed because neither changes which page this is.
+    /// </para>
+    /// </remarks>
+    private bool IsHome
+    {
+        get
+        {
+            string path = Nav.ToBaseRelativePath(Nav.Uri);
+            int cut = path.IndexOfAny(['?', '#']);
+
+            if (cut >= 0)
+                path = path[..cut];
+
+            return path.Trim('/').Length == 0;
+        }
+    }
+
+    /// <remarks>
+    /// The layout is not re-rendered by a navigation on its own - only <c>@Body</c> is - so without
+    /// this the crumb would be right on first load and then stale for the rest of the session,
+    /// including the trip back to the landing page it is meant to offer.
+    /// </remarks>
+    protected override void OnInitialized() => Nav.LocationChanged += OnLocationChanged;
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args) => StateHasChanged();
+
+    public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
+
+    /// <summary>
+    /// Which of the three states the theme is in: <c>system</c>, <c>light</c> or <c>dark</c>.
+    /// </summary>
+    /// <remarks>
+    /// The value lives in <c>localStorage</c> and is owned by the inline script in <c>index.html</c>,
+    /// not by this component. That script has already read it and stamped <c>data-theme</c> before the
+    /// first paint - which is the whole reason it is a script - so all this field does is decide which
+    /// glyph to draw. Starting it at "system" is the honest default: it is what an unset key means.
+    /// </remarks>
+    private string _theme = "system";
+
+    private string ThemeLabel => _theme switch
+    {
+        "light" => "Theme: light. Switch to dark.",
+        "dark" => "Theme: dark. Switch to following your device.",
+        _ => "Theme: following your device. Switch to light."
+    };
+
+    /// <remarks>
+    /// Read after the first render rather than from <c>OnInitialized</c>. The stored value only
+    /// affects which glyph is drawn - the page is already in the right colours - so a read that is one
+    /// frame late costs nothing, where interop during initialisation buys a failure mode for nothing.
+    /// </remarks>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        _theme = await JS.InvokeAsync<string>("gsbcTheme.get");
+        StateHasChanged();
+    }
+
+    private async Task CycleTheme() => _theme = await JS.InvokeAsync<string>("gsbcTheme.cycle");
 }

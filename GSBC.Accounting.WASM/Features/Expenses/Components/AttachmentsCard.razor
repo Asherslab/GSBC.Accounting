@@ -6,6 +6,9 @@
     The attachments card from the mockup. Two-phase by necessity: the upload endpoint needs a submission
     id, so the first dropped file creates the draft, then the files go up against it. An endpoint that
     accepted files with no id would be an open write endpoint to the object store.
+
+    Every call here carries the draft session cookie, and the server checks the draft belongs to it. The
+    submission id alone is not enough to attach a file to somebody's form, or to take one off it.
 *@
 
 <section class="card" id="s3b">
@@ -56,9 +59,18 @@
                             <span class="name">@file.FileName</span>
                             <span class="sz">@Size(file.ByteSize)</span>
                         </span>
-                        <span class="badge @(file.Kind == AttachmentKind.ItemisedReceipt ? "ok" : "neutral")">
-                            @KindLabel(file.Kind)
-                        </span>
+                        @* A select rather than a badge, because the kind is chosen before the file is
+                           picked and correcting it used to mean removing the receipt and uploading it
+                           again. Only the label changes; the stored bytes are untouched. *@
+                        <select class="kind" disabled="@_busy"
+                                aria-label="@($"What {file.FileName} is")"
+                                value="@file.Kind"
+                                @onchange="args => Refile(file, args)">
+                            @foreach (AttachmentKind kind in Enum.GetValues<AttachmentKind>())
+                            {
+                                <option value="@kind" selected="@(kind == file.Kind)">@KindLabel(kind)</option>
+                            }
+                        </select>
                         <button class="rowbtn" type="button" title="Remove this file"
                                 aria-label="@($"Remove {file.FileName}")" @onclick="() => Remove(file)">
                             &times;
@@ -169,17 +181,79 @@
     }
 
     /// <summary>
-    /// Removes the file from this page only.
+    /// Refiles one already-uploaded attachment as a different kind.
     /// </summary>
     /// <remarks>
-    /// Deliberately does not delete anything server-side. Nothing in this app hard-deletes evidence -
-    /// seven-year retention - and a soft-delete endpoint would be a second anonymous write path for no
-    /// gain while the form is still a draft. A file removed here simply stops being referenced by the
-    /// submission the reviewer sees.
+    /// The server is asked first and the list is updated from what it answers with, for the same reason
+    /// <see cref="Remove"/> waits: a dropdown that moves on its own and silently fails would leave
+    /// somebody believing a bank statement is now a tax invoice when the draft still says otherwise.
+    /// <para>
+    /// This matters beyond tidiness - Submit refuses a claim with no itemised receipt or tax invoice on
+    /// it, so a mislabelled file is the difference between a form that submits and one that does not.
+    /// </para>
+    /// </remarks>
+    private async Task Refile(ExpenseAttachment file, ChangeEventArgs args)
+    {
+        if (!Enum.TryParse(args.Value?.ToString(), out AttachmentKind kind) || kind == file.Kind)
+            return;
+
+        _errors.Clear();
+        _busy = true;
+
+        try
+        {
+            AttachmentUploadResult result = await Attachments.SetKindAsync(file.SubmissionId, file.Id, kind);
+
+            if (result is { Success: true, Attachment: not null })
+            {
+                // In place, so the file keeps its position in the list rather than jumping to the end
+                // when somebody corrects its kind.
+                int index = Files.IndexOf(file);
+
+                if (index >= 0)
+                    Files[index] = result.Attachment;
+            }
+            else
+            {
+                _errors.Add($"{file.FileName}: {result.Error}");
+            }
+        }
+        finally
+        {
+            _busy = false;
+            await OnChanged.InvokeAsync();
+        }
+    }
+
+    /// <summary>
+    /// Removes the file from the draft, on the server as well as on screen.
+    /// </summary>
+    /// <remarks>
+    /// <b>This used to be a screen-only change, and it stopped being tenable when drafts became
+    /// resumable.</b> A file forgotten by the page alone came straight back the next time the claimant
+    /// opened the draft - a page that ignores what somebody just did. The endpoint soft-deletes, so
+    /// nothing hard-deletes evidence and the seven-year rule is untouched; what changes is that the
+    /// submission stops referencing the file.
+    /// <para>
+    /// The row is dropped from the list only once the server has agreed. Removing it first and putting
+    /// it back on failure is the kind of optimism that leaves somebody believing they removed a receipt
+    /// they did not.
+    /// </para>
     /// </remarks>
     private async Task Remove(ExpenseAttachment file)
     {
+        _errors.Clear();
+
+        string? error = await Attachments.DetachAsync(file.SubmissionId, file.Id);
+
+        if (error is not null)
+        {
+            _errors.Add($"{file.FileName}: {error}");
+            return;
+        }
+
         Files.Remove(file);
+
         await OnChanged.InvokeAsync();
     }
 

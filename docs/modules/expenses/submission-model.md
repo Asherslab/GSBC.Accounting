@@ -3,7 +3,7 @@ title: The expense submission model
 kind: reference
 status: current
 module: expenses
-verified: 2026-08-31
+verified: 2026-09-01
 code:
   - GSBC.Accounting.Shared.Contracts/Entities/Features/Expenses
   - GSBC.Accounting.Grpc/Data/Models/Expenses
@@ -120,9 +120,18 @@ take the evidence with it. `IgnoreQueryFilters()` is the only way to see deleted
 
 ## Identity, status and dates
 
-The submission id is the only credential a submission has — the PDF and attachment endpoints are
-anonymous — so it is a `Guid` generated on insert, never a sequence. `Create` passes `Guid.Empty` and
-EF's `ValueGeneratedOnAdd` replaces it.
+The id is a `Guid` generated on insert, never a sequence. `Create` passes `Guid.Empty` and EF's
+`ValueGeneratedOnAdd` replaces it.
+
+**The id is no longer sufficient authority on its own.** `OwnerSessionId` records the browser session
+that created the submission, and every read and write of a draft filters on it — see
+[drafts.md](drafts.md). The id still carries weight for one case: a **submitted** claim's PDF and
+attachments render for anyone holding it, because that is the only review path this scope has. A
+guessable id would make every claim in the church readable by counting, which is why it is a `Guid`.
+
+`UpdatedAt` is the last write of any kind, autosaves included. It is what the drafts list sorts on and
+what the abandoned-draft purge counts 90 days from, so `Update` has to bump it — counting from
+`CreatedAt` would delete a draft somebody was still working on.
 
 `SubmissionStatus` is `Draft | Submitted | Approved | Declined | Paid`. Only the first two are reachable
 in this scope; the rest exist so the approval work is additive rather than a migration of live rows.
@@ -149,13 +158,17 @@ reveals its problems one at a time is the one people give up on.
 
 ## Update exists because the draft is created early
 
-The draft appears as soon as the first receipt is attached — long before the claimant has finished
-typing. Without `Update`, everything typed afterwards never reaches the server, and submit then checks a
-row that no longer matches the screen. That was live on 2026-08-31: correcting the amount charged on the
-page left the stored row at the old figure, and the reconciliation error could not be cleared.
+The draft appears as soon as the claimant has typed enough for `Create` to accept — long before they
+have finished. Without `Update`, everything typed afterwards never reaches the server, and submit then
+checks a row that no longer matches the screen. That was live on 2026-08-31: correcting the amount
+charged on the page left the stored row at the old figure, and the reconciliation error could not be
+cleared.
 
 So `EnsureSubmissionAsync` creates on first call and **updates on every call after**. Re-sending the
 whole form is safe because attachments are keyed to the submission *id*, not to its contents.
+
+The form pages call it on a 2-second debounce as the claimant types, as well as on Save and Submit —
+see [drafts.md](drafts.md).
 
 `Update` replaces the children rather than merging them: a deleted line has to disappear, and matching
 rows by position across an edit that inserted one in the middle is a way to silently move somebody's

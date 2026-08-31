@@ -1,0 +1,268 @@
+@page "/drafts"
+@using Grpc.Core
+@using GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses
+@using GSBC.Accounting.Shared.Contracts.Messages.Requests.Features.Expenses
+@using GSBC.Accounting.Shared.Contracts.Messages.Responses.Base
+@using GSBC.Accounting.Shared.Contracts.Messages.Responses.Features.Expenses
+@using GSBC.Accounting.Shared.Contracts.Services.Features.Expenses
+@using GSBC.Accounting.WASM.Features.Expenses
+@inject IExpenseSubmissionService Submissions
+
+<PageTitle>Your saved drafts</PageTitle>
+
+@*
+    The list of unsubmitted forms belonging to this browser.
+
+    WHOSE DRAFTS THESE ARE IS DECIDED ENTIRELY BY THE COOKIE. This page sends no identifier of any kind
+    - there is nothing here to tamper with, which is the point. A browser with no session gets an empty
+    list rather than an error, because "you have no drafts" is both true and the only useful thing to
+    say to somebody who has not started one.
+
+    Submitted claims are deliberately absent. They are evidence, they cannot be edited, and the only
+    thing this page could offer for one is a link to a PDF - which is a different screen for a different
+    reader, and not one this scope builds.
+*@
+
+<div class="layout norail">
+    <main>
+        <p class="lede">
+            Forms you have started on this browser and not yet submitted. Open one to carry on where
+            you left off.
+        </p>
+
+        @if (_error is not null)
+        {
+            <div class="banner" role="alert">
+                <h4>Your drafts couldn't be loaded</h4>
+                <p>@_error</p>
+            </div>
+        }
+
+        @if (_loading)
+        {
+            <p class="help">Loading…</p>
+        }
+        else if (_drafts.Count == 0)
+        {
+            <section class="card">
+                <header>
+                    <span class="num">&mdash;</span>
+                    <h3>No saved drafts</h3>
+                </header>
+                <div class="body">
+                    <p class="help">
+                        Nothing started on this browser yet. Both forms save themselves as you type, so
+                        one will appear here as soon as you begin.
+                    </p>
+                    <p><a class="cardlink" href="/">Back to the forms</a></p>
+                </div>
+            </section>
+        }
+        else
+        {
+            @foreach (DraftSummary draft in _drafts)
+            {
+                <section class="card" @key="draft.Id">
+                    <header>
+                        <span class="num">@(draft.Kind == SubmissionKind.DebitCardPurchase ? "01" : "02")</span>
+                        <h3>@KindLabel(draft.Kind)</h3>
+                        <span class="hint">Last edited @Ago(draft.UpdatedAt)</span>
+                    </header>
+                    <div class="body">
+                        <p>
+                            <strong>@(string.IsNullOrWhiteSpace(draft.SubmitterName)
+                                        ? "Unnamed draft"
+                                        : draft.SubmitterName)</strong>
+                            @if (!string.IsNullOrWhiteSpace(draft.PurposeActivity))
+                            {
+                                <span> &middot; @draft.PurposeActivity</span>
+                            }
+                        </p>
+
+                        <p class="help">
+                            @draft.GrossTotal.ToString("C2")
+                            &middot; @draft.LineCount line@(draft.LineCount == 1 ? "" : "s")
+                            &middot; @draft.AttachmentCount receipt@(draft.AttachmentCount == 1 ? "" : "s")
+                        </p>
+
+                        @if (draft.AttachmentCount == 0)
+                        {
+                            @* The one thing that will stop this being submittable, said before they
+                               open it rather than after they have filled the rest in again. *@
+                            <div class="notice bad">
+                                <span class="ico">!</span>
+                                <div>No receipt attached yet. This form can't be submitted without one.</div>
+                            </div>
+                        }
+
+                        <p class="help">
+                            Deleted on @draft.ExpiresAt.ToLocalTime().ToString("d MMMM yyyy")
+                            if nobody edits it before then.
+                        </p>
+
+                        <p>
+                            <a class="cardlink" href="@ResumeUrl(draft)">Carry on with this form</a>
+                        </p>
+
+                        @if (_confirming == draft.Id)
+                        {
+                            @* A second press rather than a JS confirm(). A browser dialog blocks the
+                               whole page, and the mockup's language is the app's own - "discard" is a
+                               word this form gets to define. *@
+                            <div class="notice bad" role="alert">
+                                <span class="ico">!</span>
+                                <div>
+                                    <b>Discard this draft?</b> It leaves this list and can't be opened
+                                    again. Anything you typed into it goes with it.
+                                    <p>
+                                        <button class="b" type="button" disabled="@_busy"
+                                                @onclick="() => Discard(draft)">
+                                            @(_busy ? "Discarding…" : "Yes, discard it")
+                                        </button>
+                                        <button class="b" type="button" disabled="@_busy"
+                                                @onclick="() => _confirming = null">
+                                            Keep it
+                                        </button>
+                                    </p>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <p>
+                                <button class="b" type="button" @onclick="() => _confirming = draft.Id">
+                                    Discard
+                                </button>
+                            </p>
+                        }
+                    </div>
+                </section>
+            }
+
+            <p class="footnote">
+                Drafts are kept for this browser and are not shared between devices. Clearing your
+                cookies or browsing data loses them, and so does opening the form in a private window.
+                Nobody else can see a draft &mdash; not an approver, and not finance &mdash; until you
+                submit it.
+            </p>
+        }
+    </main>
+</div>
+
+@code
+{
+    [CascadingParameter] private MainLayout Layout { get; set; } = default!;
+
+    private readonly List<DraftSummary> _drafts = [];
+    private bool _loading = true;
+    private bool _busy;
+    private string? _error;
+
+    /// <summary>Which draft is showing its confirm step. At most one at a time.</summary>
+    private Guid? _confirming;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.SetTitle("Your saved drafts");
+
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            ListDraftsResponse response = await Submissions.ListDrafts(new ListDraftsRequest());
+
+            _drafts.Clear();
+
+            if (response.Success)
+                _drafts.AddRange(response.Drafts);
+            else
+                _error = response.Error ?? "The list could not be loaded.";
+        }
+        // NO SESSION IS AN EMPTY LIST, NOT AN ERROR, and this catch is what keeps that promise.
+        // ListDrafts is behind the AnonymousSession policy, so a browser that has never saved a draft is
+        // refused before the method runs - which is correct on the server and useless to show somebody.
+        // Without this, the first visit to this page reads "Could not reach the server".
+        catch (RpcException rpc) when (rpc.StatusCode is StatusCode.Unauthenticated
+                                          or StatusCode.PermissionDenied)
+        {
+            _drafts.Clear();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not reach the server: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task Discard(DraftSummary draft)
+    {
+        _busy = true;
+
+        try
+        {
+            BasicResponse response =
+                await Submissions.DiscardDraft(new DiscardDraftRequest { SubmissionId = draft.Id });
+
+            if (response.Success)
+            {
+                _confirming = null;
+
+                // Reloaded rather than removed from the list in place. The server is the only thing
+                // that knows what this session owns, and a list that quietly diverges from it is how a
+                // discarded draft comes back on the next visit and looks like the button did nothing.
+                await Load();
+            }
+            else
+            {
+                _error = response.Error ?? "That draft could not be discarded.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not reach the server: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string ResumeUrl(DraftSummary draft) =>
+        draft.Kind == SubmissionKind.DebitCardPurchase
+            ? $"/forms/debit-card-purchase/{draft.Id}"
+            : $"/forms/expense-reimbursement/{draft.Id}";
+
+    private static string KindLabel(SubmissionKind kind) =>
+        kind == SubmissionKind.DebitCardPurchase
+            ? "Church Debit Card Purchase"
+            : "Expense Reimbursement";
+
+    /// <summary>
+    /// A rough age rather than a timestamp. "Yesterday" is what somebody looking for the form they
+    /// were filling in actually wants; the exact minute is noise on a list of three items.
+    /// </summary>
+    private static string Ago(DateTime utc)
+    {
+        TimeSpan since = DateTime.UtcNow - utc;
+
+        return since switch
+        {
+            { TotalMinutes: < 2 } => "just now",
+            { TotalMinutes: < 60 } => $"{(int)since.TotalMinutes} minutes ago",
+            { TotalHours: < 2 } => "an hour ago",
+            { TotalHours: < 24 } => $"{(int)since.TotalHours} hours ago",
+            { TotalDays: < 2 } => "yesterday",
+            { TotalDays: < 30 } => $"{(int)since.TotalDays} days ago",
+            _ => utc.ToLocalTime().ToString("d MMMM yyyy")
+        };
+    }
+}

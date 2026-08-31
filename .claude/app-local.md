@@ -62,15 +62,55 @@ the real runtime files are fingerprinted. Neither is evidence of anything.
 
 ## Auth
 
-**There is none, by design.** Both form pages are anonymous, and the whole sign-in section of the
-global skill does not apply here yet: there is no identity provider, no `/bff/dev-login`, and no
-authed page to return to. A page that fails is failing for some other reason — do not go looking for
-a session.
+**Nobody signs in, but there IS authentication now — of the browser, not of a person.** The
+`__gsbc_anon` cookie is authenticated as an "anonymous session" and the `AnonymousSession` policy gates
+almost every call (see `docs/modules/expenses/drafts.md`). The sign-in section of the global skill still
+does not apply: there is no identity provider, no `/bff/dev-login`, and no authed page to return to.
 
-The BFF and YARP layers are still in place so auth can be added later without rearranging anything.
-When it is, replace this section rather than the skill's.
+What this means when driving the app:
+
+- **A first-time browser is refused by almost everything, and that is correct.** Only `Create` (and the
+  read-by-id PDF/attachment download) is reachable without a session. `/drafts` showing "No saved
+  drafts" on a fresh node is the policy working, not a failure.
+- **The session is minted by saving a draft, and nothing else.** Type enough into a form for `Create` to
+  pass validation and the cookie appears. Loading a page never mints one, so a node that has only
+  browsed has no session at all.
+- Validation gates that mint: the reimbursement form needs a line **with a date**, the debit-card form a
+  line **with an item** — and the autosave deliberately swallows refusals, so a half-filled form saving
+  nothing is normal rather than a bug.
+- Check a session exists with
+  `select * from "AnonymousSessions"` — not by looking for an error on screen.
+
+The BFF and YARP layers are still in place so a real sign-in can be added later without rearranging
+anything — it would get its own scheme and policy beside `AnonymousSession`, not extend it. When that
+lands, replace this section rather than the skill's.
 
 `/bff/user` returning 401 is the expected answer, not a fault.
+
+### Driving the forms: two traps found on 2026-09-01
+
+- **`date` and `time` inputs do not accept typed text** through the nodeterm node — neither
+  `2026-09-01` nor `09012026` lands, and the field reads back empty. The reimbursement form cannot be
+  completed this way because `Create` requires a line date; **use the debit-card form**, whose line
+  needs a text item instead.
+- **Chrome's network panel reports these 401s as `503`.** The gRPC call to a gated method really
+  answers 401; the extension's network view showed `503` for it, which reads as "YARP can't reach the
+  destination" and sent me chasing a dead service that was healthy. **Trust the console, not the
+  network panel** — it logs the truth: `Status code: 'Unauthenticated', Message: 'Bad gRPC response.
+  HTTP status code: 401'`. (A real transient 503 does happen for a few seconds right after a restart,
+  while YARP's destination health check comes up, which is what made this convincing.)
+- **Chrome coordinate clicks reach the fixed `.actionbar`; nodeterm cannot.** Save draft, Submit and
+  Fill with mock data all work via `computer left_click` at the button's screenshot coordinates, and
+  the in-page Discard confirm opens too. When a test needs those buttons, ask for Chrome rather than
+  fighting the nodeterm refusal.
+- **A new nodeterm browser node is NOT a new visitor — nodes share one cookie jar.** Opening a second
+  node to check "what a stranger sees" showed the first node's draft, because it presented the same
+  `__gsbc_anon` cookie. To test the unauthenticated path, use `curl` (its own jar) or ask the user for a
+  private window; do not trust a fresh node to be cookie-free.
+- **The `.actionbar` footer is `position: fixed`, and every click on it is refused as "off-screen"** —
+  Save draft, Submit, Fill with mock data. Scrolling does not help; the refusal is the tool
+  mis-measuring a fixed element. Drive the form by typing and let the 2-second autosave do the write,
+  and verify in Postgres rather than by pressing Save.
 
 ## Ports
 

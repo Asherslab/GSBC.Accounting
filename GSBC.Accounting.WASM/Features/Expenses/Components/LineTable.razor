@@ -7,7 +7,9 @@
     is why this renders one or the other rather than relabelling one input.
 *@
 
-<div class="tablewrap">
+@* "lines" only affects the mobile layout: under 900px app.css captions each stacked row card, and
+   this table's rows are lines of a claim rather than the generic rows of the section 4 tables. *@
+<div class="tablewrap lines">
     <table>
         <thead>
         <tr>
@@ -26,8 +28,12 @@
         {
             @* @key on the model's own stable Guid: without it Blazor reuses a removed row's DOM for the
                row that shifted up, and the cursor and any uncommitted keystroke land in the wrong line. *@
+            @* Every <td> carries data-label. Under 900px the table is not a table: app.css turns each
+               row into a card and each cell into a label/field pair, and the label is read from that
+               attribute because the <thead> it would otherwise come from is hidden. A cell without one
+               renders as a field with no label on every phone. *@
             <tr @key="line.Key">
-                <td>
+                <td data-label="@Text.LineColumn1Header">
                     @if (Model.Kind == SubmissionKind.DebitCardPurchase)
                     {
                         <input type="text" aria-label="@Text.LineColumn1Header"
@@ -39,33 +45,35 @@
                                @bind="line.LineDate" @bind:event="oninput"/>
                     }
                 </td>
-                <td><input type="text" aria-label="@Text.LineColumn2Header"
+                <td data-label="@Text.LineColumn2Header"><input type="text" aria-label="@Text.LineColumn2Header"
                            @bind="line.Details" @bind:event="oninput"/></td>
-                <td><input type="text" aria-label="@Text.LineColumn3Header"
+                <td data-label="@Text.LineColumn3Header"><input type="text" aria-label="@Text.LineColumn3Header"
                            @bind="line.Purpose" @bind:event="oninput"/></td>
-                <td>
+                <td data-label="Receipt / tax invoice">
                     <select aria-label="Receipt or tax invoice" @bind="line.Evidence" @bind:after="Changed">
                         <option value="@EvidenceStatus.Attached">Attached</option>
                         <option value="@EvidenceStatus.Missing">Missing</option>
                     </select>
                 </td>
-                <td class="num">
+                <td class="num" data-label="Gross incl. GST">
                     <div class="money">
-                        <input type="number" step="0.01" min="0" aria-label="Gross including GST"
+                        <input type="number" inputmode="decimal" step="0.01" min="0" aria-label="Gross including GST"
                                @bind="line.GrossAmount" @bind:event="oninput" @bind:after="Changed"/>
                     </div>
                 </td>
-                <td class="num">
+                <td class="num" data-label="GST shown">
                     <div class="money">
-                        <input type="number" step="0.01" min="0" aria-label="GST shown"
+                        <input type="number" inputmode="decimal" step="0.01" min="0" aria-label="GST shown"
                                @bind="line.GstAmount" @bind:event="oninput" @bind:after="Changed"/>
                     </div>
                 </td>
-                <td class="num">
-                    <input type="number" step="0.01" min="0" max="100" class="mono" aria-label="Church use percent"
+                <td class="num" data-label="Church use %">
+                    <input type="number" inputmode="decimal" step="0.01" min="0" max="100" class="mono" aria-label="Church use percent"
                            @bind="line.ChurchUsePercent" @bind:event="oninput"/>
                 </td>
-                <td>
+                @* rowdel, not a labelled cell: under 900px app.css lifts this out of the label/field
+                   flow and onto the row card's top-right corner. *@
+                <td class="rowdel">
                     @* Hidden rather than disabled on the last row: a control that is present but dead
                        invites clicking. Removing the only line would leave a table with no rows and no
                        visible way back. *@
@@ -95,7 +103,7 @@
     <span class="k">@Text.LessPersonalLabel</span>
     <span class="v">
         <div class="money">
-            <input type="number" step="0.01" min="0" aria-label="@Text.LessPersonalLabel"
+            <input type="number" inputmode="decimal" step="0.01" min="0" aria-label="@Text.LessPersonalLabel"
                    @bind="Model.LessPersonalAmount" @bind:event="oninput" @bind:after="Changed"/>
         </div>
     </span>

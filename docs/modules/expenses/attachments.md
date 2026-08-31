@@ -3,7 +3,7 @@ title: The attachment store
 kind: reference
 status: current
 module: expenses
-verified: 2026-08-31
+verified: 2026-09-01
 code:
   - GSBC.Accounting.Grpc/Features/Attachments
   - GSBC.Accounting.Grpc/Data/Models/Expenses/DbExpenseAttachment.cs
@@ -58,8 +58,16 @@ came back would reject valid HEIC files at random.
 
 ## Limits, because the endpoint is anonymous
 
-There is no sign-in, so the submission id is the only credential the upload has — which is why it is a
-`Guid` and never a sequence. Everything else is a ceiling:
+There is still no sign-in. The write endpoints now sit behind the `AnonymousSession` policy, so an
+upload has to carry the `__gsbc_anon` cookie and the draft has to belong to that session — see
+[drafts.md](drafts.md) — but that authenticates a browser, not a person: it stops a stranger attaching
+files to somebody else's form, and does nothing to stop a stranger creating a draft of their own and
+uploading to that. So every ceiling below is still doing the work it was doing.
+
+The download is deliberately **not** behind the policy, because a submitted claim's evidence has to be
+readable by whoever is handed its id — there is no approval screen in this scope to hand it to them any
+other way. A draft's receipts stay owner-only, enforced by the query predicate rather than by the
+policy.
 
 | Limit | Value | Why |
 |---|---|---|
@@ -67,7 +75,12 @@ There is no sign-in, so the submission id is the only credential the upload has 
 | Bytes per submission | 100 MB | Without it, "create a draft, upload forever" makes the store a free file host. |
 | Files per submission | 25 | Same reason. |
 | Submission must exist | — | No id, no write. |
+| Caller must own the draft | — | The id alone used to be enough to attach a file to anyone's form. |
 | Submission must be `Draft` | — | Submitted evidence does not gain new pages afterwards. |
+
+Download is the one asymmetry: **the owner, or anyone holding the id of a `Submitted` claim.** A
+submitted claim's evidence is what a reviewer is handed a link to, and there is no approval screen to
+hand it to them any other way. A draft's receipts are private to the person still filling the form in.
 
 `Content-Length` is checked first as a cheap rejection, but it is only a claim by the caller: the real
 enforcement is in `StageAsync`, which stops reading the moment the running total passes the ceiling.
@@ -108,6 +121,30 @@ evidence under seven-year retention: "is this the file that was uploaded" needs 
 depend on the object store still being trustworthy. ImpactKids stores none of this, because a photo
 does not need it.
 
+## What a claimant can change after a file is stored
+
+Two things, both on a draft they own, and both leave the bytes alone:
+
+- **Remove** soft-deletes the row. Nothing in this app destroys uploaded bytes — the global query
+  filter hides the row and the submission stops referencing it, which is exactly what the claimant was
+  promised. Seven-year retention applies to the evidence, not to the row that mentions it.
+- **Refile** (`PATCH .../attachments/{id}/kind`) changes only `AttachmentKind`. The kind is picked in a
+  dropdown *before* the file is chosen, so getting it wrong is the ordinary case rather than the
+  exception; without this the only remedy was removing the receipt and pushing the same bytes back up a
+  phone connection.
+
+The kind is not cosmetic: `Submit` refuses a claim carrying no `ItemisedReceipt` or `TaxInvoice`, so a
+mislabelled file is the difference between a form that submits and one that does not.
+
+**Both are drafts-only, owner-only**, for the same reason uploads are. A submitted claim is what a
+reviewer is reading, and relabelling or withdrawing its evidence afterwards needs a person rather than
+a control on a form.
+
+Re-uploading identical bytes is the third path to the same place: it un-deletes the existing row and
+applies the kind that came with the new upload, rather than tripping the unique index on
+`(SubmissionId, ContentHash)` — that index does not know about soft deletes, so a filtered duplicate
+check would turn an ordinary change of mind into a 500.
+
 ## Rate limits and body ceilings
 
 Per-IP fixed windows, because the pages are anonymous and nothing else stands between the open internet
@@ -115,7 +152,7 @@ and the object store:
 
 | Policy | Limit | Applies to |
 |---|---|---|
-| `uploads` | 30/min | attachment upload and download |
+| `uploads` | 30/min | attachment upload, download, remove and refile |
 | `submissions` | 120/min | the gRPC service (create, update, submit) |
 | `renders` | 20/min | the PDF endpoint |
 

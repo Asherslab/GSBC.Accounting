@@ -3,7 +3,20 @@
 
 <head>
     <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <!--
+      viewport-fit=cover is what makes env(safe-area-inset-*) report anything but 0 on an iPhone.
+      The fixed action bar reads the bottom inset so its primary button clears the home indicator;
+      without this attribute the inset is 0, the button sits under the swipe bar, and the first tap
+      dismisses the app rather than submitting the form.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+    <!--
+      Tints the iOS Safari toolbar to the page ground, so the chrome does not sit as a white band above
+      a dark form. One tag with no media query, deliberately: the media form cannot see an explicit
+      theme choice, so it would keep tinting to the DEVICE scheme after somebody has switched the page
+      to the other one. The script below writes this to whatever the theme actually resolves to.
+    -->
+    <meta name="theme-color" content="#f7f6f3"/>
     <title>GSBC Finance Forms</title>
     <base href="/"/>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -17,6 +30,75 @@
       unconditionally, as the Blazor template does, is a 404 on every page load.
     -->
     <link rel="icon" type="image/png" href="favicon.png"/>
+
+    <!--
+      The theme choice, and the one place in this app that is JavaScript rather than Blazor.
+
+      It has to be inline in <head> and it has to run synchronously, because it must stamp data-theme
+      on <html> BEFORE the first paint. A Blazor component cannot: WASM boots long after the first
+      frame, so anyone whose stored choice differs from their device setting would get a flash of the
+      wrong theme on every cold load - and on this app that flash sits behind the boot spinner, where
+      it is at its most obvious. Nothing else here justifies a script; this does.
+
+      Three states, matching the three the stylesheet is written for. "system" is stored as the ABSENCE
+      of the key rather than as the string "system": the attribute is then removed rather than set, and
+      prefers-color-scheme is left as the only signal - which is exactly what the CSS expects.
+
+      Every localStorage access is wrapped. It throws outright in some contexts (private windows,
+      third-party-cookie blocking), and a theme preference is never worth breaking a page over - the
+      same reasoning as DraftStore, for the same reason.
+    -->
+    <script>
+        (function () {
+            var KEY = "gsbc.theme";
+            var GROUND = {light: "#f7f6f3", dark: "#16171a"};
+            var DARK = "(prefers-color-scheme: dark)";
+
+            function stored() {
+                try {
+                    var value = localStorage.getItem(KEY);
+                    return value === "light" || value === "dark" ? value : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function apply() {
+                var mode = stored();
+                if (mode) document.documentElement.setAttribute("data-theme", mode);
+                else document.documentElement.removeAttribute("data-theme");
+
+                var resolved = mode || (matchMedia(DARK).matches ? "dark" : "light");
+                var meta = document.querySelector('meta[name="theme-color"]');
+                if (meta) meta.setAttribute("content", GROUND[resolved]);
+            }
+
+            window.gsbcTheme = {
+                // "system" | "light" | "dark" - what the button should be showing.
+                get: function () {
+                    return stored() || "system";
+                },
+                // Advances one step and returns the new mode, so the caller needs no second read.
+                cycle: function () {
+                    var next = {system: "light", light: "dark", dark: "system"}[stored() || "system"];
+                    try {
+                        if (next === "system") localStorage.removeItem(KEY);
+                        else localStorage.setItem(KEY, next);
+                    } catch (e) {
+                        /* ignore - see above */
+                    }
+                    apply();
+                    return next;
+                }
+            };
+
+            apply();
+
+            // Only bites while on "system", where apply() is reading the media query - but it is
+            // harmless otherwise, and registering it conditionally would need un-registering later.
+            matchMedia(DARK).addEventListener("change", apply);
+        })();
+    </script>
 </head>
 
 <body>
