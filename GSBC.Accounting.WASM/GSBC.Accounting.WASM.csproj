@@ -6,6 +6,20 @@
         <ImplicitUsings>enable</ImplicitUsings>
 
         <!--
+            Globalization data ships with this app, and must. Program.cs pins CultureInfo to en-AU
+            because this is an Australian church filing to the ACNC and the ATO - the money is AUD and
+            the dates are day-first no matter whose laptop opens the page.
+            `new CultureInfo("en-AU")` throws outright in invariant mode.
+
+            Stated explicitly here because GSBC.ImpactKids publishes with
+            /p:InvariantGlobalization=true and copying that flag over took the deployed site down on
+            2026-08-31: the runtime loaded, then threw
+            "Argument_CultureNotSupportedInInvariantMode ... en-AU" and the app never rendered. That
+            flag is safe there only because ImpactKids pins no culture.
+        -->
+        <InvariantGlobalization>false</InvariantGlobalization>
+
+        <!--
             OverrideHtmlAssetPlaceholders is deliberately NOT set, and setting it breaks the published
             site. It arrived with the slice 0 scaffold for no recorded reason and took the deployment
             down on 2026-08-31.

@@ -18,8 +18,10 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
-# Referenced projects are copied too. `dotnet restore` walks ProjectReference, so restoring with only
-# the leaf csproj present fails on the missing file and the layer-caching trick buys nothing.
+# Referenced projects are copied too, so this restore layer is complete. `dotnet restore` does not fail
+# without them - it prints "Skipping project ... because it was not found" and restores only the leaf,
+# leaving the cached layer partial so the publish below restores the rest again. GSBC.ImpactKids'
+# Dockerfiles do exactly that; this is the same practice with the gap closed.
 COPY ["GSBC.Accounting.Grpc/GSBC.Accounting.Grpc.csproj", "GSBC.Accounting.Grpc/"]
 COPY ["GSBC.Accounting.ServiceDefaults/GSBC.Accounting.ServiceDefaults.csproj", "GSBC.Accounting.ServiceDefaults/"]
 COPY ["GSBC.Accounting.Shared.Contracts/GSBC.Accounting.Shared.Contracts.csproj", "GSBC.Accounting.Shared.Contracts/"]
