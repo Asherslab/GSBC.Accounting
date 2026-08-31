@@ -1,9 +1,15 @@
 ---
 title: Debit card purchase and expense reimbursement forms
 kind: plan
-status: accepted
+status: folded
 opened: 2026-08-31
+closed: 2026-08-31
 verified: 2026-08-31
+folded_into:
+  - docs/modules/expenses/submission-model.md
+  - docs/modules/expenses/attachments.md
+  - docs/modules/frontend/theme.md
+  - docs/examples/README.md
 code:
   - Good Shepherd Baptist Church Debit Card Purchase Form.docx
   - Good Shepherd Baptist Church Expense Reimbursement Form.docx
@@ -11,6 +17,22 @@ code:
 ---
 
 # Debit card purchase and expense reimbursement forms
+
+> **Archived.** All eleven slices landed on 2026-08-31. The durable facts are in the `modules/` docs
+> listed in `folded_into:` above; read those for how the app works now. What is kept below is the
+> reasoning and the intent — including the places where building it proved this document wrong.
+>
+> **Where this document is wrong, and it matters:** it says the six compliance questions are "five of
+> them word-for-word identical" and the five declarations "4 shared". Reading the `.docx` files found
+> **two of six** and **one of five**, with declaration 3 being a *different* declaration on each form
+> rather than an extra on one. It says the forms "differ in about fifteen fields"; the real count is
+> **19**. Sections 2, 3 and 5, all called identical, differ too. The one-aggregate decision survives all
+> of that — the structure really is shared — but the *wording* is per-kind almost everywhere, which is
+> why `ExpenseFormWording` holds two copies of every string and never one.
+>
+> It also asked for one thing to be verified rather than assumed: whether SeaweedFS still stores
+> `aws-chunked` framing verbatim. **It does**, on 3.98, measured on this stack. See
+> `modules/expenses/attachments.md`.
 
 The scope for GSBC.Accounting's first two pages: web versions of the two paper forms finance
 currently circulates as `.docx`. **This doc is the handover — it is written to be executed by

@@ -35,6 +35,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{97DA8033-D
 		docs\README.md = docs\README.md
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "archive", "archive", "{A03E409E-2533-4314-9FFD-D362CD69ADBD}"
+	ProjectSection(SolutionItems) = preProject
+		docs\archive\2026-08-expense-forms-scope.md = docs\archive\2026-08-expense-forms-scope.md
+	EndProjectSection
+EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "examples", "examples", "{EEA6B8AC-57EC-421D-B729-7BA10A93A003}"
 	ProjectSection(SolutionItems) = preProject
 		docs\examples\README.md = docs\examples\README.md
@@ -53,18 +58,13 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "frontend", "frontend", "{C2
 		docs\modules\frontend\theme.md = docs\modules\frontend\theme.md
 	EndProjectSection
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "work", "work", "{87636620-A550-4D57-93A1-7891AA9A1B27}"
-	ProjectSection(SolutionItems) = preProject
-		docs\work\2026-08-expense-forms-scope.md = docs\work\2026-08-expense-forms-scope.md
-	EndProjectSection
-EndProject
 Global
 	GlobalSection(NestedProjects) = preSolution
+		{A03E409E-2533-4314-9FFD-D362CD69ADBD} = {97DA8033-D184-4401-9E40-0D0D0CCCA08B}
 		{EEA6B8AC-57EC-421D-B729-7BA10A93A003} = {97DA8033-D184-4401-9E40-0D0D0CCCA08B}
 		{FCA78D81-D501-48BD-B137-71D2C9757E81} = {97DA8033-D184-4401-9E40-0D0D0CCCA08B}
 		{FE9C5F40-FF95-42BE-A124-C516E7B61DFF} = {FCA78D81-D501-48BD-B137-71D2C9757E81}
 		{C251E262-50FE-4524-BD8C-B202FC19BAC1} = {FCA78D81-D501-48BD-B137-71D2C9757E81}
-		{87636620-A550-4D57-93A1-7891AA9A1B27} = {97DA8033-D184-4401-9E40-0D0D0CCCA08B}
 		{C3725CF1-C55D-4314-9C44-DD5A986A487D} = {2FB33DB4-A138-4AC4-9D03-2116FB0EA84D}
 		{BD5F1309-FB14-4762-BF15-4DDB4D0CDEF5} = {2FB33DB4-A138-4AC4-9D03-2116FB0EA84D}
 		{5C91A9F9-2FD4-4FB0-8375-06A3AD5A5E91} = {12AF63A3-0D79-473B-9894-70C05B746BC5}
