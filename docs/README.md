@@ -21,6 +21,10 @@ and the repo-wide rules are in [../AGENTS.md](../AGENTS.md).
 
 Present tense, kept current, no dates.
 
+- **expenses**
+  - [The expense submission model](modules/expenses/submission-model.md) — why the two paper forms are
+    one aggregate, what that does *not* let you share, and the money and retention rules.
+
 - **frontend**
   - [The theme, and why there is no component library](modules/frontend/theme.md) — `app.css` is a
     lift of the approved mockup, the three theme states, and the duplicated dark palette that must

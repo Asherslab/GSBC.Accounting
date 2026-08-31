@@ -1,7 +1,8 @@
+using GSBC.Accounting.Shared.Contracts.Services.Features.Expenses;
 using GSBC.Accounting.WASM;
+using GSBC.Accounting.WASM.Extensions;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
-using Microsoft.Extensions.Logging;
 
 WebAssemblyHostBuilder builder = WebAssemblyHostBuilder.CreateDefault(args);
 
@@ -17,7 +18,9 @@ builder.AddServiceDefaults();
 // Same-origin, because everything this app talks to arrives through the YARP proxy that served it.
 builder.Services.AddScoped(_ => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
 
-// gRPC clients are registered here as slices land. There is no authentication handler to add: both
-// form pages are anonymous by design - see docs/work/2026-08-expense-forms-scope.md.
+// There is no authentication handler to add: both form pages are anonymous by design - see
+// docs/work/2026-08-expense-forms-scope.md. A page injecting an unregistered service fails at RUNTIME,
+// not at build, so a new service contract needs a line here as well as a MapGrpcService on the server.
+builder.Services.AddCodeFirstClient<IExpenseSubmissionService>();
 
 await builder.Build().RunAsync();

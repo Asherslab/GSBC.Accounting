@@ -37,6 +37,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{97DA8033-D
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "modules", "modules", "{FCA78D81-D501-48BD-B137-71D2C9757E81}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "expenses", "expenses", "{FE9C5F40-FF95-42BE-A124-C516E7B61DFF}"
+	ProjectSection(SolutionItems) = preProject
+		docs\modules\expenses\submission-model.md = docs\modules\expenses\submission-model.md
+	EndProjectSection
+EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "frontend", "frontend", "{C251E262-50FE-4524-BD8C-B202FC19BAC1}"
 	ProjectSection(SolutionItems) = preProject
 		docs\modules\frontend\theme.md = docs\modules\frontend\theme.md
@@ -50,6 +55,7 @@ EndProject
 Global
 	GlobalSection(NestedProjects) = preSolution
 		{FCA78D81-D501-48BD-B137-71D2C9757E81} = {97DA8033-D184-4401-9E40-0D0D0CCCA08B}
+		{FE9C5F40-FF95-42BE-A124-C516E7B61DFF} = {FCA78D81-D501-48BD-B137-71D2C9757E81}
 		{C251E262-50FE-4524-BD8C-B202FC19BAC1} = {FCA78D81-D501-48BD-B137-71D2C9757E81}
 		{87636620-A550-4D57-93A1-7891AA9A1B27} = {97DA8033-D184-4401-9E40-0D0D0CCCA08B}
 		{C3725CF1-C55D-4314-9C44-DD5A986A487D} = {2FB33DB4-A138-4AC4-9D03-2116FB0EA84D}
