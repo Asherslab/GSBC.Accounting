@@ -20,4 +20,16 @@ namespace GSBC.Accounting.Shared.Contracts.Services.Features.Expenses;
 /// </remarks>
 [Service("gRPC/GSBC.Accounting.ExpenseSubmissions")]
 public interface IExpenseSubmissionService
-    : ICreateService<CreateExpenseSubmissionRequest>;
+    : ICreateService<CreateExpenseSubmissionRequest>
+{
+    /// <summary>
+    /// Rewrites a draft with what the page currently holds. Needed because the draft is created as soon
+    /// as the first receipt is attached, long before the claimant has finished typing.
+    /// </summary>
+    Task<BasicResponse> Update(UpdateExpenseSubmissionRequest request, CallContext context = default);
+
+    /// <summary>
+    /// Checks a draft is complete and marks it submitted. Refuses with every problem at once.
+    /// </summary>
+    Task<BasicResponse> Submit(SubmitExpenseSubmissionRequest request, CallContext context = default);
+}

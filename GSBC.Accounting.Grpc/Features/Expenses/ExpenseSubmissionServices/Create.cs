@@ -34,7 +34,7 @@ public partial class ExpenseSubmissionService
     {
         CancellationToken token = context.CancellationToken;
 
-        List<string> errors = Validate(request);
+        List<string> errors = ValidateForCreate(request);
 
         if (errors.Count > 0)
             return BasicReadResponse<Guid?>.WithErrors(errors);
@@ -207,7 +207,7 @@ public partial class ExpenseSubmissionService
     private static DateTimeOffset? ToOffset(DateTime? value) =>
         value is null ? null : new DateTimeOffset(DateTime.SpecifyKind(value.Value, DateTimeKind.Utc));
 
-    private static List<string> Validate(CreateExpenseSubmissionRequest request)
+    private static List<string> ValidateForCreate(CreateExpenseSubmissionRequest request)
     {
         List<string> errors = [];
 

@@ -37,4 +37,40 @@ public static class ErrorConstants
 
     public const string ReimbursementLineNeedsADate =
         "Every line on a reimbursement form needs a date.";
+
+    // ---- Submit only. A draft is allowed to be half-finished; a submission is not. ----
+
+    public const string SubmissionNotFound =
+        "That submission could not be found.";
+
+    public const string AlreadySubmitted =
+        "This form has already been submitted.";
+
+    public const string NeedsASubmitterName =
+        "Say who is making this claim.";
+
+    public const string NeedsAPurposeNarrative =
+        "Section 2 needs the written explanation of the Church purpose.";
+
+    public const string NeedsEvidence =
+        "Attach at least one itemised receipt or tax invoice. If evidence genuinely cannot be obtained, "
+        + "mark the line Missing in section 3 and complete the missing receipt declaration.";
+
+    public const string MissingEvidenceNeedsADeclaration =
+        "A line is marked Missing, so section 5's missing receipt declaration must be completed and agreed.";
+
+    public const string ComplianceQuestionsUnanswered =
+        "Every question in section 4 needs a No or a Yes. Leaving one blank is not the same as answering No.";
+
+    public const string DeclarationsNotAgreed =
+        "All of the declarations in section 6 have to be agreed before the form can be submitted.";
+
+    public const string NeedsASignature =
+        "Type your name against the declarations in section 6.";
+
+    public const string DebitCardNeedsCardLastFour =
+        "Section 1 needs the last four digits of the card.";
+
+    public const string DebitCardNeedsAmountCharged =
+        "Section 1 needs the amount the card was charged.";
 }

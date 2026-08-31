@@ -1,5 +1,6 @@
 @page "/forms/debit-card-purchase"
 @using GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses
+@using GSBC.Accounting.Shared.Contracts.Messages.Requests.Features.Expenses
 @using GSBC.Accounting.Shared.Contracts.Messages.Responses.Base
 @using GSBC.Accounting.Shared.Contracts.Services.Features.Expenses
 @using GSBC.Accounting.WASM.Features.Expenses
@@ -33,14 +34,24 @@
             </div>
         }
 
-        @if (_submissionId is not null)
+        @if (_submitted)
         {
             <div class="notice" role="status">
                 <span class="ico">OK</span>
                 <div>
-                    <b>Draft saved.</b> Reference <span class="mono">@_submissionId</span>. Attachments and
-                    the declarations are added in a later step; this draft is not yet submitted for
-                    approval.
+                    <b>Submitted for approval.</b> Reference <span class="mono">@_submissionId</span>.
+                    Keep that reference. An approver who is not you completes section 7, and finance
+                    completes section 8.
+                </div>
+            </div>
+        }
+        else if (_submissionId is not null)
+        {
+            <div class="notice" role="status">
+                <span class="ico">OK</span>
+                <div>
+                    <b>Draft saved.</b> Reference <span class="mono">@_submissionId</span>. It is not
+                    submitted yet &mdash; nobody is looking at it until you submit it for approval.
                 </div>
             </div>
         }
@@ -223,8 +234,11 @@
     {
         <button class="b" type="button" @onclick="FillWithMockData" disabled="@_busy">Fill with mock data</button>
     }
-    <button class="b primary" type="button" @onclick="Save" disabled="@_busy">
+    <button class="b" type="button" @onclick="Save" disabled="@_busy">
         @(_busy ? "Saving…" : "Save draft")
+    </button>
+    <button class="b primary" type="button" @onclick="SubmitForApproval" disabled="@_busy">
+        Submit for approval
     </button>
 </div>
 
@@ -239,6 +253,7 @@
     private readonly List<string> _errors = [];
     private readonly List<ExpenseAttachment> _attachments = [];
     private bool _busy;
+    private bool _submitted;
 
     /// <summary>
     /// The draft's id once it exists. Phase one of the two-phase write: receipts are uploaded against
@@ -346,10 +361,38 @@
     /// </remarks>
     private async Task<Guid?> EnsureSubmissionAsync()
     {
-        if (_submissionId is not null)
-            return _submissionId;
-
+        // Cleared on EVERY attempt. Without this the banner accumulated the previous attempt's errors
+        // alongside the new ones, so a problem the claimant had just fixed stayed on screen - observed
+        // on 2026-08-31, where correcting the amount charged left the old mismatch listed twice.
         _errors.Clear();
+
+        // The draft is created as soon as the first receipt is attached, long before the claimant has
+        // finished typing. Everything since then has to reach the server, or submit checks a row that no
+        // longer matches the screen.
+        if (_submissionId is not null)
+        {
+            try
+            {
+                BasicResponse update = await Submissions.Update(new UpdateExpenseSubmissionRequest
+                {
+                    SubmissionId = _submissionId.Value,
+                    Form = Model.ToCreateRequest()
+                });
+
+                if (update.Success)
+                    return _submissionId;
+
+                _errors.AddRange(update.Errors.Count > 0
+                    ? update.Errors
+                    : [update.Error ?? "The draft could not be saved."]);
+            }
+            catch (Exception ex)
+            {
+                _errors.Add($"Could not reach the server: {ex.Message}");
+            }
+
+            return null;
+        }
 
         try
         {
@@ -374,6 +417,54 @@
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Phase two. Saves the draft if that has not happened, then asks the server to check it is complete.
+    /// </summary>
+    /// <remarks>
+    /// The server checks the STORED submission, not what this page currently holds - which is why the
+    /// draft has to be saved first. Every refusal comes back at once rather than one at a time.
+    /// </remarks>
+    private async Task SubmitForApproval()
+    {
+        _busy = true;
+        _submitted = false;
+
+        try
+        {
+            // Pushes any edits made since the draft was created, and clears the previous attempt's
+            // errors, before the server is asked to check what it now holds.
+            Guid? id = await EnsureSubmissionAsync();
+
+            if (id is null)
+                return;
+
+            BasicResponse response = await Submissions.Submit(new SubmitExpenseSubmissionRequest
+            {
+                SubmissionId = id.Value
+            });
+
+            if (response.Success)
+            {
+                _submitted = true;
+                await Drafts.ClearAsync(SubmissionKind.DebitCardPurchase);
+            }
+            else
+            {
+                _errors.AddRange(response.Errors.Count > 0
+                    ? response.Errors
+                    : [response.Error ?? "The submission was refused."]);
+            }
+        }
+        catch (Exception ex)
+        {
+            _errors.Add($"Could not reach the server: {ex.Message}");
+        }
+        finally
+        {
+            _busy = false;
+        }
     }
 
     private async Task Save()

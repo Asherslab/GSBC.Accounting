@@ -146,3 +146,34 @@ amount charged) belong to submit: a draft is allowed to be half-finished.
 
 `BasicResponse` and `BasicReadResponse<T>` carry an `Errors` **list**, not one string. A form that
 reveals its problems one at a time is the one people give up on.
+
+## Update exists because the draft is created early
+
+The draft appears as soon as the first receipt is attached — long before the claimant has finished
+typing. Without `Update`, everything typed afterwards never reaches the server, and submit then checks a
+row that no longer matches the screen. That was live on 2026-08-31: correcting the amount charged on the
+page left the stored row at the old figure, and the reconciliation error could not be cleared.
+
+So `EnsureSubmissionAsync` creates on first call and **updates on every call after**. Re-sending the
+whole form is safe because attachments are keyed to the submission *id*, not to its contents.
+
+`Update` replaces the children rather than merging them: a deleted line has to disappear, and matching
+rows by position across an edit that inserted one in the middle is a way to silently move somebody's
+money between lines. The superseded rows are soft-deleted like everything else.
+
+## Submit is where a draft stops being allowed to be half-finished
+
+`Create` checks only what must hold for the row to be coherent. Every completeness rule is in `Submit`,
+because somebody filling in a long form needs to save it and come back.
+
+`Submit` recomputes the totals from the **stored** lines and checks the **stored** submission — never a
+re-sent form, which would let a client submit something different from what it attached receipts to. It
+returns every problem at once.
+
+The headline check is the reconciliation, and it **names both figures**: "The itemised lines total
+$156.25 but section 1 says the card was charged $99.00." Anything less sends somebody hunting through a
+table for a number the server already knows. Only the debit card form has it — it is the one whose total
+is stated twice, once by the bank and once by the claimant's itemisation.
+
+Writes use `db.Entry(x).Property(...).IsModified` rather than `db.Update`, which writes every column and
+would silently revert anything another writer committed since the read.
