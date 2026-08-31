@@ -1,0 +1,462 @@
+@page "/forms/expense-reimbursement"
+@using GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses
+@using GSBC.Accounting.Shared.Contracts.Messages.Requests.Features.Expenses
+@using GSBC.Accounting.Shared.Contracts.Messages.Responses.Base
+@using GSBC.Accounting.Shared.Contracts.Services.Features.Expenses
+@using GSBC.Accounting.WASM.Features.Expenses
+@using GSBC.Accounting.WASM.Features.Expenses.Components
+@inject IExpenseSubmissionService Submissions
+@inject DraftStore Drafts
+
+<PageTitle>@Text.DocumentTitle</PageTitle>
+
+@*
+    The reimbursement form. A genuinely different screen from the debit card one - different section 1,
+    different wording throughout, a trip record instead of an attendee table - built from the same
+    components, because the two documents share a structure even where they share almost no words.
+
+    Section 1 is where the two pages diverge most: no card, no supplier, no amount charged, and instead
+    contact details, an expense period, a payment method and the bank-details question.
+*@
+
+<div class="layout">
+    <SectionRail Sections="Rail"/>
+
+    <main>
+        <p class="lede">@Text.Banner</p>
+
+        @if (_errors.Count > 0)
+        {
+            <div class="banner" role="alert">
+                <h4>This form isn't ready to submit</h4>
+                <ul>
+                    @foreach (string error in _errors)
+                    {
+                        <li>@error</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (_submitted)
+        {
+            <div class="notice" role="status">
+                <span class="ico">OK</span>
+                <div>
+                    <b>Submitted for approval.</b> Reference <span class="mono">@_submissionId</span>.
+                    Keep that reference. An approver who is not you completes section 7, and finance
+                    completes section 8.
+                </div>
+            </div>
+        }
+        else if (_submissionId is not null)
+        {
+            <div class="notice" role="status">
+                <span class="ico">OK</span>
+                <div>
+                    <b>Draft saved.</b> Reference <span class="mono">@_submissionId</span>. It is not
+                    submitted yet &mdash; nobody is looking at it until you submit it for approval.
+                </div>
+            </div>
+        }
+
+        <!-- 1 -->
+        <section class="card" id="s1">
+            <header>
+                <span class="num">01</span>
+                <h3>@Text.Section1Caption</h3>
+                <span class="hint">@Text.Section1Hint</span>
+            </header>
+            <div class="body">
+                <div class="grid">
+                    <div class="f c5">
+                        <label for="claimant">@Text.SubmitterNameLabel <span class="req">*</span></label>
+                        <input type="text" id="claimant" @bind="Model.SubmitterName" @bind:event="oninput"/>
+                    </div>
+                    <div class="f c3">
+                        <label for="formdate">@Text.FormDateLabel <span class="req">*</span></label>
+                        <input type="date" id="formdate" @bind="Model.FormDate" @bind:event="oninput"/>
+                    </div>
+                    <div class="f c4">
+                        <label for="contact">Phone / email <span class="req">*</span></label>
+                        <input type="text" id="contact" @bind="Model.ContactPhoneEmail" @bind:event="oninput"/>
+                    </div>
+
+                    <div class="f c12">
+                        <fieldset style="border:0;padding:0;margin:0">
+                            <legend class="lbl" style="padding:0">Role / relationship <span class="req">*</span></legend>
+                            <div class="chips">
+                                @foreach (ClaimantRole role in Enum.GetValues<ClaimantRole>())
+                                {
+                                    <label class="chip">
+                                        <input type="radio" name="role" checked="@(Model.Role == role)"
+                                               @onchange="() => SetRole(role)"/>
+                                        @RoleLabel(role)
+                                    </label>
+                                }
+                            </div>
+                        </fieldset>
+                    </div>
+
+                    @if (Model.Role == ClaimantRole.Other)
+                    {
+                        <div class="f c4">
+                            <label for="roleother">Other &mdash; please say what</label>
+                            <input type="text" id="roleother" @bind="Model.RoleOther" @bind:event="oninput"/>
+                        </div>
+                    }
+
+                    <div class="f c4">
+                        <label for="ministry">Ministry / department <span class="req">*</span></label>
+                        <input type="text" id="ministry" @bind="Model.MinistryDepartment" @bind:event="oninput"/>
+                    </div>
+                    <div class="f c4">
+                        <label for="periodfrom">Expense period &mdash; from <span class="req">*</span></label>
+                        <input type="date" id="periodfrom" @bind="Model.ExpensePeriodFrom" @bind:event="oninput"/>
+                    </div>
+                    <div class="f c4">
+                        <label for="periodto">Expense period &mdash; to <span class="req">*</span></label>
+                        <input type="date" id="periodto" @bind="Model.ExpensePeriodTo" @bind:event="oninput"/>
+                    </div>
+
+                    <div class="f c4">
+                        <span class="lbl">Payment method <span class="req">*</span></span>
+                        <div class="chips">
+                            <label class="chip">
+                                <input type="radio" name="paymethod"
+                                       checked="@(Model.PaymentMethod == PaymentMethod.Eft)"
+                                       @onchange="() => SetPaymentMethod(PaymentMethod.Eft)"/>EFT
+                            </label>
+                            <label class="chip">
+                                <input type="radio" name="paymethod"
+                                       checked="@(Model.PaymentMethod == PaymentMethod.Other)"
+                                       @onchange="() => SetPaymentMethod(PaymentMethod.Other)"/>Other
+                            </label>
+                        </div>
+                    </div>
+
+                    @if (Model.PaymentMethod == PaymentMethod.Other)
+                    {
+                        <div class="f c4">
+                            <label for="paymethodother">Other &mdash; please say what</label>
+                            <input type="text" id="paymethodother"
+                                   @bind="Model.PaymentMethodOther" @bind:event="oninput"/>
+                        </div>
+                    }
+
+                    <div class="f c4">
+                        <span class="lbl">Bank details on file <span class="req">*</span></span>
+                        <div class="yn">
+                            <label>
+                                <input type="radio" name="bankonfile" checked="@(Model.BankDetailsOnFile == false)"
+                                       @onchange="() => SetBankDetails(false)"/>No &ndash; provide securely
+                            </label>
+                            <label>
+                                <input type="radio" name="bankonfile" checked="@(Model.BankDetailsOnFile == true)"
+                                       @onchange="() => SetBankDetails(true)"/>Yes
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                @*
+                    Reproduced from the paper form. It is also why this page asks for no BSB and no
+                    account number: the form deliberately collects neither, and neither does this app.
+                *@
+                <div class="notice" style="margin-top:16px">
+                    <span class="ico">!</span>
+                    <div>
+                        <b>Banking privacy.</b> Do not email bank details in an unsecured message. Use the
+                        church-approved secure method. This form never asks for your BSB or account number.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2 -->
+        <section class="card" id="s2">
+            <header>
+                <span class="num">02</span>
+                <h3>@Text.Section2Caption</h3>
+            </header>
+            <div class="body">
+                <div class="grid">
+                    <div class="f c6">
+                        <label for="activity">@Text.PurposeActivityLabel <span class="req">*</span></label>
+                        <input type="text" id="activity" @bind="Model.PurposeActivity" @bind:event="oninput"/>
+                    </div>
+                    <div class="f c6">
+                        <label for="event">Event / project</label>
+                        <input type="text" id="event" @bind="Model.EventProject" @bind:event="oninput"/>
+                    </div>
+                    <div class="f c4">
+                        <label for="approvedby">Prior approval by</label>
+                        <input type="text" id="approvedby" @bind="Model.PriorApprovalBy" @bind:event="oninput"/>
+                    </div>
+                    <div class="f c4">
+                        <label for="approvaldate">Approval date</label>
+                        <input type="date" id="approvaldate" @bind="Model.ApprovalDate" @bind:event="oninput"/>
+                    </div>
+                    <div class="f c12">
+                        <label for="purpose">@Text.PurposeNarrativePrompt <span class="req">*</span></label>
+                        <textarea id="purpose" rows="4" @bind="Model.PurposeNarrative" @bind:event="oninput"></textarea>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3 -->
+        <section class="card" id="s3">
+            <header>
+                <span class="num">03</span>
+                <h3>@Text.Section3Caption</h3>
+                <span class="hint">@Text.Section3Hint</span>
+            </header>
+            <div class="body">
+                <LineTable Model="Model" Text="Text" OnChanged="Touched"/>
+            </div>
+        </section>
+
+        <AttachmentsCard Files="_attachments" EnsureSubmission="EnsureSubmissionAsync" OnChanged="Touched"/>
+
+        <ComplianceSection Model="Model" Text="Text" OnChanged="Touched"/>
+
+        <DeclarationsSection Model="Model" Text="Text" OnChanged="Touched"/>
+
+        <ApprovalSections Kind="SubmissionKind.ExpenseReimbursement"/>
+
+        <p class="footnote">
+            This form supports compliance but does not replace the Church constitution, delegations,
+            grant conditions, employment obligations, or professional advice. Finance applies the ATO and
+            ACNC requirements current at the payment date.
+        </p>
+    </main>
+</div>
+
+<div class="actionbar">
+    <div class="sum">
+        <div><span class="k">@Text.GrossTotalLabel</span><span class="v">@Model.GrossTotal.ToString("C2")</span></div>
+        <div><span class="k">@Text.NetTotalLabel</span><span class="v">@Model.NetTotal.ToString("C2")</span></div>
+        <div><span class="k">Lines</span><span class="v">@Model.Lines.Count</span></div>
+        <div><span class="k">Attachments</span><span class="v">@_attachments.Count</span></div>
+    </div>
+    <div class="spacer"></div>
+    @if (MockDataAvailable)
+    {
+        <button class="b" type="button" @onclick="FillWithMockData" disabled="@_busy">Fill with mock data</button>
+    }
+    <button class="b" type="button" @onclick="Save" disabled="@_busy">
+        @(_busy ? "Saving…" : "Save draft")
+    </button>
+    <button class="b primary" type="button" @onclick="SubmitForApproval" disabled="@_busy">
+        Submit for approval
+    </button>
+</div>
+
+@code
+{
+    [CascadingParameter] private MainLayout Layout { get; set; } = default!;
+
+    private const SubmissionKind Kind = SubmissionKind.ExpenseReimbursement;
+
+    private ExpenseFormModel Model { get; set; } = new() { Kind = Kind };
+
+    private static ExpenseFormText Text => ExpenseFormWording.For(Kind);
+
+    private readonly List<string> _errors = [];
+    private readonly List<ExpenseAttachment> _attachments = [];
+    private bool _busy;
+    private bool _submitted;
+    private Guid? _submissionId;
+
+#if DEBUG
+    private const bool MockDataAvailable = true;
+#else
+    private const bool MockDataAvailable = false;
+#endif
+
+    private IReadOnlyList<SectionRail.RailSection> Rail =>
+    [
+        new("1", Text.Section1Caption, "s1", Complete: !string.IsNullOrWhiteSpace(Model.SubmitterName)),
+        new("2", Text.Section2Caption, "s2", Complete: !string.IsNullOrWhiteSpace(Model.PurposeNarrative)),
+        new("3", Text.Section3Caption, "s3", Complete: Model.Lines.Any(x => x.GrossAmount > 0)),
+        new("—", "Attachments", "s3b", Complete: _attachments.Count > 0),
+        new("4", Text.Section4Caption, "s4", Complete: Model.Compliance.All(x => x is not null)),
+        .. Model.HasMissingEvidence
+            ? new[] { new SectionRail.RailSection("5", "Missing receipt", "s5", Model.MissingDeclared) }
+            : [],
+        new("6", Text.Section6Caption, "s6", Complete: Model.Declarations.All(x => x)),
+        new("7", "Independent approval", "s7", Complete: false, Pending: true),
+        new("8", "Finance use only", "s8", Complete: false, Pending: true)
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.SetTitle(Text.PageTitle);
+
+        ExpenseFormModel? draft = await Drafts.LoadAsync(Kind);
+
+        if (draft is not null)
+            Model = draft;
+    }
+
+    private void SetRole(ClaimantRole role)
+    {
+        Model.Role = role;
+
+        if (role != ClaimantRole.Other)
+            Model.RoleOther = null;
+    }
+
+    private void SetPaymentMethod(PaymentMethod method)
+    {
+        Model.PaymentMethod = method;
+
+        // Dropping the free text when the method moves away from Other, so a stale answer cannot ride
+        // along on a submission that no longer says Other.
+        if (method != PaymentMethod.Other)
+            Model.PaymentMethodOther = null;
+    }
+
+    private void SetBankDetails(bool onFile) => Model.BankDetailsOnFile = onFile;
+
+    private static string RoleLabel(ClaimantRole role) => role switch
+    {
+        ClaimantRole.ResponsiblePerson => "Responsible Person",
+        _ => role.ToString()
+    };
+
+    private async Task Touched()
+    {
+        StateHasChanged();
+        await Drafts.SaveAsync(Model);
+    }
+
+    /// <summary>
+    /// Creates the draft on first call, and pushes edits on every call after - the draft appears as soon
+    /// as the first receipt is attached, long before the claimant has finished typing.
+    /// </summary>
+    private async Task<Guid?> EnsureSubmissionAsync()
+    {
+        _errors.Clear();
+
+        if (_submissionId is not null)
+        {
+            try
+            {
+                BasicResponse update = await Submissions.Update(new UpdateExpenseSubmissionRequest
+                {
+                    SubmissionId = _submissionId.Value,
+                    Form = Model.ToCreateRequest()
+                });
+
+                if (update.Success)
+                    return _submissionId;
+
+                _errors.AddRange(update.Errors.Count > 0
+                    ? update.Errors
+                    : [update.Error ?? "The draft could not be saved."]);
+            }
+            catch (Exception ex)
+            {
+                _errors.Add($"Could not reach the server: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        try
+        {
+            BasicReadResponse<Guid?> response = await Submissions.Create(Model.ToCreateRequest());
+
+            if (response is { Success: true, Entity: not null })
+            {
+                _submissionId = response.Entity;
+
+                return _submissionId;
+            }
+
+            _errors.AddRange(response.Errors.Count > 0
+                ? response.Errors
+                : [response.Error ?? "The submission was refused."]);
+        }
+        catch (Exception ex)
+        {
+            _errors.Add($"Could not reach the server: {ex.Message}");
+        }
+
+        return null;
+    }
+
+    private async Task Save()
+    {
+        _busy = true;
+
+        try
+        {
+            if (await EnsureSubmissionAsync() is not null)
+                await Drafts.ClearAsync(Kind);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task SubmitForApproval()
+    {
+        _busy = true;
+        _submitted = false;
+
+        try
+        {
+            Guid? id = await EnsureSubmissionAsync();
+
+            if (id is null)
+                return;
+
+            BasicResponse response = await Submissions.Submit(new SubmitExpenseSubmissionRequest
+            {
+                SubmissionId = id.Value
+            });
+
+            if (response.Success)
+            {
+                _submitted = true;
+                await Drafts.ClearAsync(Kind);
+            }
+            else
+            {
+                _errors.AddRange(response.Errors.Count > 0
+                    ? response.Errors
+                    : [response.Error ?? "The submission was refused."]);
+            }
+        }
+        catch (Exception ex)
+        {
+            _errors.Add($"Could not reach the server: {ex.Message}");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task FillWithMockData()
+    {
+#if DEBUG
+        Model = new ExpenseFormModel { Kind = Kind };
+
+        MockData.Fill(Model);
+
+        _submissionId = null;
+        _attachments.Clear();
+        _errors.Clear();
+
+        await Touched();
+#else
+        // Unreachable: MockDataAvailable is a const false in Release, so the call site is compiled away.
+        await Task.CompletedTask;
+#endif
+    }
+}

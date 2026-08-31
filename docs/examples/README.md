@@ -34,6 +34,16 @@ Three things to look at when the accountant reviews it:
   type, size and SHA-256, so "is this the file that was uploaded" has an answer that does not depend on
   the object store. Merging the files themselves is the obvious next step, and the open question below.
 
+## `expense-reimbursement-example.pdf`
+
+The same submission shape on the other form, so the two can be compared side by side. Worth checking
+that the per-kind wording really is per-kind: column 1 of section 3 is `Date` rather than `Item`,
+compliance question 1 is the motor vehicle one and opens a **trip record** rather than an attendee
+table, the totals read `Subtotal of receipts` / `TOTAL REIMBURSEMENT CLAIMED`, and declaration 3 is the
+no-double-claim one rather than the debit card's repayment declaration.
+
+A "Yes" answer prints in orange, so a reviewer's eye lands on the questions that opened something.
+
 ## The open question this exists to answer
 
 The output format is parked with the accountant. This PDF is what that conversation needs — whether the
