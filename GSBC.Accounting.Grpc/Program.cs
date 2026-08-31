@@ -3,10 +3,16 @@ using Amazon.Runtime;
 using Amazon.S3;
 using GSBC.Accounting.Grpc.Extensions;
 using GSBC.Accounting.Grpc.Features.Attachments;
+using GSBC.Accounting.Grpc.Features.Pdf;
+using QuestPDF.Infrastructure;
 using GSBC.Accounting.Grpc.Features.Expenses.ExpenseSubmissionServices;
 using GSBC.Accounting.ServiceDefaults;
 using Microsoft.EntityFrameworkCore;
 using ProtoBuf.Grpc.Server;
+
+// QuestPDF is MIT-licensed for organisations under $1M annual revenue, which this church is. Declared
+// once at startup; without it the first render throws.
+QuestPDF.Settings.License = LicenseType.Community;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -67,6 +73,10 @@ app.MapGrpcService<ExpenseSubmissionService>();
 
 // Plain HTTP, never gRPC: a receipt is 1-20 MB and the gRPC channel must not carry file bytes.
 app.AddAttachmentEndpoints();
+
+// The printed form, rendered from the aggregate rather than from the HTML page - the screen layout and
+// the printed layout are different problems and are allowed to diverge.
+app.AddPdfEndpoints();
 
 // A signpost for somebody who opened the address in a browser. Says nothing about this service's data.
 app.MapGet("/",
