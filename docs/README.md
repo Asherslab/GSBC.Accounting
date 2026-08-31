@@ -2,7 +2,7 @@
 title: Documentation map
 kind: reference
 status: current
-verified: 2026-08-31
+verified: 2026-09-01
 ---
 
 # Documentation
@@ -34,6 +34,12 @@ Present tense, kept current, no dates.
     of a submission.**
   - [Rendered examples](examples/README.md) — the two PDFs `GET /api/submissions/{id}/pdf` produces,
     checked in for the parked output-format conversation.
+
+- **infrastructure**
+  - [How this deploys](modules/infrastructure/deployment.md) — the push-to-`master` pipeline, the Helm
+    chart, the six out-of-band secrets, why this app has its own SeaweedFS with different volume
+    numbers, and the two container details (Skia's native libraries, `/_framework/` never falling back
+    to `index.html`) that fail in confusing ways when missed.
 
 - **frontend**
   - [The theme, and why there is no component library](modules/frontend/theme.md) — `app.css` is a

@@ -1,0 +1,44 @@
+---
+apiVersion: "apps/v1"
+kind: "Deployment"
+metadata:
+  name: "yarp-deployment"
+  labels:
+    app.kubernetes.io/name: "accounting-app"
+    app.kubernetes.io/component: "yarp"
+    app.kubernetes.io/instance: "{{.Release.Name}}"
+spec:
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: "accounting-app"
+        app.kubernetes.io/component: "yarp"
+        app.kubernetes.io/instance: "{{.Release.Name}}"
+    spec:
+      containers:
+        - image: "{{ .Values.parameters.yarp.yarp_image }}:{{ .Values.image_tag }}"
+          name: "yarp"
+          # No secretRef here, unlike GSBC.ImpactKids' yarp-secrets. That proxy terminates OpenID
+          # Connect and holds a client secret; this one has no identity provider, no cookie scheme and
+          # no signing key. It forwards the __gsbc_anon cookie it cannot read. A yarp-secrets here
+          # would be an empty Secret whose only effect is a pod that will not start without it.
+          envFrom:
+            - configMapRef:
+                name: "yarp-config"
+          ports:
+            - name: "http"
+              protocol: "TCP"
+              containerPort: {{ .Values.parameters.yarp.port_http }}
+          imagePullPolicy: "IfNotPresent"
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: "accounting-app"
+      app.kubernetes.io/component: "yarp"
+      app.kubernetes.io/instance: "{{.Release.Name}}"
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: "RollingUpdate"

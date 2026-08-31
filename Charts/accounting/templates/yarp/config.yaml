@@ -1,0 +1,20 @@
+---
+apiVersion: "v1"
+kind: "ConfigMap"
+metadata:
+  name: "yarp-config"
+  labels:
+    app.kubernetes.io/name: "accounting-app"
+    app.kubernetes.io/component: "yarp"
+    app.kubernetes.io/instance: "{{.Release.Name}}"
+data:
+  ASPNETCORE_URLS: "{{ .Values.config.yarp.ASPNETCORE_URLS }}"
+  OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EXCEPTION_LOG_ATTRIBUTES: "{{ .Values.config.yarp.OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EXCEPTION_LOG_ATTRIBUTES }}"
+  OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EVENT_LOG_ATTRIBUTES: "{{ .Values.config.yarp.OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EVENT_LOG_ATTRIBUTES }}"
+  OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "{{ .Values.config.yarp.OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY }}"
+  ASPNETCORE_FORWARDEDHEADERS_ENABLED: "{{ .Values.config.yarp.ASPNETCORE_FORWARDEDHEADERS_ENABLED }}"
+  # Service discovery. The proxy's appsettings.json names its clusters `http://grpc` and `http://wasm`
+  # and resolves them through AddServiceDiscoveryDestinationResolver, which reads these two variables.
+  # Rename either service and the proxy answers 503 with nothing useful in the log.
+  services__grpc__http__0: "{{ .Values.config.yarp.services__grpc__http__0 }}"
+  services__wasm__http__0: "{{ .Values.config.yarp.services__wasm__http__0 }}"

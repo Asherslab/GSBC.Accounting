@@ -1,0 +1,112 @@
+# Rewritten by chart-publish.yml on every release. Never edit by hand.
+image_tag: 0.0.1
+
+parameters:
+  migrations:
+    migrations_image: "docker.io/asherslab/gsbc-accounting-migrations"
+  grpc:
+    port_http: 80
+    grpc_image: "docker.io/asherslab/gsbc-accounting-grpc"
+  wasm:
+    port_http: 80
+    wasm_image: "docker.io/asherslab/gsbc-accounting-wasm"
+  yarp:
+    port_http: 80
+    yarp_image: "docker.io/asherslab/gsbc-accounting-yarp"
+  sql:
+    sql_image: "docker.io/library/postgres:17.6"
+    storage: "2Gi"
+  s3:
+    port_s3: 8333
+    s3_image: "docker.io/chrislusf/seaweedfs:3.98"
+
+    # Sized for THIS app's objects, and deliberately not the same numbers as GSBC.ImpactKids'.
+    #
+    # ImpactKids stores 30 KB JPEGs of faces and caps itself at 128 MB x 8 volumes — a hard 1 GB
+    # ceiling, correct there. This app stores 1-20 MB receipt PDFs and phone photos under a seven-year
+    # retention rule, so that ceiling would fill, and the failure mode is bad: a bare
+    # `400 InvalidRequest` on PUT with the real cause ("No more free space left") only in the
+    # container log.
+    #
+    # 1024 MB x 30 volumes is a 30 GB ceiling. `storage` must stay comfortably above whatever the
+    # volumes can actually consume in practice — the volume files are not alone on the PVC, the
+    # filer's leveldb store shares it.
+    volume_size_limit_mb: 1024
+    volume_max: 30
+    storage: "20Gi"
+
+config:
+  s3:
+    bucket: "accounting"
+  sql:
+    POSTGRES_HOST_AUTH_METHOD: "scram-sha-256"
+    POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+    POSTGRES_USER: "postgres"
+    POSTGRES_DB: "accounting"
+  migrations:
+    OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EXCEPTION_LOG_ATTRIBUTES: "true"
+    OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EVENT_LOG_ATTRIBUTES: "true"
+    OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "in_memory"
+  grpc:
+    ASPNETCORE_URLS: "http://+:80"
+    OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EXCEPTION_LOG_ATTRIBUTES: "true"
+    OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EVENT_LOG_ATTRIBUTES: "true"
+    OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "in_memory"
+    # Load-bearing, not boilerplate. Two things behind the proxy read the client's real address:
+    # the anonymous-session cookie's rate limiter partitions by remote IP, and the attachment
+    # endpoints' limits do the same. Without forwarded headers every request appears to come from
+    # the YARP pod and the whole church shares one rate-limit bucket.
+    ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+  yarp:
+    ASPNETCORE_URLS: "http://+:80"
+    OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EXCEPTION_LOG_ATTRIBUTES: "true"
+    OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EVENT_LOG_ATTRIBUTES: "true"
+    OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "in_memory"
+    ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+    # Service discovery names, matching the `http://grpc` / `http://wasm` cluster addresses in
+    # GSBC.Accounting.YARP/appsettings.json.
+    services__grpc__http__0: "http://grpc-service:80"
+    services__wasm__http__0: "http://wasm-service:80"
+
+# There is deliberately no `secrets:` block.
+#
+# Every credential is a Secret created out of band with kubectl and referenced by name only —
+# sql-secrets, migrations-secrets, grpc-secrets, s3-identities-secret, attachments-secret. Nothing
+# puts a credential in a values file, because values files live in the gsbc.argo repo and that is git.
+#
+# docs/modules/infrastructure/deployment.md has the exact `kubectl create secret` commands and what
+# each key must contain.
+
+# Hourly offsite copy of the receipts bucket to Backblaze B2.
+#
+# This is the one thing in the deployment that cannot be regenerated. A lost receipt is a hole in a
+# seven-year audit trail, and the Postgres dump does not cover it — the blobs are deliberately outside
+# the database. The object store is single-replica on one PVC: fine for serving, not a backup.
+#
+# GSBC.ImpactKids runs its own separate SeaweedFS and its own separate copy of this job. The two
+# deployments share nothing, so this needs its OWN B2 bucket and its OWN application key — adding
+# `Read:accounting` to ImpactKids' backup identity would do nothing, because that identity lives in a
+# different SeaweedFS.
+#
+# TO TURN ON, once the B2 bucket and application key exist:
+#   1. create the s3-backup-secret (docs/modules/infrastructure/deployment.md)
+#   2. fill in bucket and endpoint below
+#   3. set enabled: true
+#
+# Do NOT set enabled: true with bucket or endpoint still blank. They are `required` in the template,
+# so the render fails, and a failed render fails the sync for the WHOLE application — not just the
+# backup. Half-configured and disabled is safe; half-configured and enabled is not.
+#
+# Leave versioning on at the B2 end (it is the default). If a lifecycle rule is ever added it must be
+# the "keep prior versions for N days" kind: the object keys are content hashes, so nothing is ever
+# rewritten, and a plain age-based expiry would eventually delete every current receipt.
+backup:
+  s3:
+    enabled: false
+    schedule: "0 * * * *"
+    rclone_image: "docker.io/rclone/rclone:1.71"
+    # REPLACE ME - the Backblaze B2 bucket name.
+    bucket: ""
+    # REPLACE ME - the region-specific Backblaze S3 endpoint, e.g.
+    # "https://s3.us-west-004.backblazeb2.com". Read it off the bucket in the B2 console.
+    endpoint: ""

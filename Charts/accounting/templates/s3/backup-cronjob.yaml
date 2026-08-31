@@ -1,0 +1,95 @@
+{{- if .Values.backup.s3.enabled }}
+---
+# Hourly offsite copy of the receipts bucket to Backblaze B2, over the S3 API.
+#
+# The receipts are the one thing in this deployment that cannot be regenerated. A lost receipt is a
+# hole in a seven-year audit trail, and the Postgres dump does not cover it.
+#
+# `copy`, NEVER `sync`. copy does not delete at the destination, so a bad migration or a fat-fingered
+# bulk delete on our side cannot erase the offsite copy. Changing that one word turns the backup into
+# a mirror of the mistake.
+#
+# --immutable fails the run loudly if an object's content ever changes under a name that should be a
+# content hash. That is not a backup problem, it is a bug in the app, and this is where it surfaces.
+#
+# --size-only because the keys are content hashes and objects are never rewritten: reconciliation is a
+# list-versus-list, so hashing or comparing timestamps buys nothing.
+#
+# Deliberately NOT SeaweedFS' built-in filer.backup. That keeps its progress checkpoint in the *source*
+# filer, so emptying or recreating the destination bucket does not reset it and the destination
+# silently holds only what was written since — you believe you have a backup and you do not. rclone
+# derives what to send from the two bucket listings, so there is no checkpoint to drift. See
+# https://github.com/seaweedfs/seaweedfs/discussions/8672 before anyone "simplifies" this.
+#
+# This is this deployment's OWN job against its OWN SeaweedFS. GSBC.ImpactKids runs a separate one.
+# Give it a separate B2 bucket: two rclone jobs writing the same bucket from different sources is a
+# needless way to make one deployment's incident look like the other's.
+apiVersion: "batch/v1"
+kind: "CronJob"
+metadata:
+  name: "s3-backup-cronjob"
+  labels:
+    app.kubernetes.io/name: "accounting-app"
+    app.kubernetes.io/component: "s3-backup"
+    app.kubernetes.io/instance: "{{.Release.Name}}"
+spec:
+  schedule: "{{ .Values.backup.s3.schedule }}"
+  concurrencyPolicy: "Forbid"
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: "accounting-app"
+            app.kubernetes.io/component: "s3-backup"
+            app.kubernetes.io/instance: "{{.Release.Name}}"
+        spec:
+          restartPolicy: "Never"
+          containers:
+            - image: "{{ .Values.backup.s3.rclone_image }}"
+              name: "rclone"
+              args:
+                - "copy"
+                - "seaweed:{{ .Values.config.s3.bucket }}"
+                - "b2:{{ required "backup.s3.bucket is required when backup.s3.enabled - the Backblaze bucket name" .Values.backup.s3.bucket }}"
+                - "--size-only"
+                - "--immutable"
+                - "--stats-one-line"
+                - "--stats=0"
+                - "--verbose"
+              env:
+                - name: "RCLONE_CONFIG_SEAWEED_TYPE"
+                  value: "s3"
+                - name: "RCLONE_CONFIG_SEAWEED_PROVIDER"
+                  value: "Other"
+                - name: "RCLONE_CONFIG_SEAWEED_ENDPOINT"
+                  value: "http://s3-service:{{ .Values.parameters.s3.port_s3 }}"
+                - name: "RCLONE_CONFIG_SEAWEED_FORCE_PATH_STYLE"
+                  value: "true"
+                - name: "RCLONE_CONFIG_B2_TYPE"
+                  value: "s3"
+                - name: "RCLONE_CONFIG_B2_PROVIDER"
+                  value: "Other"
+                - name: "RCLONE_CONFIG_B2_ENDPOINT"
+                  value: "{{ required "backup.s3.endpoint is required when backup.s3.enabled - the region-specific Backblaze S3 endpoint" .Values.backup.s3.endpoint }}"
+                - name: "RCLONE_CONFIG_B2_FORCE_PATH_STYLE"
+                  value: "false"
+              # Created out of band with kubectl. Holds the four RCLONE_CONFIG_*_ACCESS_KEY_ID /
+              # _SECRET_ACCESS_KEY values — two credentials with deliberately different powers:
+              #
+              #   SEAWEED is the SOURCE. Read and List only; rclone never writes there, and that is
+              #           what stops this job damaging the bucket it exists to protect.
+              #   B2      is the DESTINATION. It has to be able to write, or there is no backup — but
+              #           give it no delete capability, since `copy` never issues one.
+              #
+              # rclone reads its whole remote definition from RCLONE_CONFIG_<REMOTE>_<OPTION>, so there
+              # is no rclone.conf to mount; the non-secret half is the env block above.
+              envFrom:
+                - secretRef:
+                    name: "s3-backup-secret"
+              imagePullPolicy: "IfNotPresent"
+{{- end }}

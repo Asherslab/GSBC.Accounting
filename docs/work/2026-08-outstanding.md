@@ -35,15 +35,27 @@ somebody should decide whether both forms want both.
 
 ## Out-of-repo work, for whoever deploys this
 
-The production object store is one SeaweedFS with two buckets, so the deployed config differs from
-local only in the endpoint. Three things live in the cluster, not here:
+**Mostly done as of 2026-09-01.** The Dockerfiles, the Helm chart, the three GitHub Actions workflows
+and the `gsbc.argo` manifests all exist, and how it fits together is documented in
+[How this deploys](../modules/infrastructure/deployment.md). The deployment lands on
+`expenses.baptist.com.au`, in its own `accounting` namespace, with **its own SeaweedFS** — the earlier
+plan of one shared instance with two buckets was rejected that day.
 
-- The **`accounting` bucket** has to exist and the app's credential has to reach it.
-- The **Backblaze backup identity is bucket-scoped** (`Read:photos`, `List:photos`) and needs
-  `accounting` added, plus a second `rclone copy` in the CronJob. Without it the receipts are not
-  backed up, and nothing will say so.
-- **SeaweedFS reads its identities once at startup.** A changed Secret updates nothing until the pod
-  restarts, with no error either way — so an identity change must be followed by a rollout restart.
+What is genuinely still outstanding:
+
+- **The six `kubectl create secret` commands have not been run**, and the exact commands are in
+  `gsbc.argo/clusters/mini/README.md` under "accounting". `sql-secrets` in particular must exist
+  *before* the first sync: Postgres applies `POSTGRES_PASSWORD` only when initialising an empty data
+  directory.
+- **The repository needs `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` and `ARGO_REPO_TOKEN`**, and
+  `gh-pages` served by GitHub Pages. Until the first push to `master` publishes a chart, Argo reports
+  "chart not found" — expected, not a fault.
+- **The offsite backup is off**, because it needs a Backblaze bucket and an application key that do not
+  exist yet. Its own bucket and its own key: adding `Read:accounting` to ImpactKids' backup identity
+  would do nothing, since that identity lives in the other SeaweedFS. Until this is on, the receipts —
+  the one thing here that cannot be regenerated — exist only on one PVC.
+- **Nothing has been deployed or verified in the cluster yet.** Everything above is built and templated,
+  not observed running.
 
 ## Known gaps in the app
 
