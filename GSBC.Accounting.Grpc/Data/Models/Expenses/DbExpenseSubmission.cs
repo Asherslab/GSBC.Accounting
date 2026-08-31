@@ -93,4 +93,6 @@ public class DbExpenseSubmission
     /// either serialises half the database or fails on a cycle.
     /// </summary>
     public List<DbExpenseLine> Lines { get; set; } = [];
+
+    public List<DbExpenseAttachment> Attachments { get; set; } = [];
 }

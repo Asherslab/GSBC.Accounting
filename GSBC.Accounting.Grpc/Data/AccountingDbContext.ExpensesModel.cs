@@ -13,6 +13,8 @@ public partial class AccountingDbContext
 
     public DbSet<DbExpenseLine> ExpenseLines => Set<DbExpenseLine>();
 
+    public DbSet<DbExpenseAttachment> ExpenseAttachments => Set<DbExpenseAttachment>();
+
     private static void BuildExpensesModel(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<DbExpenseSubmission>()
@@ -30,6 +32,7 @@ public partial class AccountingDbContext
         // IgnoreQueryFilters() is how an audit view would ever see the deleted rows.
         modelBuilder.Entity<DbExpenseSubmission>().HasQueryFilter(x => !x.Deleted);
         modelBuilder.Entity<DbExpenseLine>().HasQueryFilter(x => !x.Deleted);
+        modelBuilder.Entity<DbExpenseAttachment>().HasQueryFilter(x => !x.Deleted);
 
         // Enums as strings. Readable in psql, and it survives a member being inserted in the middle of
         // the enum - which an int mapping does not, silently reinterpreting every existing row.
@@ -38,6 +41,7 @@ public partial class AccountingDbContext
         modelBuilder.Entity<DbExpenseSubmission>().Property(x => x.Role).HasConversion<string>();
         modelBuilder.Entity<DbExpenseSubmission>().Property(x => x.PaymentMethod).HasConversion<string>();
         modelBuilder.Entity<DbExpenseLine>().Property(x => x.Evidence).HasConversion<string>();
+        modelBuilder.Entity<DbExpenseAttachment>().Property(x => x.Kind).HasConversion<string>();
 
         // MONEY IS decimal(12,2), NEVER double, and the precision is not optional: an unconfigured
         // decimal maps to bare `numeric`, which happily stores whatever scale it is handed. That is how
@@ -71,5 +75,24 @@ public partial class AccountingDbContext
 
         // Lines are always fetched for one submission, in table order.
         modelBuilder.Entity<DbExpenseLine>().HasIndex(x => new { x.SubmissionId, x.Ordinal });
+
+        modelBuilder.Entity<DbExpenseSubmission>()
+            .HasMany(x => x.Attachments)
+            .WithOne(x => x.Submission)
+            .HasForeignKey(x => x.SubmissionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // The same file uploaded twice to one submission is one object and one row.
+        modelBuilder.Entity<DbExpenseAttachment>()
+            .HasIndex(x => new { x.SubmissionId, x.ContentHash })
+            .IsUnique();
+
+        // SHA-256 as lowercase hex is exactly 64 characters, and nothing else belongs in this column.
+        modelBuilder.Entity<DbExpenseAttachment>().Property(x => x.ContentHash).HasMaxLength(64);
+
+        // A filename arrives from the claimant's device and is bounded here rather than trusted.
+        modelBuilder.Entity<DbExpenseAttachment>().Property(x => x.FileName).HasMaxLength(260);
+        modelBuilder.Entity<DbExpenseAttachment>().Property(x => x.ContentType).HasMaxLength(100);
+        modelBuilder.Entity<DbExpenseAttachment>().Property(x => x.ObjectKey).HasMaxLength(400);
     }
 }

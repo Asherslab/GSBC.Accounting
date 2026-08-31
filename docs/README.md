@@ -24,6 +24,8 @@ Present tense, kept current, no dates.
 - **expenses**
   - [The expense submission model](modules/expenses/submission-model.md) — why the two paper forms are
     one aggregate, what that does *not* let you share, and the money and retention rules.
+  - [The attachment store](modules/expenses/attachments.md) — the SeaweedFS chunk-encoding trap that
+    silently stores the wrong bytes, the magic-byte checks, and why the anonymous upload needs ceilings.
 
 - **frontend**
   - [The theme, and why there is no component library](modules/frontend/theme.md) — `app.css` is a
