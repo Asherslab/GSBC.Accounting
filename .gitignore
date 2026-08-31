@@ -513,6 +513,7 @@ $RECYCLE.BIN/
 # Symlink to the sibling repo whose architecture this one inherits. Read there, never track it here:
 # committing the link makes a clone that has no ../GSBC.ImpactKids fail every path that walks into it.
 GSBC.ImpactKids
+gsbc.argo
 
 # Stray home-directory artefact created by a tool that expanded `~` as a literal path.
 /~/
