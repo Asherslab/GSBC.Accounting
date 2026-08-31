@@ -1,8 +1,9 @@
 ---
 title: The ImpactKids recipe for one vertical slice
 kind: plan
-status: accepted
+status: folded
 opened: 2026-08-31
+closed: 2026-08-31
 verified: 2026-08-31
 code:
   - GSBC.ImpactKids.AppHost/AppHost.cs
@@ -73,6 +74,8 @@ code:
   - docs/modules/people/photos.md
   - docs/modules/infrastructure/object-store.md
 ---
+
+> **Archived 2026-08-31.** The recipe was followed; what it describes now exists in this repo, so read the code and the modules/ docs instead. Kept for the "do not copy this" list, which is the reasoning behind several deliberate departures from GSBC.ImpactKids.
 
 # The ImpactKids recipe for one vertical slice
 

@@ -1,12 +1,15 @@
 ---
 title: Debit card form mockup — implementation spec
 kind: plan
-status: accepted
+status: folded
 opened: 2026-08-31
+closed: 2026-08-31
 verified: 2026-08-31
 code:
   - mockups/debit-card-purchase-form.html
 ---
+
+> **Archived 2026-08-31.** The mockup was ported; app.css and the Razor components are the live version. Kept for the token inventory and the float-arithmetic analysis, which is why the server recomputes every total.
 
 # Debit card form mockup — implementation spec
 
