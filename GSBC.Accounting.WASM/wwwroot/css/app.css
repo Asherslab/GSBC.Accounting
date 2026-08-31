@@ -339,6 +339,14 @@ td .money input{padding-left:18px;text-align:right}
 
 /* ---------- attachments ---------- */
 .drop{
+  /*
+    display:block is not in the mockup and is load-bearing here. The mockup's drop zone is a <div>;
+    this app makes it a <label> so the whole panel targets the hidden file input and is keyboard
+    reachable with no JS interop. A <label> is INLINE by default, so the dashed box collapsed to the
+    width of nothing and the text spilled out beside it - "Choose receipts, or dr" inside the border and
+    "op them here" outside it. Observed in Chrome on 2026-08-31.
+  */
+  display:block;
   border:1.5px dashed var(--line-strong);border-radius:var(--radius);
   padding:26px 20px;text-align:center;background:var(--surface-sunk);
   cursor:pointer;transition:border-color .12s, background .12s;
