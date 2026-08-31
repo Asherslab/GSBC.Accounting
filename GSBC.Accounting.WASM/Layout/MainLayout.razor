@@ -1,0 +1,39 @@
+@inherits LayoutComponentBase
+
+@*
+    The shell from mockups/debit-card-purchase-form.html: a sticky topbar, then a two-column layout of
+    section rail and form column. The rail is per-page - each form owns its own section list, and the
+    landing page has none - so this layout renders only the topbar and hands @Body the whole .layout
+    grid to fill.
+
+    The topbar's trailing buttons in the mockup (Theme, Print / PDF, Submit for approval) belong to a
+    form page rather than to the shell, and arrive with the first form in slice 2.
+*@
+
+<div class="topbar no-print">
+    <div class="mark">GS</div>
+    <div>
+        <h1>@Title</h1>
+        <div class="sub">Good Shepherd Baptist Church &middot; Finance</div>
+    </div>
+    <div class="spacer"></div>
+</div>
+
+<CascadingValue Value="this" IsFixed="true">
+    @Body
+</CascadingValue>
+
+@code
+{
+    /// <summary>
+    /// What the topbar shows. A page sets it from <c>OnInitialized</c> through <see cref="SetTitle"/>;
+    /// the default names the app rather than a form, because the landing page is not one.
+    /// </summary>
+    private string Title { get; set; } = "Finance Forms";
+
+    public void SetTitle(string title)
+    {
+        Title = title;
+        StateHasChanged();
+    }
+}

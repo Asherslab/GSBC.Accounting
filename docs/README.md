@@ -21,8 +21,10 @@ and the repo-wide rules are in [../AGENTS.md](../AGENTS.md).
 
 Present tense, kept current, no dates.
 
-Nothing yet — this repo has no shipped behaviour. Add a module doc when the first slice lands, not
-before; a `modules/` doc for a module that does not exist yet belongs in `work/`.
+- **frontend**
+  - [The theme, and why there is no component library](modules/frontend/theme.md) — `app.css` is a
+    lift of the approved mockup, the three theme states, and the duplicated dark palette that must
+    stay in sync.
 
 ## The other three directories
 

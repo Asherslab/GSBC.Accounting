@@ -1,0 +1,61 @@
+@page "/"
+
+<PageTitle>GSBC Finance Forms</PageTitle>
+
+@*
+    The landing page. Both routes below are stubs until slices 2 and 9 build them - they are listed
+    now because an empty themed app with no way in reads as broken rather than as unfinished.
+*@
+
+<div class="layout">
+    <main>
+        <p class="lede">
+            Two forms, and a person at the end of both. A submission here is <strong>not</strong> a
+            ledger entry &mdash; it collects the claim, its receipts and its declarations so a
+            reviewer can check them and file the result in Xero.
+        </p>
+
+        <section class="card">
+            <header>
+                <span class="num">01</span>
+                <h3>Church Debit Card Purchase</h3>
+                <span class="hint">One form per card transaction</span>
+            </header>
+            <div class="body">
+                <p class="help">
+                    For a purchase already charged to a church debit card. Needs the cardholder, the
+                    transaction, an itemised receipt, and the split between church and personal spend.
+                </p>
+                <p><a href="/forms/debit-card-purchase">Open the debit card form</a></p>
+            </div>
+        </section>
+
+        <section class="card">
+            <header>
+                <span class="num">02</span>
+                <h3>Expense Reimbursement</h3>
+                <span class="hint">One line per receipt</span>
+            </header>
+            <div class="body">
+                <p class="help">
+                    For money you spent yourself and want back. Needs your contact and payment
+                    details, the expense period, and a receipt behind every line.
+                </p>
+                <p><a href="/forms/expense-reimbursement">Open the reimbursement form</a></p>
+            </div>
+        </section>
+
+        <p class="footnote">
+            Neither form asks you to sign in, and neither is a substitute for approval. Sections 7 and
+            8 of each &mdash; independent approval, and finance use &mdash; are completed after you
+            submit, by somebody who is not you.
+        </p>
+    </main>
+</div>
+
+@code
+{
+    [CascadingParameter] private MainLayout Layout { get; set; } = default!;
+
+    protected override void OnInitialized() => Layout.SetTitle("Finance Forms");
+}

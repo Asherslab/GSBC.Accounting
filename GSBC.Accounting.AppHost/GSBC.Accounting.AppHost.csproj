@@ -1,0 +1,23 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.2.2">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <UserSecretsId>80dec884-5bea-46f2-8ac7-57ce3eea7fa0</UserSecretsId>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\GSBC.Accounting.Grpc\GSBC.Accounting.Grpc.csproj" />
+        <ProjectReference Include="..\GSBC.Accounting.WASM\GSBC.Accounting.WASM.csproj" />
+        <ProjectReference Include="..\GSBC.Accounting.Workers.DbMigrations\GSBC.Accounting.Workers.DbMigrations.csproj" />
+        <ProjectReference Include="..\GSBC.Accounting.YARP\GSBC.Accounting.YARP.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="13.2.2" />
+        <PackageReference Include="Aspire4Wasm.AppHost" Version="6.0.0" />
+    </ItemGroup>
+
+</Project>
