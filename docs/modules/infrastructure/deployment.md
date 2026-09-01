@@ -178,6 +178,78 @@ its integrity check, and the user gets an opaque "Load failed" instead of an obv
 is `no-cache` for the same family of reason: there is no service worker in this app, so a fresh
 `index.html` on navigation is the entire update story.
 
+## Caching, and the Cloudflare setting it depends on
+
+There are **two** caches between a publish and a user, and they fail differently. Fixing one and
+assuming the other followed is how this has now gone wrong twice.
+
+The rule the origin follows: **a file may be cached forever if and only if its name changes when its
+bytes change.** Never key on the directory. Under .NET 10 the files with stable names are `index.html`,
+`_framework/blazor.webassembly.js`, `_framework/dotnet.js`, and everything in `wwwroot` the SDK does
+not fingerprint (`css/app.css`, `favicon.png`). Everything else under `_framework/` carries ten base-36
+characters before its extension. The loader cannot be fingerprinted out of this problem — see the
+`OverrideHtmlAssetPlaceholders` comment in the csproj, which records what happens when you try.
+
+`dotnet.js` is the whole game. `index.html` names only `blazor.webassembly.js`, which loads
+`dotnet.js`, which is the manifest naming every hashed asset. Pin those two and a deploy is invisible
+however fresh `index.html` is, because nothing the browser re-reads ever mentions a changed byte.
+
+### The zone rewrites Cache-Control, and only on what it caches
+
+Measured against the deployed origin on 2026-09-01, `expenses.baptist.com.au` on default cache settings:
+
+| Path | Origin sends | Browser receives | `cf-cache-status` |
+|---|---|---|---|
+| `/index.html` | `no-cache` | `no-cache` | DYNAMIC |
+| `*.<hash>.wasm` | `max-age=31536000, immutable` | unchanged | DYNAMIC |
+| `/_framework/dotnet.js` | `no-cache` | **`max-age=14400`** | MISS |
+| `/_framework/blazor.webassembly.js` | `no-cache` | **`max-age=14400`** | EXPIRED |
+| `/css/app.css`, `/favicon.png` | `no-cache` | **`max-age=14400`** | MISS |
+
+`14400` appears in no file in this repo. It is the zone's **Browser Cache TTL, set to 4 hours rather
+than "Respect Existing Headers"**, and it rewrites `Cache-Control` on the way to the browser — but only
+on responses the edge actually stored. The split is Cloudflare's default static-extension list, not
+anything we send: `.js`, `.css` and `.png` are on it; `.html` and `.wasm` are not.
+
+So the rewrite landed on exactly the two stable-named boot files that must revalidate, and on nothing
+that would have benefited — while the 4.85 MB of fingerprinted `immutable` payload was not edge-cached
+at all. The edge was doing precisely the wrong half of the job.
+
+**Browser Cache TTL must be "Respect Existing Headers".** No origin configuration can outrank an edge
+that rewrites the header, so that setting is the fix and everything below is defence in depth.
+
+### Why the map default is `private, no-cache`
+
+`private` marks a response as belonging to one user's cache, so a shared cache should decline to store
+it — and a response the edge never stored is one whose `Cache-Control` it never rewrites. The browser
+still caches and still revalidates, so the 304s are kept. It makes correctness a property of
+`nginx.conf` rather than of a dashboard toggle invisible from this repo.
+
+Treat it as belt-and-braces, not as a substitute for the setting above: the measurement proves the zone
+ignored `no-cache` on `.js`, so it may ignore `private` there too. Confirm after the next deploy —
+`curl -sSI https://expenses.baptist.com.au/_framework/dotnet.js` must **not** show a `max-age` above 0.
+
+### Bypassing the cache is not the fix, and ImpactKids is the proof
+
+`kids.baptist.com.au` runs with the Cloudflare cache bypassed, and its `nginx.conf` still matches the
+whole of `~^/_framework/` as immutable. Measured the same day: every path is `DYNAMIC`, so the bypass
+holds at the edge — and `dotnet.js` reaches the browser as `public, max-age=31536000, immutable`. The
+bypass suppressed the edge cache and did nothing whatever about the browser, so that app pins its boot
+manifest in every returning browser for **a year** while paying full origin bandwidth on every cold
+load. A bypass hides the cheap half of the problem and leaves the expensive half running.
+
+### What the zone should hold instead
+
+1. Browser Cache TTL → **Respect Existing Headers**.
+2. A Cache Rule making `/_framework/` eligible, with Edge TTL taken from the origin header. Safe
+   *because* of the rule above: the fingerprinted assets are `public, immutable` and get stored, while
+   the two stable-named loaders are `private` and do not. This is the cold-load win — 4.85 MB from the
+   Brisbane edge rather than from the Mac mini through the tunnel.
+3. One purge after the change, to evict the `max-age=14400` copies already at the edge.
+
+None of this is in git: the zone is configured in the Cloudflare dashboard, and this repo holds no
+Cloudflare credential.
+
 ## What the cluster holds that this repo does not
 
 In `gsbc.argo`, under `clusters/mini/`:
