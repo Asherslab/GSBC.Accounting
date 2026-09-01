@@ -155,6 +155,86 @@ public class ExpenseFormModel
     /// <summary>Any line marked Missing is what unlocks section 5's declaration.</summary>
     public bool HasMissingEvidence => Lines.Any(x => x.Evidence == EvidenceStatus.Missing);
 
+    /// <summary>
+    /// True when re-answering question zero as <paramref name="kind"/> would throw away something the
+    /// claimant has already said. False on an untouched form, where the switch costs nothing and does
+    /// not need confirming.
+    /// </summary>
+    public bool KindChangeWouldClear(SubmissionKind kind)
+    {
+        if (Kind is null || Kind == kind)
+            return false;
+
+        if (Compliance.Any(x => x is not null) || Declarations.Any(x => x))
+            return true;
+
+        if (!string.IsNullOrWhiteSpace(ComplianceDetails) || Attendees.Count > 0 || Trips.Count > 0)
+            return true;
+
+        return Kind == SubmissionKind.DebitCardPurchase
+            ? !string.IsNullOrWhiteSpace(CardLastFourDigits) || TransactionDate is not null
+              || TransactionTime is not null || !string.IsNullOrWhiteSpace(SupplierMerchant)
+              || AmountCharged is not null || !string.IsNullOrWhiteSpace(BankReference)
+            : !string.IsNullOrWhiteSpace(ContactPhoneEmail) || ExpensePeriodFrom is not null
+              || ExpensePeriodTo is not null || PaymentMethod is not null
+              || !string.IsNullOrWhiteSpace(PaymentMethodOther) || BankDetailsOnFile is not null;
+    }
+
+    /// <summary>
+    /// Re-answers question zero, dropping everything that belonged to the form this no longer is.
+    /// </summary>
+    /// <remarks>
+    /// <b>The compliance answers and the declarations go, all of them.</b> Four of the six questions and
+    /// four of the five declarations are different text on the two documents, so a tick carried across
+    /// would record the claimant as having agreed to wording they were never shown - which is the whole
+    /// failure this app exists to avoid. Q4, Q6 and D4 do happen to match word for word and could in
+    /// principle survive, but "everything in section 4 and 6 is asked again" is a rule that can be
+    /// stated in one line to the person it happens to, and cannot be got subtly wrong later when
+    /// somebody edits the wording.
+    /// <para>
+    /// What stays is everything that means the same thing on both forms: the claimant, the ministry,
+    /// section 2, the lines, the attachments, the missing-receipt declaration and the signature. A
+    /// claimant correcting one question should not lose the afternoon's typing.
+    /// </para>
+    /// <para>
+    /// The server does the same clearing for the header fields when it sees the kind change, because a
+    /// client is not the place a compliance rule finally lives - see <c>ClearFieldsForOtherKind</c>.
+    /// </para>
+    /// </remarks>
+    public void SwitchKind(SubmissionKind kind)
+    {
+        if (Kind == kind)
+            return;
+
+        Kind = kind;
+
+        if (kind == SubmissionKind.DebitCardPurchase)
+        {
+            ContactPhoneEmail = null;
+            ExpensePeriodFrom = null;
+            ExpensePeriodTo = null;
+            PaymentMethod = null;
+            PaymentMethodOther = null;
+            BankDetailsOnFile = null;
+        }
+        else
+        {
+            CardLastFourDigits = null;
+            TransactionDate = null;
+            TransactionTime = null;
+            SupplierMerchant = null;
+            AmountCharged = null;
+            BankReference = null;
+        }
+
+        Attendees.Clear();
+        Trips.Clear();
+
+        Compliance = new bool?[6];
+        ComplianceDetails = null;
+        Declarations = new bool[5];
+    }
+
     public void AddLine() => Lines.Add(new ExpenseLineModel());
 
     /// <summary>
