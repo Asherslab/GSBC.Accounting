@@ -207,27 +207,49 @@ Measured against the deployed origin on 2026-09-01, `expenses.baptist.com.au` on
 | `/css/app.css`, `/favicon.png` | `no-cache` | **`max-age=14400`** | MISS |
 
 `14400` appears in no file in this repo. It is the zone's **Browser Cache TTL, set to 4 hours rather
-than "Respect Existing Headers"**, and it rewrites `Cache-Control` on the way to the browser — but only
-on responses the edge actually stored. The split is Cloudflare's default static-extension list, not
-anything we send: `.js`, `.css` and `.png` are on it; `.html` and `.wasm` are not.
+than "Respect Existing Headers"**. Two things gate whether it bites, and both matter:
 
-So the rewrite landed on exactly the two stable-named boot files that must revalidate, and on nothing
-that would have benefited — while the 4.85 MB of fingerprinted `immutable` payload was not edge-cached
-at all. The edge was doing precisely the wrong half of the job.
+- **Only responses the edge stored.** The split is Cloudflare's default static-extension list, not
+  anything we send: `.js`, `.css` and `.png` are on it; `.html` and `.wasm` are not.
+- **Only upwards.** The setting is a *floor*, not a blanket override. An origin TTL below it is raised
+  to it; an origin TTL above it is left alone. Verified after the fix below: a fingerprinted
+  `.js` — edge-cached, `cf-cache-status: HIT` — still arrived as `max-age=31536000, immutable`,
+  untouched, while `no-cache` on the same extension had been raised to `max-age=14400`.
 
-**Browser Cache TTL must be "Respect Existing Headers".** No origin configuration can outrank an edge
-that rewrites the header, so that setting is the fix and everything below is defence in depth.
+`no-cache` is effectively a TTL of zero, so it was raised; `immutable` sat above the floor and was not.
+Which is why the rewrite landed on exactly the two stable-named boot files that must revalidate and on
+nothing that would have benefited — while the 4.85 MB of fingerprinted payload was not edge-cached at
+all. The edge was doing precisely the wrong half of the job.
 
-### Why the map default is `private, no-cache`
+### Why the map default is `private, no-cache`, and that this is sufficient
 
-`private` marks a response as belonging to one user's cache, so a shared cache should decline to store
-it — and a response the edge never stored is one whose `Cache-Control` it never rewrites. The browser
-still caches and still revalidates, so the 304s are kept. It makes correctness a property of
-`nginx.conf` rather than of a dashboard toggle invisible from this repo.
+`private` marks a response as belonging to one user's cache, so a shared cache declines to store it —
+and a response the edge never stored is one whose `Cache-Control` it never rewrites. The browser still
+caches and still revalidates, so the 304s are kept.
 
-Treat it as belt-and-braces, not as a substitute for the setting above: the measurement proves the zone
-ignored `no-cache` on `.js`, so it may ignore `private` there too. Confirm after the next deploy —
-`curl -sSI https://expenses.baptist.com.au/_framework/dotnet.js` must **not** show a `max-age` above 0.
+**Verified in production on 2026-09-01, immediately after this deployed.** No Cloudflare setting was
+changed:
+
+| Path | Browser receives | `cf-cache-status` |
+|---|---|---|
+| `/index.html` | `private, no-cache` | DYNAMIC |
+| `/_framework/dotnet.js` | `private, no-cache` | BYPASS |
+| `/_framework/blazor.webassembly.js` | `private, no-cache` | BYPASS |
+| `/css/app.css`, `/favicon.png` | `private, no-cache` | BYPASS |
+| `*.<hash>.wasm` | `public, max-age=31536000, immutable` | DYNAMIC |
+| `*.<hash>.js` | `public, max-age=31536000, immutable` | HIT |
+
+So the origin fix stands on its own: the header the browser gets is now the header nginx sent, on every
+class of file. This is the fix, not defence in depth — an earlier draft of this document had it the
+other way round, on the assumption that no origin header could outrank the edge. The floor behaviour
+above is why that assumption was wrong.
+
+The check, if this is ever in doubt again:
+
+```bash
+curl -sSI https://expenses.baptist.com.au/_framework/dotnet.js | grep -i 'cache-control\|cf-cache-status'
+# must be `private, no-cache` and BYPASS - any max-age above 0 means the edge is rewriting again
+```
 
 ### Bypassing the cache is not the fix, and it is not what saves ImpactKids
 
@@ -252,14 +274,23 @@ the year-long entry, and any client where registration fails has no cover at all
 lurked there — and why the ordering above matters. `index.html` on navigation is the entire update
 story, so the headers have to be right on their own.
 
-### What the zone should hold instead
+### What is still owed at the zone, and why none of it is urgent
 
-1. Browser Cache TTL → **Respect Existing Headers**.
-2. A Cache Rule making `/_framework/` eligible, with Edge TTL taken from the origin header. Safe
-   *because* of the rule above: the fingerprinted assets are `public, immutable` and get stored, while
-   the two stable-named loaders are `private` and do not. This is the cold-load win — 4.85 MB from the
-   Brisbane edge rather than from the Mac mini through the tunnel.
-3. One purge after the change, to evict the `max-age=14400` copies already at the edge.
+Correctness is done and needs nothing from Cloudflare. What remains is performance and hygiene:
+
+1. **A Cache Rule making `/_framework/` eligible**, Edge TTL from the origin header. This is the only
+   item with a real payoff. `.wasm` is not on Cloudflare's default static-extension list, so every
+   `.wasm` is `DYNAMIC` — which is most of the 4.85 MB, served from the Mac mini through the tunnel on
+   every cold load. The rule is safe *because* of the header discipline above: the fingerprinted assets
+   are `public, immutable` and get stored, the two stable-named loaders are `private` and do not.
+2. **Browser Cache TTL → "Respect Existing Headers"**, as footgun removal rather than a fix. It is
+   inert against this app now — nothing we serve sits below the 4-hour floor except responses the edge
+   declines to store — but it will silently raise the TTL of the next thing that does.
+
+No purge is needed. `cf-cache-status` went to `BYPASS` on the affected paths as soon as the edge
+re-checked the origin and saw `private`, so the stale `max-age=14400` edge copies are already out of
+service. Browsers that loaded the site in the four hours before the fix hold their own copy and heal on
+their own within that window; nobody has to clear anything.
 
 None of this is in git: the zone is configured in the Cloudflare dashboard, and this repo holds no
 Cloudflare credential.
