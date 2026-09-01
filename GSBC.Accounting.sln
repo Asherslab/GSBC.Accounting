@@ -62,6 +62,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "frontend", "frontend", "{C2
 		docs\modules\frontend\theme.md = docs\modules\frontend\theme.md
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "infrastructure", "infrastructure", "{25E8ED7C-FF11-4DA1-8D1C-1967C055DCE2}"
+	ProjectSection(SolutionItems) = preProject
+		docs\modules\infrastructure\deployment.md = docs\modules\infrastructure\deployment.md
+	EndProjectSection
+EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "work", "work", "{53503B03-230D-4EEB-9674-B095E7B538D6}"
 	ProjectSection(SolutionItems) = preProject
 		docs\work\2026-08-outstanding.md = docs\work\2026-08-outstanding.md
@@ -74,6 +79,7 @@ Global
 		{FCA78D81-D501-48BD-B137-71D2C9757E81} = {97DA8033-D184-4401-9E40-0D0D0CCCA08B}
 		{FE9C5F40-FF95-42BE-A124-C516E7B61DFF} = {FCA78D81-D501-48BD-B137-71D2C9757E81}
 		{C251E262-50FE-4524-BD8C-B202FC19BAC1} = {FCA78D81-D501-48BD-B137-71D2C9757E81}
+		{25E8ED7C-FF11-4DA1-8D1C-1967C055DCE2} = {FCA78D81-D501-48BD-B137-71D2C9757E81}
 		{53503B03-230D-4EEB-9674-B095E7B538D6} = {97DA8033-D184-4401-9E40-0D0D0CCCA08B}
 		{C3725CF1-C55D-4314-9C44-DD5A986A487D} = {2FB33DB4-A138-4AC4-9D03-2116FB0EA84D}
 		{BD5F1309-FB14-4762-BF15-4DDB4D0CDEF5} = {2FB33DB4-A138-4AC4-9D03-2116FB0EA84D}
