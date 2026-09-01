@@ -10,9 +10,9 @@
     only way to check was to download the file, which on a phone means leaving the form.
 
     IMAGES RENDER; EVERYTHING ELSE GETS A LINK. The server serves inline only for JPEG, PNG and WebP -
-    see AttachmentEndpoints.PreviewableInline - because this origin serves whatever a stranger uploaded,
-    and a PDF rendered in place is same-origin script. A PDF or a HEIC therefore shows the file's details
-    and a download, which is honest, rather than an <img> that silently shows nothing.
+    see AttachmentEndpoints.PreviewableInline, which explains who that protects and why it is not the
+    person using this modal. A PDF or a HEIC therefore shows the file's details and a download, which is
+    honest, rather than an <img> that silently shows nothing.
 *@
 
 @if (File is not null)

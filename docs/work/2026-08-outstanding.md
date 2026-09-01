@@ -21,11 +21,18 @@ Ordered by what would hurt most to discover late.
 
 ## Decisions someone else has to make
 
-**The output format is still parked with the accountant.** That was always the plan; slice 8 exists to
-give the conversation something concrete. The two rendered PDFs are in [`docs/examples/`](../examples/README.md).
-The specific question to put to them: **is the evidence manifest enough, or do the receipts have to be
-bound into the same file?** QuestPDF cannot merge PDF pages, so binding them in needs a separate merge
-step — images could embed today, PDFs cannot.
+**The output format is still parked with the accountant.** The specific question to put to them: **is
+the evidence manifest enough, or do the receipts have to be bound into the same file?** QuestPDF cannot
+merge PDF pages, so binding them in needs a separate merge step — images could embed today, PDFs cannot.
+
+The question got fairer when section 3 became one block per receipt: every file now prints against the
+purchase it evidences, in section 3 and again in the manifest, so a reviewer holding the PDF and a folder
+of photos can pair them without asking the claimant.
+
+There is no longer a rendered example checked in. There were two, and they showed the seven-column line
+table, the `Attached / Missing` column and `Church use %` — none of which the app prints any more — so
+they were deleted rather than left to be read as current. **Generate a fresh pair before the
+conversation**: fill a form with mock data, submit it, and follow the PDF link the page hands back.
 
 **Two declarations exist on one form and not the other, and closing that gap is finance's call.**
 Debit card declaration 3 is the *repayment* declaration; reimbursement declaration 3 is the
@@ -65,12 +72,6 @@ What is genuinely still outstanding:
 
 ## Known gaps in the app
 
-**The rendered examples in `docs/examples/` are from the old section 3 and are now wrong.** They show
-the seven-column line table, the `Attached / Missing` column and `Church use %`, none of which the app
-prints any more — section 3 is one block per receipt. Regenerate both before putting them in front of
-the accountant, or the parked output-format conversation happens about a layout that no longer exists.
-The manifest question above is unchanged and, if anything, sharper: every file now carries the purchase
-number it evidences, so "is the manifest enough" is a fairer question than it was.
 
 **Rate limiting is a speed bump, not a defence.** Partitioning by remote IP means a shared NAT puts a
 whole office in one bucket, and it trusts the ingress to set `X-Forwarded-For`. Real protection needs

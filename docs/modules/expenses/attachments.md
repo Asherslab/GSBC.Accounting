@@ -152,10 +152,17 @@ That exists so the form's preview modal can render a receipt in an `<img>`, whic
 response marked `attachment`. Somebody photographing four dockets on a phone gets four files whose names
 say nothing, and is then asked which supplier and which date each one is.
 
-**Widening the allowlist would undo the reason the header is there.** This origin serves whatever a
-stranger uploaded; a PDF rendered in place is a scripting host running same-origin. `X-Content-Type-Options:
-nosniff` is unconditional and is what makes even the image case safe — it forbids the browser from
-re-interpreting a PNG as anything else. SVG is not accepted at upload and must not be added to either list.
+**Be exact about who is at risk here, because it is not the obvious answer.** On a **draft** this endpoint
+serves the owning session its own uploads, so an inline render shows somebody only what they themselves
+put there — no exposure. The case the allowlist exists for is the other half of the predicate: a
+**submitted** claim's evidence is readable by anyone holding the id, because that is the only review path
+this scope has. A reviewer opening one renders a file *somebody else* uploaded, in a browser carrying
+their own `__gsbc_anon` cookie — and a PDF or HTML-ish file rendered in place is same-origin script with
+access to it.
+
+`X-Content-Type-Options: nosniff` is unconditional and is what makes even the image case safe: it forbids
+the browser from re-interpreting a PNG as anything else. SVG is not accepted at upload and must not be
+added to either list.
 
 ## What a claimant can change after a file is stored
 

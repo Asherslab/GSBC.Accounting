@@ -33,8 +33,6 @@ Present tense, kept current, no dates.
     why the submission id stopped being sufficient authority, the cookie's attributes and lifetimes,
     the 90-day purge, and the upgrade path to real accounts. **Read before touching any read or write
     of a submission.**
-  - [Rendered examples](examples/README.md) — the two PDFs `GET /api/submissions/{id}/pdf` produces,
-    checked in for the parked output-format conversation.
 
 - **infrastructure**
   - [How this deploys](modules/infrastructure/deployment.md) — the push-to-`master` pipeline, the Helm
