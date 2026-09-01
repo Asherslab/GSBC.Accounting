@@ -77,6 +77,12 @@
                     <b>Submitted for approval.</b> Reference <span class="mono">@_submissionId</span>.
                     Keep that reference. An approver who is not you completes section 7, and finance
                     completes section 8.
+                    <div class="help">
+                        <a href="@PdfUrl" target="_blank" rel="noopener">Open the printable form (PDF)</a>
+                        &mdash; this link works for anyone you send it to, which is how a reviewer reads
+                        the claim. The receipts are not inside it; section 3 and the evidence manifest
+                        name which file belongs to which purchase.
+                    </div>
                 </div>
             </div>
         }
@@ -91,6 +97,21 @@
                     <div class="help">
                         Your drafts are kept for this browser. Clearing your cookies, or switching to
                         another device, loses them. A draft nobody edits is deleted after 90 days.
+                    </div>
+                    @*
+                        The same endpoint as the submitted link below, and on a DRAFT it answers only to
+                        the session that owns it - PdfEndpoints takes the owner or a submitted claim, so
+                        this link is private until the form is submitted and shareable afterwards.
+
+                        Here mostly so the printed form can be shown while the output format is still
+                        parked with the accountant, which until now meant fetching a URL by hand.
+                    *@
+                    <div class="help">
+                        <a href="@PdfUrl" target="_blank" rel="noopener">
+                            See what this prints as (PDF)
+                        </a>
+                        &mdash; a draft, so it is missing whatever you have not filled in yet, and only
+                        this browser can open it.
                     </div>
                 </div>
             </div>
@@ -497,6 +518,16 @@
     /// this, and only then can the form be submitted.
     /// </summary>
     private Guid? _submissionId;
+
+    /// <summary>
+    /// The printable form for this submission. Only rendered where <see cref="_submissionId"/> is set,
+    /// which is what the null-forgiving read below relies on.
+    /// </summary>
+    /// <remarks>
+    /// A plain link rather than a fetch: the endpoint is same-origin behind YARP, so the draft session
+    /// cookie rides along and the browser's own PDF viewer opens it.
+    /// </remarks>
+    private string PdfUrl => $"/api/submissions/{_submissionId}/pdf";
 
     /// <summary>
     /// Set when the route named a draft this session does not own, or one that has been submitted. The

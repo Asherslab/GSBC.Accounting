@@ -344,12 +344,19 @@ public static class AttachmentEndpoints
     /// is which without downloading all four - so the page shows the image in a modal, and an
     /// <c>&lt;img&gt;</c> cannot render a response marked <c>Content-Disposition: attachment</c>.
     /// <para>
-    /// Widening that to every type would undo the reason the header is there. This origin serves
-    /// whatever a stranger uploaded, and a PDF or an HTML-ish file rendered in place becomes same-origin
-    /// script. An <c>image/jpeg</c>, <c>image/png</c> or <c>image/webp</c> under <c>nosniff</c> cannot -
-    /// the browser is forbidden from re-interpreting it as anything else. The allowlist below is
-    /// therefore the security boundary, not a convenience: it is on the DETECTED type, which is what the
-    /// bytes were checked to be at upload rather than what the upload claimed.
+    /// <b>Who is at risk is worth being exact about, because it is not the obvious answer.</b> On a
+    /// DRAFT this endpoint serves the owning session its own uploads, so an inline render shows somebody
+    /// only what they themselves put there - no exposure at all. The case the allowlist exists for is the
+    /// other half of the predicate above: a <b>submitted</b> claim's evidence is readable by anyone
+    /// holding the id, because that is the only review path this scope has. A reviewer opening one is
+    /// rendering a file <i>somebody else</i> uploaded, in a browser holding their own draft session
+    /// cookie - and an HTML-ish file or a PDF rendered in place is same-origin script with access to it.
+    /// </para>
+    /// <para>
+    /// An <c>image/jpeg</c>, <c>image/png</c> or <c>image/webp</c> under <c>nosniff</c> cannot be script:
+    /// the browser is forbidden from re-interpreting it as anything else. The allowlist below is the
+    /// boundary, and it is on the DETECTED type - what the bytes were checked to be at upload rather
+    /// than what the upload claimed.
     /// </para>
     /// </remarks>
     private static async Task<IResult> DownloadAsync(
@@ -410,8 +417,13 @@ public static class AttachmentEndpoints
 
         // Two headers, both load-bearing, because this serves user-supplied files from the app's own
         // origin. Without them a PDF or an HTML-ish file uploaded as a "receipt" renders in place and
-        // becomes same-origin script. Serving your own re-encoded JPEGs, as GSBC.ImpactKids does, is not
-        // this shape of problem - serving whatever a stranger uploaded is.
+        // becomes same-origin script.
+        //
+        // The reader is not always the uploader, and that is the whole reason to care: a draft's files
+        // go back only to the session that uploaded them, but a SUBMITTED claim's go to anyone holding
+        // the id, which is how a reviewer reads one. Serving your own re-encoded JPEGs, as
+        // GSBC.ImpactKids does, is not this shape of problem; handing one person's upload to another
+        // person's browser is.
         //
         // nosniff is unconditional. It is what makes the inline case below safe at all: it forbids the
         // browser from deciding an image/png is really something executable.
@@ -431,10 +443,11 @@ public static class AttachmentEndpoints
     /// </summary>
     /// <remarks>
     /// Raster image types that no browser will execute, under <c>nosniff</c>. Not <c>application/pdf</c>
-    /// - a PDF is a scripting host, and one rendered same-origin is a stored XSS. Not
-    /// <c>image/svg+xml</c> either, which is not accepted at upload but is worth naming here so nobody
-    /// adds it to both lists at once. HEIC is left out because it is not a type browsers render anyway,
-    /// so allowing it would buy a blank preview and one more type on this list.
+    /// - a PDF is a scripting host, and one rendered same-origin in a <i>reviewer's</i> browser off a
+    /// submitted claim is a stored XSS. Not <c>image/svg+xml</c> either, which is not accepted at upload
+    /// but is worth naming here so nobody adds it to both lists at once. HEIC is left out because it is
+    /// not a type browsers render anyway, so allowing it would buy a blank preview and one more type on
+    /// this list.
     /// </remarks>
     private static readonly HashSet<string> PreviewableInline =
         new(StringComparer.OrdinalIgnoreCase) { "image/jpeg", "image/png", "image/webp" };
