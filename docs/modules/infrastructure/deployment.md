@@ -229,14 +229,28 @@ Treat it as belt-and-braces, not as a substitute for the setting above: the meas
 ignored `no-cache` on `.js`, so it may ignore `private` there too. Confirm after the next deploy —
 `curl -sSI https://expenses.baptist.com.au/_framework/dotnet.js` must **not** show a `max-age` above 0.
 
-### Bypassing the cache is not the fix, and ImpactKids is the proof
+### Bypassing the cache is not the fix, and it is not what saves ImpactKids
 
 `kids.baptist.com.au` runs with the Cloudflare cache bypassed, and its `nginx.conf` still matches the
-whole of `~^/_framework/` as immutable. Measured the same day: every path is `DYNAMIC`, so the bypass
-holds at the edge — and `dotnet.js` reaches the browser as `public, max-age=31536000, immutable`. The
-bypass suppressed the edge cache and did nothing whatever about the browser, so that app pins its boot
-manifest in every returning browser for **a year** while paying full origin bandwidth on every cold
-load. A bypass hides the cheap half of the problem and leaves the expensive half running.
+whole of `~^/_framework/` as immutable — the bug this app fixed on 2026-09-01. Measured the same day:
+every path is `DYNAMIC`, so the bypass does hold at the edge, and `dotnet.js` reaches the browser as
+`public, max-age=31536000, immutable`. A bypass suppresses the edge cache and does nothing whatever
+about the browser.
+
+**What keeps that app deployable is its service worker, not the bypass.** Its install pass builds every
+request as `new Request(asset.url, { integrity: asset.hash, cache: 'no-cache' })`, and `cache:
+'no-cache'` forces revalidation against the origin, bypassing the HTTP cache's freshness — `immutable`
+included. `_framework/` is then served from the SW cache at runtime, so the poisoned HTTP-cache entry
+is never consulted. Registration passes `updateViaCache: 'none'` and nginx marks
+`service-worker-assets.js` `no-cache`, so the chain that triggers a reinstall stays fresh too.
+
+So ImpactKids' header is a **latent** trap rather than an active one. It is still worth fixing: the
+protection lasts exactly as long as the service worker does, a hard reload bypasses the SW and lands on
+the year-long entry, and any client where registration fails has no cover at all.
+
+**This app has no service worker.** That is precisely why the same latent bug bit hard here and merely
+lurked there — and why the ordering above matters. `index.html` on navigation is the entire update
+story, so the headers have to be right on their own.
 
 ### What the zone should hold instead
 
