@@ -9,6 +9,7 @@ code:
   - GSBC.Accounting.Grpc/Data/Models/Expenses
   - GSBC.Accounting.Grpc/Data/AccountingDbContext.ExpensesModel.cs
   - GSBC.Accounting.Grpc/Features/Expenses
+  - GSBC.Accounting.WASM/Features/Expenses
 ---
 
 # The expense submission model
@@ -24,7 +25,16 @@ is a financial record.
 on it. Ten are debit-card-only, nine reimbursement-only.
 
 Two aggregates would mean every shared section is written, migrated, validated and rendered twice, and
-the second copy drifts.
+the second copy drifts. There is one page too, for the same reason and with the same evidence behind it:
+until 2026-09-01 there were two, they were 90% the same file, and the parts that had drifted were the
+comments explaining why the code looked like that.
+
+**The kind is an answer, not a route.** Section 0 of the form asks how the expense was paid for — "I paid
+for it myself" or "I used a church debit card" — and everything below it renders in that document's own
+words. `ExpenseFormModel.Kind` is therefore `SubmissionKind?` and settable, and nothing below section 0
+renders while it is null: `DebitCardPurchase` is the enum's zero value, so a non-nullable kind would make
+an unanswered form silently claim to be a card purchase, and there is no correct wording to show before
+the answer.
 
 **But sharing the structure is not sharing the words.** Measured against the `.docx` files:
 
@@ -45,6 +55,15 @@ Section 3's first column is the sharpest case: it is a **type** difference, not 
 debit card form prints `Item` (text — one card transaction itemised into its parts); the reimbursement
 form prints `Date` (one row per receipt). `ExpenseLine` therefore carries both `ItemDescription` and
 `LineDate`, both nullable, and `Create` requires whichever one the kind implies.
+
+Section 2's first slot is the trap in the other direction: one column, `PurposeActivity`, printed under
+two labels — `Ministry / department` on the debit card form and `Purpose / activity` on the
+reimbursement one. On a card form that reads oddly beside section 1's field of the same name, and the
+old debit card page "fixed" it by dropping the section 2 field and pointing the label at
+`MinistryDepartment` instead. The result was that **`PurposeActivity` was null on every card
+submission** — a blank row in the PDF (`SubmissionDocument.cs:195`) and a missing subtitle in the drafts
+list, neither of which errors. Where a label looks wrong, check
+[paper-form-fields.md](paper-form-fields.md) before changing which column it points at.
 
 ## The compliance answers and declarations are columns, the questions are not
 
@@ -76,7 +95,7 @@ reviewer as a statement somebody made, and nobody made it.
 
 The columns exist on the aggregate and the page renders both sections read-only and disabled, exactly
 as the mockup shows them, so the form still reads as the whole document to the person filling it in.
-Nothing in this scope can complete them: both pages are anonymous, and "the approver must not be the
+Nothing in this scope can complete them: the form is anonymous, and "the approver must not be the
 claimant" is a compliance constraint that needs an identity to enforce.
 
 ## The server computes the totals
@@ -178,6 +197,33 @@ see [drafts.md](drafts.md).
 `Update` replaces the children rather than merging them: a deleted line has to disappear, and matching
 rows by position across an edit that inserted one in the middle is a way to silently move somebody's
 money between lines. The superseded rows are soft-deleted like everything else.
+
+### The kind can change while the submission is a draft
+
+`Update` assigns `form.Kind` over the stored one. It was fixed at creation until 2026-09-01, which was
+right when the kind came from the URL and wrong once it became the form's first question — people
+mis-answer first questions, and the alternative is retyping the claim.
+
+**What must not survive the change is the other form's content.** Three separate things drop it:
+
+| What | Where | Why there |
+|---|---|---|
+| The six header fields of the kind being left | `Update.ClearFieldsForOtherKind` | The server is where a compliance rule finally lives; a client that sends them anyway is ignored |
+| The attendee or trip rows | falls out of `Update`'s soft-delete-then-re-add | Only the table matching the *stored* kind is re-added |
+| All six compliance answers and all five declarations | `ExpenseFormModel.SwitchKind` | The page is the only place that can warn the claimant first |
+
+The declarations and questions clear because **four of the six questions and four of the five
+declarations are different text on the two forms**. A tick carried across would record somebody as having
+agreed to wording they were never shown, which is the failure this whole app exists to avoid. Q4, Q6 and
+D4 are word-for-word identical and could in principle survive; clearing everything instead is a rule that
+fits in one sentence on screen and cannot be got subtly wrong by a later edit to the wording.
+
+Everything that means the same thing on both documents stays: the claimant, the ministry, section 2,
+every line, every attachment, the missing-receipt declaration and the signature.
+
+The page asks before it does any of this, in an inline panel rather than a `confirm()` — a browser dialog
+cannot say what is about to be lost and reads as an error. Nothing changes until it is accepted, so
+"Keep this form" is genuinely free rather than an undo.
 
 ## Submit is where a draft stops being allowed to be half-finished
 
