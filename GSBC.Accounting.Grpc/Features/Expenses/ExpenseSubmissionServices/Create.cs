@@ -57,9 +57,9 @@ public partial class ExpenseSubmissionService
         if (errors.Count > 0)
             return BasicReadResponse<Guid?>.WithErrors(errors);
 
-        // AFTER validation, deliberately. A refused create must not leave a session behind, or every
-        // keystroke that fails the "needs a line" check would mint one - the autosave in the form pages
-        // calls this speculatively and expects to be told no.
+        // AFTER validation, deliberately. A refused create must not leave a session behind - the autosave
+        // in the form pages calls this speculatively as the claimant types, and a refusal that had
+        // already minted a session would hand a cookie to a browser that stored nothing.
         Guid sessionId = await sessions.EnsureAsync(token);
 
         // The server's own arithmetic. Whatever the client computed is discarded - it is a display
@@ -237,18 +237,18 @@ public partial class ExpenseSubmissionService
     {
         List<string> errors = [];
 
-        if (request.Lines.Count == 0)
-            errors.Add(SubmissionNeedsALine);
-
         if (request.LessPersonalAmount < 0)
             errors.Add(LessPersonalCannotBeNegative);
 
-        // Four digits, and the check exists so the form's own instruction - "Never record the full card
-        // number, PIN or security code" - is enforced rather than merely printed.
+        // The form's own instruction - "Never record the full card number, PIN or security code" -
+        // enforced rather than merely printed. Deliberately NOT "exactly four" here: a claimant halfway
+        // through typing has "12" on screen, and refusing that would refuse to save their draft over a
+        // value that is on its way to being right. What must never be stored is something that could be
+        // a card number, and four digits is the ceiling for that. Submit requires all four.
         if (!string.IsNullOrWhiteSpace(request.CardLastFourDigits)
-            && (request.CardLastFourDigits.Length != 4 || !request.CardLastFourDigits.All(char.IsAsciiDigit)))
+            && (request.CardLastFourDigits.Length > 4 || !request.CardLastFourDigits.All(char.IsAsciiDigit)))
         {
-            errors.Add(CardLastFourDigitsMustBeFourDigits);
+            errors.Add(CardLastFourDigitsMustBeDigitsOnly);
         }
 
         foreach (ExpenseLine line in request.Lines)
@@ -263,21 +263,11 @@ public partial class ExpenseSubmissionService
                 errors.Add(ChurchUsePercentOutOfRange);
         }
 
-        // Section 3's first column is a different field on each form, so which one is required depends
-        // on the kind. This is the smallest example of the rule that runs through the whole app: the two
-        // forms share a structure, not their contents.
-        switch (request.Kind)
-        {
-            case SubmissionKind.DebitCardPurchase
-                when request.Lines.Any(x => string.IsNullOrWhiteSpace(x.ItemDescription)):
-                errors.Add(DebitCardLineNeedsAnItem);
-                break;
-
-            case SubmissionKind.ExpenseReimbursement when request.Lines.Any(x => x.LineDate is null):
-                errors.Add(ReimbursementLineNeedsADate);
-                break;
-        }
-
+        // NOTHING HERE ASKS WHETHER THE FORM IS FINISHED. "At least one line", and section 3's first
+        // column - an item description on the debit card form, a date on the reimbursement form - are
+        // completeness rules, and they live in ValidateForSubmit. They were here until 2026-09-01, which
+        // meant a claimant who typed a line's amount before its description was told "this form isn't
+        // ready to submit" when all they had asked for was to save a draft, and the draft was not saved.
         return errors.Distinct().ToList();
     }
 }

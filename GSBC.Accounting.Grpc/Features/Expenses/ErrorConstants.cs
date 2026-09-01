@@ -11,12 +11,6 @@ namespace GSBC.Accounting.Grpc.Features.Expenses;
 /// </remarks>
 public static class ErrorConstants
 {
-    public const string SubmissionNeedsALine =
-        "Add at least one line to section 3 - the form needs to say what was bought.";
-
-    public const string LineNeedsAGrossAmount =
-        "Every line in section 3 needs a gross amount.";
-
     public const string GrossAmountCannotBeNegative =
         "A line's gross amount cannot be negative.";
 
@@ -29,16 +23,27 @@ public static class ErrorConstants
     public const string LessPersonalCannotBeNegative =
         "The personal portion cannot be negative.";
 
+    // Half-typed, not wrong: "12" is where "1234" passes through on the way in. The draft rule is only
+    // that what is stored cannot BE a card number - digits, and no more than four of them.
+    public const string CardLastFourDigitsMustBeDigitsOnly =
+        "Card last 4 digits must be digits only, and no more than four. Never record the full card number.";
+
+    // ---- Submit only. A draft is allowed to be half-finished; a submission is not. ----
+
     public const string CardLastFourDigitsMustBeFourDigits =
         "Card last 4 digits must be exactly four digits. Never record the full card number.";
+
+    public const string SubmissionNeedsALine =
+        "Add at least one line to section 3 - the form needs to say what was bought.";
+
+    public const string LineNeedsAGrossAmount =
+        "Every line in section 3 needs a gross amount.";
 
     public const string DebitCardLineNeedsAnItem =
         "Every line on a debit card form needs an item description.";
 
     public const string ReimbursementLineNeedsADate =
         "Every line on a reimbursement form needs a date.";
-
-    // ---- Submit only. A draft is allowed to be half-finished; a submission is not. ----
 
     public const string SubmissionNotFound =
         "That submission could not be found.";
