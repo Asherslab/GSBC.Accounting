@@ -53,8 +53,17 @@ public partial class ExpenseSubmissionService
 
         CreateExpenseSubmissionRequest form = request.Form;
 
-        // The kind is fixed at creation. A page cannot turn a debit card claim into a reimbursement, and
-        // a client that tried would be reinterpreting every per-kind field already stored.
+        // THE KIND CAN CHANGE, while the submission is still a draft. It used to come from the URL and
+        // was fixed at creation; it is now the form's first question, and somebody who mis-answers it
+        // has to be able to correct it without retyping the claim.
+        //
+        // What must not survive the change is the other form's content. A kind flip is handled below by
+        // ClearFieldsForOtherKind, and the detail tables fall out of the soft-delete-then-re-add further
+        // down, which re-adds only the table belonging to the kind now stored.
+        bool kindChanged = submission.Kind != form.Kind;
+
+        submission.Kind = form.Kind;
+
         (decimal gross, decimal gst) = ExpenseTotals.SumLines(form.Lines);
         decimal lessPersonal = ExpenseTotals.Money(form.LessPersonalAmount);
 
@@ -104,6 +113,12 @@ public partial class ExpenseSubmissionService
         submission.Declaration5 = form.Declaration5;
 
         submission.SignatureName = form.SignatureName;
+
+        // Everything above wrote what the client sent, both kinds' columns alike. This is the one place
+        // that decides what a submission of THIS kind is allowed to hold, and it runs last so a client
+        // cannot leave the other form's answers behind by sending them anyway.
+        if (kindChanged)
+            ClearFieldsForOtherKind(submission);
 
         // What the abandoned-draft purge counts from. A claimant who edits a form every few weeks
         // keeps it indefinitely; one who never comes back loses it ninety days after their last edit,
@@ -208,5 +223,49 @@ public partial class ExpenseSubmissionService
         await db.SaveChangesAsync(token);
 
         return new BasicResponse { Success = true };
+    }
+
+    /// <summary>
+    /// Nulls the header fields belonging to the kind this submission is no longer, after question zero
+    /// has been re-answered.
+    /// </summary>
+    /// <remarks>
+    /// <b>Only the nineteen kind-specific columns.</b> Everything else on the form means the same thing
+    /// on both documents - the claimant, the ministry, the lines, the receipts, the purpose narrative,
+    /// the missing-receipt declaration - and a claimant who corrects one question should not lose the
+    /// afternoon's typing.
+    /// <para>
+    /// The compliance answers and the declarations are <b>not</b> cleared here, because by the time this
+    /// runs the client has already sent them cleared: four of the six questions and four of the five
+    /// declarations are different text on the two forms, so a tick carried across would record somebody
+    /// as having agreed to wording they were never shown. That clearing belongs on the page, where the
+    /// claimant is told it is about to happen. This method exists for the fields the page has no reason
+    /// to blank, and as the backstop for a client that does not.
+    /// </para>
+    /// <para>
+    /// The section 4 detail tables are not touched here either. Every attendee and trip row was already
+    /// soft-deleted above, and only the table belonging to the stored kind is re-added.
+    /// </para>
+    /// </remarks>
+    private static void ClearFieldsForOtherKind(DbExpenseSubmission submission)
+    {
+        if (submission.Kind == SubmissionKind.DebitCardPurchase)
+        {
+            submission.ContactPhoneEmail = null;
+            submission.ExpensePeriodFrom = null;
+            submission.ExpensePeriodTo = null;
+            submission.PaymentMethod = null;
+            submission.PaymentMethodOther = null;
+            submission.BankDetailsOnFile = null;
+        }
+        else
+        {
+            submission.CardLastFourDigits = null;
+            submission.TransactionDate = null;
+            submission.TransactionTime = null;
+            submission.SupplierMerchant = null;
+            submission.AmountCharged = null;
+            submission.BankReference = null;
+        }
     }
 }

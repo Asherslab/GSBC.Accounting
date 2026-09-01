@@ -105,37 +105,56 @@
                 <span class="hint">This decides which form you fill in</span>
             </header>
             <div class="body">
+                @*
+                    checked follows _pendingKind while a change is waiting to be confirmed, so the chip
+                    the claimant just pressed stays lit while they read what it will cost - and goes back
+                    on its own if they cancel.
+                *@
                 <div class="chips">
                     <label class="chip">
-                        <input type="radio" name="kind" disabled="@KindLocked"
-                               checked="@(Model.Kind == SubmissionKind.ExpenseReimbursement)"
+                        <input type="radio" name="kind"
+                               checked="@((_pendingKind ?? Model.Kind) == SubmissionKind.ExpenseReimbursement)"
                                @onchange="() => ChooseKind(SubmissionKind.ExpenseReimbursement)"/>
                         I paid for it myself
                     </label>
                     <label class="chip">
-                        <input type="radio" name="kind" disabled="@KindLocked"
-                               checked="@(Model.Kind == SubmissionKind.DebitCardPurchase)"
+                        <input type="radio" name="kind"
+                               checked="@((_pendingKind ?? Model.Kind) == SubmissionKind.DebitCardPurchase)"
                                @onchange="() => ChooseKind(SubmissionKind.DebitCardPurchase)"/>
                         I used a church debit card
                     </label>
                 </div>
 
-                @if (Model.Kind is null)
+                @if (_pendingKind is { } pending)
+                {
+                    @* Asked here rather than through a browser confirm(), which cannot say what is
+                       about to be lost and reads as an error. *@
+                    <div class="banner" role="alert" style="margin-top:14px">
+                        <h4>Change this to @KindNoun(pending)?</h4>
+                        <p>
+                            The two forms ask different questions and carry different declarations, so
+                            the answers you have already given cannot come across. Changing this clears
+                            <b>section 4's six questions</b>, <b>section 6's five declarations</b>, and
+                            the details that only belong to the form you are leaving.
+                        </p>
+                        <p>
+                            Your name, ministry, section 2, every line in section 3 and every receipt you
+                            have attached all stay exactly as they are.
+                        </p>
+                        <p>
+                            <button class="b" type="button" @onclick="ConfirmKindChange">
+                                Yes, change it and clear those answers
+                            </button>
+                            <button class="b" type="button" @onclick="CancelKindChange">Keep this form</button>
+                        </p>
+                    </div>
+                }
+                else if (Model.Kind is null)
                 {
                     <p class="help">
                         <b>I paid for it myself</b> &mdash; cash, your own card, your own account, and you
                         want the money back. <b>I used a church debit card</b> &mdash; the money has
                         already left the church's account and this form records what it bought.
-                    </p>
-                }
-                else if (KindLocked)
-                {
-                    @* Slice 1 only. The server fixes the kind when the draft row is created, so until
-                       Update accepts a change this page must not offer one it cannot keep. The next
-                       slice lifts both the lock and the server's restriction. *@
-                    <p class="help">
-                        This draft has been saved as @KindNoun. To use the other form,
-                        <a href="/forms/expense">start a new one</a>.
                     </p>
                 }
             </div>
@@ -490,16 +509,13 @@
     private DraftAutosave? _autosave;
 
     /// <summary>
-    /// True once the draft row exists, because the server fixes the kind at creation and would silently
-    /// ignore a change - leaving the screen saying one thing and the stored row another.
+    /// A re-answer of question zero that is waiting to be confirmed, because taking it would clear
+    /// answers the claimant has already given. Null the rest of the time, including for the first
+    /// answer and for a change that costs nothing.
     /// </summary>
-    /// <remarks>
-    /// <b>Temporary.</b> The next slice teaches Update to accept a kind change on a draft, clearing the
-    /// other kind's fields as it goes, and this lock goes with it.
-    /// </remarks>
-    private bool KindLocked => _submissionId is not null;
+    private SubmissionKind? _pendingKind;
 
-    private string KindNoun => Model.Kind == SubmissionKind.DebitCardPurchase
+    private static string KindNoun(SubmissionKind kind) => kind == SubmissionKind.DebitCardPurchase
         ? "a church debit card purchase"
         : "an expense you paid yourself";
 
@@ -603,24 +619,61 @@
 #endif
 
     /// <summary>
-    /// Answers question zero, which is what brings the rest of the form on screen.
+    /// Answers question zero, which is what brings the rest of the form on screen - or, when the answer
+    /// is being changed and that would cost something, asks first.
     /// </summary>
-    private void ChooseKind(SubmissionKind kind)
+    private Task ChooseKind(SubmissionKind kind)
     {
-        // Guarded as well as disabled in the markup: a disabled radio is a rendering, not a rule, and
-        // the stored kind is the one that decides what the row's per-kind columns mean.
-        if (KindLocked || Model.Kind == kind)
-            return;
+        if (Model.Kind == kind)
+        {
+            _pendingKind = null;
 
-        Model.Kind = kind;
+            return Task.CompletedTask;
+        }
+
+        if (Model.KindChangeWouldClear(kind))
+        {
+            // Nothing is changed yet. The model still holds the old kind and every answer under it
+            // until ConfirmKindChange, so cancelling is genuinely free rather than an undo.
+            _pendingKind = kind;
+
+            StateHasChanged();
+
+            return Task.CompletedTask;
+        }
+
+        return ApplyKind(kind);
+    }
+
+    private Task ConfirmKindChange() =>
+        _pendingKind is { } kind ? ApplyKind(kind) : Task.CompletedTask;
+
+    private void CancelKindChange()
+    {
+        _pendingKind = null;
+
+        StateHasChanged();
+    }
+
+    private Task ApplyKind(SubmissionKind kind)
+    {
+        _pendingKind = null;
+
+        Model.SwitchKind(kind);
 
         Layout.SetTitle(Text.PageTitle);
 
-        // StateHasChanged, NOT Touched: bumping the autosave here would write a row for somebody who
-        // answered one question and walked away, which is the litter the lazy create exists to avoid -
-        // observed on 2026-09-01, where choosing a kind and then pressing the mock-data button left an
-        // "Unnamed draft" behind on the drafts page. The first thing actually typed starts the clock.
+        // Bumping the autosave ONLY for a change to an existing draft. On the very first answer there is
+        // nothing to save and nowhere to save it, and writing then would leave a row behind for somebody
+        // who answered one question and walked away - the litter the lazy create exists to avoid,
+        // observed on 2026-09-01 as an "Unnamed draft" on the drafts page. Once a row exists the
+        // opposite is true: the stored kind decides what its columns mean, and it must not be stale.
+        if (_submissionId is not null)
+            return Touched();
+
         StateHasChanged();
+
+        return Task.CompletedTask;
     }
 
     /// <summary>
