@@ -1,13 +1,20 @@
 # GSBC.Accounting
 
-Church finance forms. Two anonymous submission pages backed by Aspire + code-first gRPC + Blazor
-WASM behind a YARP BFF — the same shape as `GSBC.ImpactKids`, from which most of this repo's
-conventions and a good deal of its code are inherited.
+Church finance forms. One anonymous submission page — covering both paper forms, which it picks between
+on its own first question — backed by Aspire + code-first gRPC + Blazor WASM behind a YARP BFF, the same
+shape as `GSBC.ImpactKids`, from which most of this repo's conventions and a good deal of its code are
+inherited.
 
-**Read [docs/work/2026-08-expense-forms-scope.md](docs/work/2026-08-expense-forms-scope.md) before
-writing any code here.** It fixes the domain model (the two paper forms are one aggregate, not two),
-the attachment design and the object-store traps that come with it, what being anonymous costs, and
-the slice order.
+**Read [docs/modules/expenses/submission-model.md](docs/modules/expenses/submission-model.md) and
+[docs/modules/expenses/paper-form-fields.md](docs/modules/expenses/paper-form-fields.md) before writing
+any code here.** Between them they fix the domain model (the two paper forms are one aggregate and one
+page, not two), and what sharing that structure does *not* let you share — the wording, almost none of
+which the two documents have in common.
+
+The original scope lives at
+[docs/archive/2026-08-expense-forms-scope.md](docs/archive/2026-08-expense-forms-scope.md). Read it for
+*why*, never as current behaviour: `paper-form-fields.md` records several places where it is wrong about
+what the `.docx` files say.
 
 # Documentation
 

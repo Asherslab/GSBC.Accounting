@@ -10,6 +10,7 @@ code:
   - GSBC.Accounting.Grpc/Features/Expenses/ExpenseSubmissionServices
   - GSBC.Accounting.WASM/Features/Expenses/DraftAutosave.cs
   - GSBC.Accounting.WASM/Features/Expenses/Pages/DraftsPage.razor
+  - GSBC.Accounting.WASM/Features/Expenses/Pages/ExpenseForm.razor
 ---
 
 # Drafts and the anonymous session cookie
@@ -187,6 +188,25 @@ be read back at all. Two things were wrong with that:
 `DraftStore.cs` is gone. **There is deliberately no browser-local copy any more**: two places to look
 for the same draft is how a claimant ends up resuming the older one.
 
+## Resuming, and where the kind comes from
+
+Both kinds resume at `/forms/expense/{id}` — `DraftsPage.ResumeUrl` builds nothing else. The id is in the
+path rather than the query so the back button and a bookmark land on the same form, and the server checks
+it against the caller's session, so pasting somebody else's id gets "could not be found" rather than
+their claim.
+
+**The kind comes off the stored row, never off the URL.** `ExpenseFormModel.FromSubmission` takes
+`submission.Kind`, so a resumed draft arrives with section 0 already answered — by the row that was
+validated, not by the link that was clicked. That mattered more when there were two routes and they could
+disagree with the row; it still matters, because the kind decides what every per-kind column in that row
+means.
+
+A draft row is **not** created merely by answering section 0. Nothing is written until the claimant types
+something or attaches a receipt, so somebody who opens the form, answers one question and walks away
+leaves nothing behind — which is the point of creating the draft lazily, and easy to undo by accident:
+bumping the autosave from the kind handler put an "Unnamed draft" on this page for every abandoned
+visit, observed on 2026-09-01.
+
 ## Autosave, and what it costs
 
 `DraftAutosave` saves 2 seconds after the claimant stops typing. `localStorage` was free to write on
@@ -237,7 +257,7 @@ draft in the database.
 
 ## What a claimant is told
 
-Said on the landing page, on both forms and on `/drafts`, because the limits are real:
+Said on the landing page, on the form and on `/drafts`, because the limits are real:
 
 - Drafts are kept **for this browser**. Clearing cookies or browsing data loses them, and so does a
   private window.

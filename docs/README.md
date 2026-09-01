@@ -23,7 +23,8 @@ Present tense, kept current, no dates.
 
 - **expenses**
   - [The expense submission model](modules/expenses/submission-model.md) — why the two paper forms are
-    one aggregate, what that does *not* let you share, and the money and retention rules.
+    one aggregate and one page, what that does *not* let you share, what happens when a claimant
+    changes their answer to the form's first question, and the money and retention rules.
   - [What the two paper forms actually say](modules/expenses/paper-form-fields.md) — the ground truth
     for every string the app prints, read out of the `.docx` files.
   - [The attachment store](modules/expenses/attachments.md) — the SeaweedFS chunk-encoding trap that

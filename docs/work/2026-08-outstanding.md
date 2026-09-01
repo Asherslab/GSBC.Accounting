@@ -33,6 +33,12 @@ Debit card declaration 3 is the *repayment* declaration; reimbursement declarati
 rather than quietly harmonising them, which is the right default for a compliance document — but
 somebody should decide whether both forms want both.
 
+Merging the two pages into one on 2026-09-01 sharpened this rather than settling it. A claimant can now
+change their answer to the form's first question, and D3 is the clearest reason the page clears all five
+declarations when they do: the declaration they agreed to on the way in does not exist on the form they
+are leaving on. If finance decides both forms want both declarations, that clearing gets cheaper to
+justify, not harder — but it is still their call, not the build's.
+
 ## Out-of-repo work, for whoever deploys this
 
 **Mostly done as of 2026-09-01.** The Dockerfiles, the Helm chart, the three GitHub Actions workflows
