@@ -21,6 +21,19 @@ namespace GSBC.Accounting.WASM.Features.Expenses;
 /// different reference and different dates. Two mock submissions side by side have to be tellable apart
 /// at a glance, or neither the PDF renderer nor a review flow can be checked against them.
 /// </para>
+/// <para>
+/// <b>This fills the form only. The receipts are uploaded by the page afterwards</b> - see
+/// <c>ExpenseForm.FillWithMockData</c> and <see cref="MockReceipt"/> - because an upload needs a
+/// submission id and a live HTTP client, neither of which belongs in a pure generator. Without them the
+/// result would not be submittable: a purchase with no evidence against it is refused, which is the
+/// whole point of section 3 now.
+/// </para>
+/// <para>
+/// <b>Every scenario exercises all three itemisation modes across its purchases</b>, because those three
+/// are what the redesign is: a receipt that needs nothing typed out, one that needs only its personal
+/// lines, and one that needs the lot. A generator that only ever produced the easy one would leave two
+/// thirds of section 3 unseen.
+/// </para>
 /// </remarks>
 public static class MockData
 {
@@ -57,34 +70,32 @@ public static class MockData
         model.ApprovalDate = transaction.AddDays(-Rng.Next(1, 10));
         model.PurposeNarrative = narrative;
 
-        model.Lines = lines.Select(l => new ExpenseLineModel
-        {
-            ItemDescription = l.item,
-            Details = l.details,
-            Purpose = ministry,
-            Evidence = EvidenceStatus.Attached,
-            GrossAmount = l.gross,
-            // Australian GST is one eleventh of a GST-inclusive price.
-            GstAmount = Round(l.gross / 11m),
-            ChurchUsePercent = 100m
-        }).ToList();
+        model.Details = lines
+            .Select((l, index) => Detail(l, ministry, supplier, transaction.AddDays(-index), index))
+            .ToList();
 
-        decimal gross = model.Lines.Sum(x => x.GrossAmount ?? 0m);
+        decimal gross = model.Details.Sum(x => x.TotalIncGst ?? 0m);
 
         // Every third scenario is an awkward one, and the awkward paths are the whole reason this exists:
-        // a Missing line unlocks section 5, a Yes unlocks a reveal, and a non-zero personal portion makes
-        // the net differ from the gross. A generator that only ever produces tidy data proves nothing.
+        // a Yes unlocks a reveal, and section 5 opens. A generator that only ever produces tidy data
+        // proves nothing.
+        //
+        // The personal-portion path is NOT part of this any more - it is exercised on every press, by
+        // the second purchase, because the three itemisation modes are what section 3 now is.
         bool awkward = Rng.Next(3) == 0;
 
         if (awkward)
         {
-            model.Lines[^1].Evidence = EvidenceStatus.Missing;
+            // Section 5 is opened by the EVIDENCE, not by a flag on the form: a purchase whose only file
+            // is a bank line. The page marks the last purchase's upload that way when this is set - see
+            // ExpenseForm.FillWithMockData - and the declaration below is what that then requires.
             model.MissingSupplier = supplier;
             model.MissingDate = transaction;
-            model.MissingAmount = model.Lines[^1].GrossAmount;
+            model.MissingAmount = model.Details[^1].TotalIncGst;
             model.MissingReason =
                 "Paper receipt was lost between the shop and the church. I asked the store for a "
-                + "reprint on " + today.AddDays(-1).ToString("d MMMM") + " and they could not retrieve it.";
+                + "reprint on " + today.AddDays(-1).ToString("d MMMM") + " and they could not retrieve it. "
+                + "The bank line from the church account is attached instead.";
             model.MissingDeclared = true;
 
             // Question 2: meals and hospitality, which opens the attendee table.
@@ -103,12 +114,6 @@ public static class MockData
             ];
             model.ComplianceDetails =
                 "Meal was for volunteer leaders only. No family members attended and no private share applies.";
-
-            model.LessPersonalAmount = Round(gross * 0.08m);
-        }
-        else
-        {
-            model.LessPersonalAmount = 0m;
         }
 
         // Every question answered, because "not answered" is a state a reviewer must be able to see and a
@@ -116,6 +121,9 @@ public static class MockData
         for (int i = 0; i < model.Compliance.Length; i++)
             model.Compliance[i] ??= false;
 
+        // The reconciliation the debit card form exists for. Set to the receipts' total so a mock
+        // submission passes it - the mismatch path is worth seeing, but it is one keystroke away in the
+        // amount-charged box and does not need a generator to reach.
         model.AmountCharged = Round(gross);
 
         for (int i = 0; i < model.Declarations.Length; i++)
@@ -148,16 +156,9 @@ public static class MockData
         model.ApprovalDate = from;
         model.PurposeNarrative = narrative;
 
-        model.Lines = lines.Select((l, i) => new ExpenseLineModel
-        {
-            LineDate = from.AddDays(i * 3),
-            Details = l.details,
-            Purpose = ministry,
-            Evidence = EvidenceStatus.Attached,
-            GrossAmount = l.gross,
-            GstAmount = Round(l.gross / 11m),
-            ChurchUsePercent = 100m
-        }).ToList();
+        model.Details = lines
+            .Select((l, index) => Detail(l, ministry, supplier, from.AddDays(index * 3), index))
+            .ToList();
 
         bool awkward = Rng.Next(3) == 0;
 
@@ -179,11 +180,16 @@ public static class MockData
                 }
             ];
             model.ComplianceDetails = "Return trip in my own vehicle. Fuel is not claimed separately.";
-            model.LessPersonalAmount = Round(model.Lines.Sum(x => x.GrossAmount ?? 0m) * 0.1m);
-        }
-        else
-        {
-            model.LessPersonalAmount = 0m;
+
+            // Section 5 opens off the evidence - the page marks the last purchase's file as a bank line
+            // when this is set. See the debit card branch, where the same thing is explained at length.
+            model.MissingSupplier = supplier;
+            model.MissingDate = from;
+            model.MissingAmount = model.Details[^1].TotalIncGst;
+            model.MissingReason =
+                "The market stall gives no receipt. The bank transaction from my own account is attached "
+                + "instead, showing the amount and the payee.";
+            model.MissingDeclared = true;
         }
 
         for (int i = 0; i < model.Compliance.Length; i++)
@@ -199,6 +205,116 @@ public static class MockData
         // reviewer will see it.
         model.ComplianceDetails = (model.ComplianceDetails is null ? "" : model.ComplianceDetails + " ")
                                   + Reference("MOCK");
+    }
+
+    /// <summary>
+    /// One purchase, in whichever itemisation mode its position calls for.
+    /// </summary>
+    /// <remarks>
+    /// <b>The mode is chosen by <paramref name="index"/> rather than at random, so every press exercises
+    /// all three.</b> They are what the redesign of section 3 is, and two of them - the mixed itemisation
+    /// and the personal-items floor under the non-reimbursed field - are the parts with arithmetic in
+    /// them and therefore the parts worth seeing on screen. A generator that rolled a die would show a
+    /// tidy all-church form one press in three and prove nothing about the other two.
+    /// <list type="number">
+    /// <item>Nothing personal, receipt itemises: a total and GST, no lines typed out.</item>
+    /// <item>Personal items on an itemised receipt: the personal lines only, and the non-reimbursed
+    /// amount floored on them.</item>
+    /// <item>Unitemised evidence: everything listed, each line marked Church use or not.</item>
+    /// </list>
+    /// </remarks>
+    private static ExpenseDetailModel Detail(
+        (string Item, string Details, decimal Gross) line,
+        string ministry,
+        string scenarioSupplier,
+        DateOnly date,
+        int index
+    )
+    {
+        ExpenseDetailModel detail = new()
+        {
+            // WHERE IT WAS BOUGHT, not what was bought - the two scenario shapes name the shop in
+            // different places and it is easy to take the wrong one. The card scenarios carry one shop
+            // for the whole transaction ("Bunnings Warehouse Springwood") and put the product in
+            // line.Item; the reimbursement scenarios say "Various" and name the shop at the head of
+            // line.Details ("Woolworths - meal for the Ferreira family").
+            //
+            // Getting this wrong put "Pine shelving 2400mm" in the supplier box, which looked plausible
+            // enough on screen to survive one review.
+            Supplier = scenarioSupplier is "Various" or ""
+                ? SupplierOf(line.Details)
+                : scenarioSupplier,
+            PurchaseDate = date,
+            Purpose = ministry,
+            TotalIncGst = line.Gross,
+            // Australian GST is one eleventh of a GST-inclusive price.
+            GstAmount = Round(line.Gross / 11m),
+            NonReimbursedAmount = 0m
+        };
+
+        switch (index % 3)
+        {
+            case 0:
+                detail.ContainsPersonalItems = false;
+                detail.ReceiptIsItemised = true;
+                break;
+
+            case 1:
+                detail.ContainsPersonalItems = true;
+                detail.ReceiptIsItemised = true;
+                detail.Items =
+                [
+                    new ExpenseDetailItemModel
+                    {
+                        Description = Pick(new[] { "Milk and bread for home", "Birthday card", "Phone charger" }),
+                        Amount = Round(line.Gross * 0.12m)
+                    }
+                ];
+                break;
+
+            default:
+                detail.ContainsPersonalItems = true;
+                detail.ReceiptIsItemised = false;
+                detail.Items =
+                [
+                    new ExpenseDetailItemModel
+                    {
+                        Description = line.Details,
+                        Amount = Round(line.Gross * 0.6m),
+                        IsChurchUse = true
+                    },
+                    new ExpenseDetailItemModel
+                    {
+                        Description = "Second half of the same order",
+                        Amount = Round(line.Gross * 0.25m),
+                        IsChurchUse = true
+                    },
+                    new ExpenseDetailItemModel
+                    {
+                        Description = "Personal - picked up at the same time",
+                        Amount = Round(line.Gross * 0.15m)
+                    }
+                ];
+                break;
+        }
+
+        // The same call the page makes after any item edit: raise the non-reimbursed amount to what was
+        // itemised as personal. Doing it here rather than assigning a figure means the mock data obeys
+        // the rule rather than merely happening to satisfy it.
+        detail.ClampNonReimbursed();
+
+        return detail;
+    }
+
+    /// <summary>
+    /// The shop out of a scenario's details string, which reads "Woolworths — meal for the Ferreira
+    /// family" on the reimbursement scenarios. Falls back to the whole string where there is no dash.
+    /// </summary>
+    private static string SupplierOf(string details)
+    {
+        int dash = details.IndexOf('—');
+
+        return dash > 0 ? details[..dash].Trim() : details;
     }
 
     /// <summary>

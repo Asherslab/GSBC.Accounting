@@ -12,6 +12,10 @@
 @using GSBC.Accounting.WASM.Features.Expenses
 @using GSBC.Accounting.WASM.Features.Expenses.Components
 @inject IExpenseSubmissionService Submissions
+@* Only the mock-data button uploads from this page - the real uploads belong to ExpenseDetailsSection,
+   which owns the dropzones. Injected unconditionally rather than behind a directive: Razor has no
+   conditional @inject, and an unused scoped client costs nothing. *@
+@inject AttachmentClient Attachments
 
 <PageTitle>@(Model.Kind is null ? UnchosenTitle : Text.DocumentTitle)</PageTitle>
 
@@ -380,23 +384,18 @@
                 </div>
             </section>
 
-            <!-- 3 -->
-            <section class="card" id="s3">
-                <header>
-                    <span class="num">03</span>
-                    <h3>@Text.Section3Caption</h3>
-                    <span class="hint">@Text.Section3Hint</span>
-                </header>
-                <div class="body">
-                    <LineTable Model="Model" Text="Text" OnChanged="Touched"/>
-                </div>
-            </section>
-
-            <AttachmentsCard Files="_attachments" EnsureSubmission="EnsureSubmissionAsync" OnChanged="Touched"/>
+            @*
+                Section 3 and the attachments used to be two cards, in that order, and a claimant had to
+                keep the rows in one lined up with the files in the other by eye. They are one card now:
+                a purchase is created BY attaching its receipt, and its questions are asked underneath
+                that receipt. See ExpenseDetailsSection.
+            *@
+            <ExpenseDetailsSection Model="Model" Text="Text" Files="_attachments"
+                                   EnsureSubmission="EnsureSubmissionAsync" OnChanged="Touched"/>
 
             <ComplianceSection Model="Model" Text="Text" OnChanged="Touched"/>
 
-            <DeclarationsSection Model="Model" Text="Text" OnChanged="Touched"/>
+            <DeclarationsSection Model="Model" Text="Text" Attachments="_attachments" OnChanged="Touched"/>
 
             <ApprovalSections Kind="Model.Kind.Value"/>
 
@@ -426,13 +425,13 @@
             <div><span class="k">@Text.GrossTotalLabel</span><span class="v">@Model.GrossTotal.ToString("C2")</span></div>
         }
         <div><span class="k">@Text.NetTotalLabel</span><span class="v">@Model.NetTotal.ToString("C2")</span></div>
-        <div><span class="k">Lines</span><span class="v">@Model.Lines.Count</span></div>
-        <div><span class="k">Attachments</span><span class="v">@_attachments.Count</span></div>
+        <div><span class="k">Purchases</span><span class="v">@Model.Details.Count</span></div>
+        <div><span class="k">Files</span><span class="v">@_attachments.Count</span></div>
     </div>
     <div class="spacer"></div>
     @if (Model.ChargeMismatch)
     {
-        <span class="badge warn">Lines don't match the charge</span>
+        <span class="badge warn">Receipts don't match the charge</span>
     }
 @*
     Development builds only.
@@ -535,14 +534,18 @@
             [
                 new("1", Text.Section1Caption, "s1", Complete: !string.IsNullOrWhiteSpace(Model.SubmitterName)),
                 new("2", Text.Section2Caption, "s2", Complete: !string.IsNullOrWhiteSpace(Model.PurposeNarrative)),
-                new("3", Text.Section3Caption, "s3", Complete: Model.Lines.Any(x => x.GrossAmount > 0)),
-                new("—", "Attachments", "s3b", Complete: _attachments.Count > 0),
+                // One rail entry, where there were two. Section 3 and "Attachments" were separate cards
+                // until the receipts became what section 3 is made of; a rail link to a card that no
+                // longer exists is a dead link.
+                new("3", Text.Section3Caption, "s3",
+                    Complete: Model.Details.Count > 0
+                              && Model.Details.All(x => x.Answered && x.TotalIncGst > 0)),
                 new("4", Text.Section4Caption, "s4", Complete: Model.Compliance.All(x => x is not null))
             ]);
 
-            // Only listed when a line says Missing - the paper form's own rule is "complete only when
-            // evidence is unavailable".
-            if (Model.HasMissingEvidence)
+            // Only listed when some purchase has nothing from the shop behind it - the paper form's own
+            // rule is "complete only when evidence is unavailable".
+            if (Model.HasMissingEvidence(_attachments))
                 rail.Add(new SectionRail.RailSection("5", "Missing receipt", "s5", Model.MissingDeclared));
 
             rail.AddRange(
@@ -677,26 +680,84 @@
     }
 
     /// <summary>
-    /// Replaces the form with a randomly chosen plausible scenario. Two presses give visibly different
-    /// submissions, and roughly one in three exercises the awkward paths - a Missing line that unlocks
-    /// section 5, a Yes that opens a reveal, and a non-zero personal portion so the net differs from the
-    /// gross.
+    /// Replaces the form with a randomly chosen plausible scenario, receipts and all.
     /// </summary>
+    /// <remarks>
+    /// Two presses give visibly different submissions, every press exercises all three itemisation
+    /// modes, and roughly one in three also takes the awkward paths - a purchase evidenced only by a bank
+    /// line, which opens section 5, and a Yes that opens section 4's reveal.
+    /// <para>
+    /// <b>This uploads files, which it did not have to before, and the result is not submittable without
+    /// them.</b> Section 3 is built out of attachments now: a purchase is created by attaching a receipt,
+    /// and <c>Submit</c> refuses one with nothing against it. So the generator fills the form, this saves
+    /// it to get an id, and then a generated PNG goes up against each purchase - see
+    /// <see cref="MockReceipt"/> for why they are real PNGs and why each one differs.
+    /// </para>
+    /// </remarks>
     private async Task FillWithMockData()
     {
 #if DEBUG
-        // A fresh model rather than mutating the current one: leftover rows from a previous press would
-        // make two mock submissions differ in ways the generator did not choose, which defeats the point.
-        // The kind is carried over, because it is the claimant's answer and not the generator's to pick.
-        Model = new ExpenseFormModel { Kind = Model.Kind };
+        _busy = true;
 
-        MockData.Fill(Model);
+        try
+        {
+            // A fresh model rather than mutating the current one: leftover rows from a previous press
+            // would make two mock submissions differ in ways the generator did not choose, which defeats
+            // the point. The kind is carried over, because it is the claimant's answer and not the
+            // generator's to pick.
+            Model = new ExpenseFormModel { Kind = Model.Kind };
 
-        // A new draft, not the one already created - otherwise the second press would silently add
-        // attachments and lines to the first submission.
-        _submissionId = null;
-        _attachments.Clear();
-        _errors.Clear();
+            MockData.Fill(Model);
+
+            // A new draft, not the one already created - otherwise the second press would silently add
+            // receipts and purchases to the first submission.
+            _submissionId = null;
+            _attachments.Clear();
+            _errors.Clear();
+
+            // Saved before the uploads, because an upload needs an id to go against. Everything below is
+            // skipped if that fails, leaving a filled-in form with no evidence - which is a state the
+            // page shows honestly rather than one it pretends away.
+            if (await EnsureSubmissionAsync() is not { } submissionId)
+                return;
+
+            // A bank line instead of a receipt on the last purchase, when the generator opened section 5.
+            // This is what actually triggers it: the declaration is required because of what is attached,
+            // not because a field on the form says so.
+            bool lastIsBankLine = Model.MissingDeclared;
+
+            for (int index = 0; index < Model.Details.Count; index++)
+            {
+                ExpenseDetailModel detail = Model.Details[index];
+
+                bool last = index == Model.Details.Count - 1;
+
+                AttachmentKind kind = lastIsBankLine && last
+                    ? AttachmentKind.BankOrCardStatement
+                    : AttachmentKind.SupplierReceipt;
+
+                byte[] png = MockReceipt.Png(index + 1);
+
+                using MemoryStream content = new(png);
+
+                AttachmentUploadResult result = await Attachments.UploadAsync(
+                    submissionId, detail.Key, MockReceipt.FileName(index + 1), "image/png", content, kind);
+
+                if (result is { Success: true, Attachment: not null })
+                    _attachments.Add(result.Attachment);
+                else
+                    _errors.Add($"Mock receipt {index + 1}: {result.Error}");
+            }
+
+            // A second save, so the stored submission sees the section 5 declaration that the uploads
+            // have just made applicable. Update evaluates that trigger against the attachments, and on
+            // the first save there were none.
+            await EnsureSubmissionAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
 
         await Touched();
 #else
@@ -802,7 +863,7 @@
                 BasicResponse update = await Submissions.Update(new UpdateExpenseSubmissionRequest
                 {
                     SubmissionId = _submissionId.Value,
-                    Form = Model.ToCreateRequest()
+                    Form = Model.ToCreateRequest(_attachments)
                 });
 
                 if (update.Success)
@@ -822,7 +883,7 @@
 
         try
         {
-            BasicReadResponse<Guid?> response = await Submissions.Create(Model.ToCreateRequest());
+            BasicReadResponse<Guid?> response = await Submissions.Create(Model.ToCreateRequest(_attachments));
 
             if (response is { Success: true, Entity: not null })
             {

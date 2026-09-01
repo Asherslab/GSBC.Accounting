@@ -52,9 +52,9 @@ public record CreateExpenseSubmissionRequest
     public DateTime? ApprovalDate { get; init; }
     public string? PurposeNarrative { get; init; }
 
-    // Section 3
-    public decimal LessPersonalAmount { get; init; }
-    public List<ExpenseLine> Lines { get; init; } = [];
+    // Section 3. There is no LessPersonalAmount here any more: it is the sum of the details' own
+    // non-reimbursed amounts, so the server adds it up rather than being told it twice.
+    public List<ExpenseDetail> Details { get; init; } = [];
 
     // Section 4
     public bool? ComplianceQ1 { get; init; }
@@ -67,7 +67,7 @@ public record CreateExpenseSubmissionRequest
     public List<ExpenseAttendee> Attendees { get; init; } = [];
     public List<ExpenseTrip> Trips { get; init; } = [];
 
-    // Section 5, null unless some line is marked Missing
+    // Section 5, null unless some detail carries no receipt from where the purchase was made
     public MissingReceiptDeclaration? MissingReceipt { get; init; }
 
     // Section 6

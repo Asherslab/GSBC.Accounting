@@ -1,0 +1,93 @@
+@using GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses
+@using GSBC.Accounting.WASM.Features.Expenses
+
+@*
+    Looking at one receipt without leaving the form.
+
+    This exists because expense details are per-receipt now. Somebody who has photographed four dockets
+    on their phone gets four files called IMG_4471.jpeg through IMG_4474.jpeg, and is then asked which
+    supplier, which date and what was on each - a question the filename cannot answer. Before this, the
+    only way to check was to download the file, which on a phone means leaving the form.
+
+    IMAGES RENDER; EVERYTHING ELSE GETS A LINK. The server serves inline only for JPEG, PNG and WebP -
+    see AttachmentEndpoints.PreviewableInline - because this origin serves whatever a stranger uploaded,
+    and a PDF rendered in place is same-origin script. A PDF or a HEIC therefore shows the file's details
+    and a download, which is honest, rather than an <img> that silently shows nothing.
+*@
+
+@if (File is not null)
+{
+    @* The backdrop closes it, and it is a plain button rather than a div with an onclick so that it is
+       reachable by keyboard and announced as a control. It sits BEHIND the panel in the z-order. *@
+    <div class="preview">
+        <button type="button" class="preview-scrim" aria-label="Close the preview" @onclick="Close"></button>
+
+        <div class="preview-panel" role="dialog" aria-modal="true" aria-label="@($"Preview of {File.FileName}")">
+            <header>
+                <div class="meta">
+                    <span class="name">@File.FileName</span>
+                    <span class="sz">@Format(File.ContentType) &middot; @Size(File.ByteSize)</span>
+                </div>
+                <button type="button" class="rowbtn" aria-label="Close the preview" @onclick="Close">&times;</button>
+            </header>
+
+            <div class="preview-body">
+                @if (Renderable)
+                {
+                    @* Same-origin, so the draft session cookie goes with the request and a private
+                       draft's receipt stays private. No JS interop and no blob URL: the browser fetches
+                       it the way it fetches any image. *@
+                    <img src="@AttachmentClient.PreviewUrl(File.SubmissionId, File.Id)" alt="@File.FileName"/>
+                }
+                else
+                {
+                    <p class="help">
+                        This kind of file can't be shown here &mdash; only photos can. Open it to check
+                        which receipt it is.
+                    </p>
+                }
+            </div>
+
+            <footer>
+                @* target=_blank rather than a download attribute: the response already carries
+                   Content-Disposition, so the browser saves it either way, and _blank keeps the
+                   half-filled form in the tab behind it. *@
+                <a class="b" href="@AttachmentClient.DownloadUrl(File.SubmissionId, File.Id)"
+                   target="_blank" rel="noopener">Open the file</a>
+                <button type="button" class="b" @onclick="Close">Close</button>
+            </footer>
+        </div>
+    </div>
+}
+
+@code
+{
+    /// <summary>The file being looked at, or null when the modal is closed.</summary>
+    [Parameter] public ExpenseAttachment? File { get; set; }
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>
+    /// Matches the server's inline allowlist. Duplicated deliberately - the server is the authority and
+    /// refuses the rest, but a browser that only discovers this after requesting the file shows a broken
+    /// image icon where a sentence explaining the situation belongs.
+    /// </summary>
+    private bool Renderable => File?.ContentType is "image/jpeg" or "image/png" or "image/webp";
+
+    private Task Close() => OnClose.InvokeAsync();
+
+    private static string Format(string contentType) => contentType switch
+    {
+        "application/pdf" => "PDF",
+        "image/jpeg" => "JPEG photo",
+        "image/png" => "PNG image",
+        "image/heic" or "image/heif" => "HEIC photo",
+        "image/webp" => "WebP image",
+        _ => contentType
+    };
+
+    private static string Size(long bytes) =>
+        bytes < 1024 ? $"{bytes} B"
+        : bytes < 1024 * 1024 ? $"{bytes / 1024.0:0.#} KB"
+        : $"{bytes / (1024.0 * 1024.0):0.#} MB";
+}

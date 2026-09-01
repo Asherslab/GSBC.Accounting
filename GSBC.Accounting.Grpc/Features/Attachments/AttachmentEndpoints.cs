@@ -90,7 +90,15 @@ public static class AttachmentEndpoints
         string declaredType = request.ContentType ?? string.Empty;
 
         if (!Enum.TryParse(request.Query["kind"].ToString(), ignoreCase: true, out AttachmentKind kind))
-            kind = AttachmentKind.ItemisedReceipt;
+            kind = AttachmentKind.SupplierReceipt;
+
+        // Which purchase this file evidences. The claimant's own key for the detail, not its row id -
+        // Update rewrites the details on every autosave and a row id here would come unlinked within
+        // seconds. Absent or unparseable means "this claim, purchase unstated", which is a state the
+        // PDF prints rather than one anything refuses.
+        Guid? detailKey = Guid.TryParse(request.Query["detailKey"].ToString(), out Guid parsedKey)
+            ? parsedKey
+            : null;
 
         // Cheap rejection before a single byte is read. Content-Length is only a claim, so the real
         // enforcement is in StageAsync as it streams - but honouring an honest claim early saves
@@ -186,6 +194,10 @@ public static class AttachmentEndpoints
                 {
                     existing.Deleted = false;
                     existing.Kind = kind;
+                    // Re-attached, and possibly to a different purchase than last time. Whatever the
+                    // upload says now is what it belongs to - carrying the old key across would file the
+                    // file against a receipt the claimant has since deleted.
+                    existing.DetailKey = detailKey;
                     existing.UploadedAt = DateTimeOffset.UtcNow;
 
                     await db.SaveChangesAsync(token);
@@ -202,7 +214,7 @@ public static class AttachmentEndpoints
             {
                 Id = Guid.Empty,
                 SubmissionId = submissionId,
-                LineId = Guid.TryParse(request.Query["lineId"].ToString(), out Guid lineId) ? lineId : null,
+                DetailKey = detailKey,
                 FileName = SafeFileName(fileName, staged.DetectedContentType),
                 ContentType = staged.DetectedContentType,
                 ByteSize = staged.ByteSize,
@@ -323,6 +335,23 @@ public static class AttachmentEndpoints
         return Results.NoContent();
     }
 
+    /// <summary>
+    /// Serves one attachment's bytes - as a download by default, or inline for the preview.
+    /// </summary>
+    /// <remarks>
+    /// <b><c>?inline=1</c> is honoured for images and for nothing else.</b> The preview exists because
+    /// details are per-receipt now and somebody with four photos of dockets has to be able to tell which
+    /// is which without downloading all four - so the page shows the image in a modal, and an
+    /// <c>&lt;img&gt;</c> cannot render a response marked <c>Content-Disposition: attachment</c>.
+    /// <para>
+    /// Widening that to every type would undo the reason the header is there. This origin serves
+    /// whatever a stranger uploaded, and a PDF or an HTML-ish file rendered in place becomes same-origin
+    /// script. An <c>image/jpeg</c>, <c>image/png</c> or <c>image/webp</c> under <c>nosniff</c> cannot -
+    /// the browser is forbidden from re-interpreting it as anything else. The allowlist below is
+    /// therefore the security boundary, not a convenience: it is on the DETECTED type, which is what the
+    /// bytes were checked to be at upload rather than what the upload claimed.
+    /// </para>
+    /// </remarks>
     private static async Task<IResult> DownloadAsync(
         Guid submissionId,
         Guid attachmentId,
@@ -330,6 +359,7 @@ public static class AttachmentEndpoints
         AnonymousSessions sessions,
         AttachmentStore store,
         ILogger<AttachmentStore> logger,
+        HttpRequest request,
         HttpResponse response,
         CancellationToken token
     )
@@ -382,11 +412,32 @@ public static class AttachmentEndpoints
         // origin. Without them a PDF or an HTML-ish file uploaded as a "receipt" renders in place and
         // becomes same-origin script. Serving your own re-encoded JPEGs, as GSBC.ImpactKids does, is not
         // this shape of problem - serving whatever a stranger uploaded is.
+        //
+        // nosniff is unconditional. It is what makes the inline case below safe at all: it forbids the
+        // browser from deciding an image/png is really something executable.
         response.Headers.XContentTypeOptions = "nosniff";
-        response.Headers.ContentDisposition = $"attachment; filename=\"{SanitiseHeader(attachment.FileName)}\"";
+
+        bool inline = request.Query["inline"] == "1" && PreviewableInline.Contains(attachment.ContentType);
+
+        response.Headers.ContentDisposition = inline
+            ? $"inline; filename=\"{SanitiseHeader(attachment.FileName)}\""
+            : $"attachment; filename=\"{SanitiseHeader(attachment.FileName)}\"";
 
         return Results.Stream(content.Stream!, attachment.ContentType);
     }
+
+    /// <summary>
+    /// The only content types <c>?inline=1</c> will serve inline. <b>An allowlist, and a short one.</b>
+    /// </summary>
+    /// <remarks>
+    /// Raster image types that no browser will execute, under <c>nosniff</c>. Not <c>application/pdf</c>
+    /// - a PDF is a scripting host, and one rendered same-origin is a stored XSS. Not
+    /// <c>image/svg+xml</c> either, which is not accepted at upload but is worth naming here so nobody
+    /// adds it to both lists at once. HEIC is left out because it is not a type browsers render anyway,
+    /// so allowing it would buy a blank preview and one more type on this list.
+    /// </remarks>
+    private static readonly HashSet<string> PreviewableInline =
+        new(StringComparer.OrdinalIgnoreCase) { "image/jpeg", "image/png", "image/webp" };
 
     private static IResult TooLarge(AttachmentStoreConfig config) =>
         Results.Json(
@@ -425,7 +476,7 @@ public static class AttachmentEndpoints
     {
         Id = attachment.Id,
         SubmissionId = attachment.SubmissionId,
-        LineId = attachment.LineId,
+        DetailKey = attachment.DetailKey,
         FileName = attachment.FileName,
         ContentType = attachment.ContentType,
         ByteSize = attachment.ByteSize,

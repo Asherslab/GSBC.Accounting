@@ -63,9 +63,9 @@ public partial class ExpenseSubmissionService
         Guid sessionId = await sessions.EnsureAsync(token);
 
         // The server's own arithmetic. Whatever the client computed is discarded - it is a display
-        // convenience, and the mockup computes it in JavaScript floats.
-        (decimal gross, decimal gst) = ExpenseTotals.SumLines(request.Lines);
-        decimal lessPersonal = ExpenseTotals.Money(request.LessPersonalAmount);
+        // convenience. That now includes the personal portion, which is summed from the details rather
+        // than taken as a figure of its own.
+        (decimal gross, decimal gst, decimal lessPersonal) = ExpenseTotals.SumDetails(request.Details);
 
         DbExpenseSubmission submission = new()
         {
@@ -131,28 +131,7 @@ public partial class ExpenseSubmissionService
             IsMockData = request.IsMockData
         };
 
-        // Ordinal is assigned here rather than trusted from the request: the order of section 3 is the
-        // order the claimant typed, and a client that sent duplicate or sparse ordinals would silently
-        // reorder the printed form.
-        int ordinal = 0;
-
-        foreach (ExpenseLine line in request.Lines)
-        {
-            submission.Lines.Add(new DbExpenseLine
-            {
-                Id = Guid.Empty,
-                SubmissionId = Guid.Empty,
-                Ordinal = ordinal++,
-                ItemDescription = line.ItemDescription,
-                LineDate = ToOffset(line.LineDate),
-                Details = line.Details,
-                Purpose = line.Purpose,
-                Evidence = line.Evidence,
-                GrossAmount = ExpenseTotals.Money(line.GrossAmount),
-                GstAmount = line.GstAmount is { } g ? ExpenseTotals.Money(g) : null,
-                ChurchUsePercent = line.ChurchUsePercent
-            });
-        }
+        WriteDetails(submission, request.Details);
 
         // Section 4's detail tables. Only the one belonging to this kind is written - a debit card
         // submission has no trip record and a reimbursement has no attendee table, and a client sending
@@ -198,10 +177,15 @@ public partial class ExpenseSubmissionService
             }
         }
 
-        // Section 5, written only when some line actually says Missing. A declaration attached to a
-        // submission with full evidence would read to a reviewer as a statement somebody made, and
-        // nobody made it.
-        if (request.MissingReceipt is { } missing && request.Lines.Any(x => x.Evidence == EvidenceStatus.Missing))
+        // Section 5, written only when there is genuinely a purchase with no supplier receipt behind it.
+        // A declaration attached to a submission with full evidence would read to a reviewer as a
+        // statement somebody made, and nobody made it.
+        //
+        // On CREATE the attachments do not exist yet - this is phase one, and the files go up against
+        // the id it returns - so the trigger cannot be evaluated here at all. Update is where it is
+        // decided, and Submit is where it is enforced; carrying the declaration through on create simply
+        // means a claimant who filled it in before their first autosave does not lose it.
+        if (request.MissingReceipt is { } missing)
         {
             submission.MissingReceipt = new DbMissingReceiptDeclaration
             {
@@ -222,6 +206,81 @@ public partial class ExpenseSubmissionService
     }
 
     /// <summary>
+    /// Adds the form's section 3 to a submission, as new rows. Shared by <c>Create</c> and by
+    /// <c>Update</c>, which soft-deletes the previous set first.
+    /// </summary>
+    /// <remarks>
+    /// <b><see cref="ExpenseDetail.Key"/> is carried through from the client and every other identifier
+    /// is not.</b> The key is what the uploaded files point at, so it has to survive a rewrite; the row
+    /// ids are the database's to mint. A detail arriving with an empty key gets one here rather than
+    /// being refused - it means an older client, and the cost is only that its files stay unfiled.
+    /// <para>
+    /// <c>Ordinal</c> is assigned here rather than trusted from the request: the order of section 3 is
+    /// the order the claimant attached the receipts, and a client sending duplicate or sparse ordinals
+    /// would silently reorder the printed form.
+    /// </para>
+    /// <para>
+    /// Items are written only where the detail's own two questions say itemisation is required. A client
+    /// that sends them anyway is ignored: leaving them stored would mean a receipt that needs no
+    /// itemisation printing one on the PDF, and a personal-items total floored on lines nobody was asked
+    /// for.
+    /// </para>
+    /// </remarks>
+    private static void WriteDetails(DbExpenseSubmission submission, IReadOnlyList<ExpenseDetail> details)
+    {
+        int ordinal = 0;
+
+        foreach (ExpenseDetail detail in details)
+        {
+            bool itemised = detail.Itemisation != ItemisationRequirement.None;
+
+            DbExpenseDetail row = new()
+            {
+                // Guid.Empty for the id, because Postgres generates it. NOT for the key - that one
+                // belongs to the client and is the only link the uploaded files have.
+                Id = Guid.Empty,
+                SubmissionId = submission.Id,
+                Key = detail.Key == Guid.Empty ? Guid.NewGuid() : detail.Key,
+                Ordinal = ordinal++,
+                Supplier = detail.Supplier,
+                PurchaseDate = ToOffset(detail.PurchaseDate),
+                Purpose = detail.Purpose,
+                ContainsPersonalItems = detail.ContainsPersonalItems,
+                ReceiptIsItemised = detail.ReceiptIsItemised,
+                TotalIncGst = ExpenseTotals.Money(detail.TotalIncGst),
+                GstAmount = detail.GstAmount is { } gst ? ExpenseTotals.Money(gst) : null,
+                NonReimbursedAmount = ExpenseTotals.Money(detail.NonReimbursedAmount)
+            };
+
+            if (itemised)
+            {
+                int itemOrdinal = 0;
+
+                foreach (ExpenseDetailItem item in detail.Items)
+                {
+                    row.Items.Add(new DbExpenseDetailItem
+                    {
+                        Id = Guid.Empty,
+                        DetailId = Guid.Empty,
+                        Ordinal = itemOrdinal++,
+                        Description = item.Description,
+                        Amount = ExpenseTotals.Money(item.Amount),
+                        // On a receipt whose personal lines alone were asked for, every line listed IS a
+                        // personal one. The page does not show the toggle in that mode, so a client
+                        // sending IsChurchUse = true there is sending an answer to a question it was not
+                        // asked - and a "church use" item in that list would silently drop out of the
+                        // personal total the non-reimbursed amount is floored on.
+                        IsChurchUse = detail.Itemisation != ItemisationRequirement.PersonalItemsOnly
+                                      && item.IsChurchUse
+                    });
+                }
+            }
+
+            submission.Details.Add(row);
+        }
+    }
+
+    /// <summary>
     /// A UTC <c>DateTime</c> from the wire becomes a <c>DateTimeOffset</c> at offset zero.
     /// </summary>
     /// <remarks>
@@ -237,9 +296,6 @@ public partial class ExpenseSubmissionService
     {
         List<string> errors = [];
 
-        if (request.LessPersonalAmount < 0)
-            errors.Add(LessPersonalCannotBeNegative);
-
         // The form's own instruction - "Never record the full card number, PIN or security code" -
         // enforced rather than merely printed. Deliberately NOT "exactly four" here: a claimant halfway
         // through typing has "12" on screen, and refusing that would refuse to save their draft over a
@@ -251,23 +307,33 @@ public partial class ExpenseSubmissionService
             errors.Add(CardLastFourDigitsMustBeDigitsOnly);
         }
 
-        foreach (ExpenseLine line in request.Lines)
+        foreach (ExpenseDetail detail in request.Details)
         {
-            if (line.GrossAmount < 0)
-                errors.Add(GrossAmountCannotBeNegative);
+            if (detail.TotalIncGst < 0)
+                errors.Add(DetailTotalCannotBeNegative);
 
-            if (line.GstAmount is { } gst && gst > line.GrossAmount)
-                errors.Add(GstCannotExceedGross);
+            if (detail.GstAmount is { } gst && gst > detail.TotalIncGst)
+                errors.Add(GstCannotExceedTotal);
 
-            if (line.ChurchUsePercent is < 0 or > 100)
-                errors.Add(ChurchUsePercentOutOfRange);
+            if (detail.NonReimbursedAmount < 0)
+                errors.Add(NonReimbursedCannotBeNegative);
+
+            if (detail.NonReimbursedAmount > detail.TotalIncGst)
+                errors.Add(NonReimbursedCannotExceedTotal);
+
+            if (detail.Items.Any(x => x.Amount < 0))
+                errors.Add(ItemAmountCannotBeNegative);
         }
 
-        // NOTHING HERE ASKS WHETHER THE FORM IS FINISHED. "At least one line", and section 3's first
-        // column - an item description on the debit card form, a date on the reimbursement form - are
-        // completeness rules, and they live in ValidateForSubmit. They were here until 2026-09-01, which
-        // meant a claimant who typed a line's amount before its description was told "this form isn't
-        // ready to submit" when all they had asked for was to save a draft, and the draft was not saved.
+        // NOTHING HERE ASKS WHETHER THE FORM IS FINISHED - not "at least one receipt", not the two
+        // questions, not the itemisation those questions require, and NOT the floor under the
+        // non-reimbursed amount. Those are completeness rules and they live in ValidateForSubmit.
+        //
+        // The floor is the one worth naming, because it looks like arithmetic and is not: a claimant
+        // halfway through typing the personal lines has itemised $12 of an eventual $40, and a draft
+        // refused for that is a draft that goes unsaved while somebody is still working on it. The
+        // ceiling above IS checked here, because no amount of further typing makes "I am not claiming
+        // more than the receipt was for" become coherent.
         return errors.Distinct().ToList();
     }
 }

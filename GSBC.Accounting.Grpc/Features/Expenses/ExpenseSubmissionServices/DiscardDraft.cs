@@ -35,7 +35,7 @@ public partial class ExpenseSubmissionService
             return BasicResponse.WithError(SubmissionNotFound);
 
         DbExpenseSubmission? submission = await db.ExpenseSubmissions
-            .Include(x => x.Lines)
+            .Include(x => x.Details).ThenInclude(x => x.Items)
             .Include(x => x.Attachments)
             .Include(x => x.Attendees)
             .Include(x => x.Trips)
@@ -67,8 +67,13 @@ public partial class ExpenseSubmissionService
     {
         submission.Deleted = true;
 
-        foreach (DbExpenseLine line in submission.Lines)
-            line.Deleted = true;
+        foreach (DbExpenseDetail detail in submission.Details)
+        {
+            detail.Deleted = true;
+
+            foreach (DbExpenseDetailItem item in detail.Items)
+                item.Deleted = true;
+        }
 
         foreach (DbExpenseAttachment attachment in submission.Attachments)
             attachment.Deleted = true;

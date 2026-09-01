@@ -62,7 +62,12 @@ public class DbExpenseSubmission
     public DateTimeOffset? ApprovalDate { get; set; }
     public string? PurposeNarrative { get; set; }
 
-    // ---- Section 3 totals, all server-computed except LessPersonalAmount ----
+    // ---- Section 3 totals, every one of them server-computed ----
+    //
+    // LessPersonalAmount used to be the exception - the claimant typed it and the server took it as
+    // given. It is now the sum of the details' own NonReimbursedAmount, because the claim states the
+    // personal portion per receipt and a second submission-level figure would be a way for the two to
+    // disagree.
     public decimal GrossTotal { get; set; }
     public decimal GstTotal { get; set; }
     public decimal LessPersonalAmount { get; set; }
@@ -134,12 +139,12 @@ public class DbExpenseSubmission
     public bool Deleted { get; set; }
 
     /// <summary>
-    /// Deliberately NOT [MapperIgnore]d: the lines are part of the aggregate and the contract carries
+    /// Deliberately NOT [MapperIgnore]d: the details are part of the aggregate and the contract carries
     /// them. The attribute belongs on back-references and on anything that would walk out of the
-    /// aggregate - see DbExpenseLine.Submission - because without it the mapper follows the graph and
+    /// aggregate - see DbExpenseDetail.Submission - because without it the mapper follows the graph and
     /// either serialises half the database or fails on a cycle.
     /// </summary>
-    public List<DbExpenseLine> Lines { get; set; } = [];
+    public List<DbExpenseDetail> Details { get; set; } = [];
 
     public List<DbExpenseAttachment> Attachments { get; set; } = [];
 

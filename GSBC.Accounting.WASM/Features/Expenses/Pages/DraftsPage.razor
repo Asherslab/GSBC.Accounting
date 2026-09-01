@@ -81,8 +81,8 @@
 
                         <p class="help">
                             @draft.GrossTotal.ToString("C2")
-                            &middot; @draft.LineCount line@(draft.LineCount == 1 ? "" : "s")
-                            &middot; @draft.AttachmentCount receipt@(draft.AttachmentCount == 1 ? "" : "s")
+                            &middot; @draft.DetailCount purchase@(draft.DetailCount == 1 ? "" : "s")
+                            &middot; @draft.AttachmentCount file@(draft.AttachmentCount == 1 ? "" : "s")
                         </p>
 
                         @if (draft.AttachmentCount == 0)

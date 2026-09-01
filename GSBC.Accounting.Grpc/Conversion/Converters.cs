@@ -17,14 +17,20 @@ public class DateTimeConverter : IConverter<DateTimeOffset, DateTime>
 }
 
 [Mapper]
-public partial class ExpenseLineConverter(
+public partial class ExpenseDetailConverter(
     IConverter<DateTimeOffset, DateTime> dateTimeConverter
-) : IConverter<DbExpenseLine, ExpenseLine>
+) : IConverter<DbExpenseDetail, ExpenseDetail>
 {
     [UseMapper]
     private readonly IConverter<DateTimeOffset, DateTime> _dateTimeConverter = dateTimeConverter;
 
-    public partial ExpenseLine Convert(DbExpenseLine line);
+    public partial ExpenseDetail Convert(DbExpenseDetail detail);
+}
+
+[Mapper]
+public partial class ExpenseDetailItemConverter : IConverter<DbExpenseDetailItem, ExpenseDetailItem>
+{
+    public partial ExpenseDetailItem Convert(DbExpenseDetailItem item);
 }
 
 [Mapper]

@@ -121,6 +121,42 @@ evidence under seven-year retention: "is this the file that was uploaded" needs 
 depend on the object store still being trustworthy. ImpactKids stores none of this, because a photo
 does not need it.
 
+## Every file belongs to one purchase, and the link is a key rather than an id
+
+`DbExpenseAttachment.DetailKey` holds `DbExpenseDetail.Key` — **the claimant's own stable handle for a
+purchase, not the detail's row id.** The upload carries it as `?detailKey=`.
+
+It cannot be the row id. `Update` replaces a draft's details rather than merging them, so every autosave
+gives each detail a fresh `Id`, and a file holding one would come unlinked about two seconds after it was
+uploaded. The key is minted in the browser when the purchase is created, sent with the form, and written
+back untouched by `WriteDetails`.
+
+A `null` `DetailKey` reads as "evidence for this claim, purchase unstated". It is reachable when somebody
+deletes a purchase whose files are still attached: `Update` clears the link rather than throwing evidence
+away, because detaching a file is a deliberate act with its own endpoint. The form shows those files under
+a warning and the PDF lists them under `—` rather than against purchase 1.
+
+**This link is why the PDF is readable at all.** The files are emailed to finance *beside* the document,
+not inside it, so section 3 prints each purchase's filenames and the evidence manifest prints the purchase
+number against every file. Without it a reviewer holding four photos called `IMG_4471.jpeg` has to work
+out which receipt each one is from the amounts.
+
+## `?inline=1` on the download, for images only
+
+The download endpoint serves `Content-Disposition: attachment` by default. `?inline=1` switches that to
+`inline` **for `image/jpeg`, `image/png` and `image/webp` and nothing else** — the allowlist is
+`AttachmentEndpoints.PreviewableInline`, and it is checked against the *detected* content type, which is
+what the bytes were verified to be at upload rather than what the upload claimed.
+
+That exists so the form's preview modal can render a receipt in an `<img>`, which it cannot do against a
+response marked `attachment`. Somebody photographing four dockets on a phone gets four files whose names
+say nothing, and is then asked which supplier and which date each one is.
+
+**Widening the allowlist would undo the reason the header is there.** This origin serves whatever a
+stranger uploaded; a PDF rendered in place is a scripting host running same-origin. `X-Content-Type-Options:
+nosniff` is unconditional and is what makes even the image case safe — it forbids the browser from
+re-interpreting a PNG as anything else. SVG is not accepted at upload and must not be added to either list.
+
 ## What a claimant can change after a file is stored
 
 Two things, both on a draft they own, and both leave the bytes alone:
@@ -128,13 +164,20 @@ Two things, both on a draft they own, and both leave the bytes alone:
 - **Remove** soft-deletes the row. Nothing in this app destroys uploaded bytes — the global query
   filter hides the row and the submission stops referencing it, which is exactly what the claimant was
   promised. Seven-year retention applies to the evidence, not to the row that mentions it.
-- **Refile** (`PATCH .../attachments/{id}/kind`) changes only `AttachmentKind`. The kind is picked in a
-  dropdown *before* the file is chosen, so getting it wrong is the ordinary case rather than the
-  exception; without this the only remedy was removing the receipt and pushing the same bytes back up a
-  phone connection.
+- **Refile** (`PATCH .../attachments/{id}/kind`) changes only `AttachmentKind`. Uploads default to
+  `SupplierReceipt` and the claimant corrects the odd one, so getting it wrong is the ordinary case
+  rather than the exception; without this the only remedy was removing the receipt and pushing the same
+  bytes back up a phone connection.
 
-The kind is not cosmetic: `Submit` refuses a claim carrying no `ItemisedReceipt` or `TaxInvoice`, so a
-mislabelled file is the difference between a form that submits and one that does not.
+The kind is not cosmetic. `AttachmentKind` is `SupplierReceipt | BankOrCardStatement | QuoteOrOrder |
+Other`, and the distinction that carries weight is **whether the file came from the place the purchase
+was made**. A purchase whose files are all bank lines proves the money moved and says nothing about what
+it bought, and that is exactly what opens section 5's missing-receipt declaration — so a mislabelled file
+is the difference between a form that submits and one that does not.
+
+There is deliberately **no "itemised receipt" kind**. Whether the evidence itemises is now asked outright
+per purchase (`ExpenseDetail.ReceiptIsItemised`) rather than inferred from a dropdown somebody picked
+before choosing the file.
 
 **Both are drafts-only, owner-only**, for the same reason uploads are. A submitted claim is what a
 reviewer is reading, and relabelling or withdrawing its evidence afterwards needs a person rather than

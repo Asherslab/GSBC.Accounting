@@ -13,8 +13,11 @@ public class DbExpenseAttachment
     [MapperIgnore]
     public DbExpenseSubmission? Submission { get; set; }
 
-    /// <summary>The line this evidences, or null when it belongs to the submission as a whole.</summary>
-    public Guid? LineId { get; set; }
+    /// <summary>
+    /// The purchase this evidences - <c>DbExpenseDetail.Key</c>, not its row id, because every autosave
+    /// gives the detail a new id and this link has to outlive that.
+    /// </summary>
+    public Guid? DetailKey { get; set; }
 
     /// <summary>
     /// As the claimant's device named it. Displayed to a reviewer and never used to build an object

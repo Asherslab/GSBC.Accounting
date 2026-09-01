@@ -11,17 +11,20 @@ namespace GSBC.Accounting.Grpc.Features.Expenses;
 /// </remarks>
 public static class ErrorConstants
 {
-    public const string GrossAmountCannotBeNegative =
-        "A line's gross amount cannot be negative.";
+    public const string DetailTotalCannotBeNegative =
+        "A receipt's total cannot be negative.";
 
-    public const string GstCannotExceedGross =
-        "A line's GST cannot be more than its gross amount.";
+    public const string GstCannotExceedTotal =
+        "A receipt's GST cannot be more than its total.";
 
-    public const string ChurchUsePercentOutOfRange =
-        "Church use % must be between 0 and 100.";
+    public const string ItemAmountCannotBeNegative =
+        "An itemised amount cannot be negative.";
 
-    public const string LessPersonalCannotBeNegative =
-        "The personal portion cannot be negative.";
+    public const string NonReimbursedCannotBeNegative =
+        "The amount you are not claiming cannot be negative.";
+
+    public const string NonReimbursedCannotExceedTotal =
+        "The amount you are not claiming cannot be more than the receipt's total.";
 
     // Half-typed, not wrong: "12" is where "1234" passes through on the way in. The draft rule is only
     // that what is stored cannot BE a card number - digits, and no more than four of them.
@@ -33,17 +36,41 @@ public static class ErrorConstants
     public const string CardLastFourDigitsMustBeFourDigits =
         "Card last 4 digits must be exactly four digits. Never record the full card number.";
 
-    public const string SubmissionNeedsALine =
-        "Add at least one line to section 3 - the form needs to say what was bought.";
+    public const string SubmissionNeedsADetail =
+        "Attach at least one receipt in section 3 - the form needs to say what was bought.";
 
-    public const string LineNeedsAGrossAmount =
-        "Every line in section 3 needs a gross amount.";
+    public const string DetailNeedsAnAttachment =
+        "Every purchase in section 3 needs at least one file attached to it.";
 
-    public const string DebitCardLineNeedsAnItem =
-        "Every line on a debit card form needs an item description.";
+    public const string DetailNeedsASupplier =
+        "Every purchase in section 3 needs the place it was bought.";
 
-    public const string ReimbursementLineNeedsADate =
-        "Every line on a reimbursement form needs a date.";
+    public const string DetailNeedsAPurchaseDate =
+        "Every purchase in section 3 needs the date it was made.";
+
+    public const string DetailNeedsAPurpose =
+        "Every purchase in section 3 needs the Church purpose it was for.";
+
+    public const string DetailNeedsATotal =
+        "Every purchase in section 3 needs the total on the receipt.";
+
+    public const string DetailQuestionsUnanswered =
+        "Every purchase in section 3 has to say whether it includes personal items and whether the "
+        + "receipt is itemised. Leaving one blank is not the same as answering No.";
+
+    public const string DetailNeedsItemisation =
+        "A purchase in section 3 needs itemising and has no items listed. Personal items on an itemised "
+        + "receipt need only the personal lines; evidence that is not itemised needs everything on it.";
+
+    public const string ItemNeedsADescription =
+        "Every itemised line in section 3 needs a description of what it was.";
+
+    public const string PersonalItemsNeedListing =
+        "A purchase says it includes personal items, but none of the itemised lines is marked as one.";
+
+    public const string NonReimbursedBelowPersonalItems =
+        "The amount you are not claiming is less than the personal items you listed on that receipt. It "
+        + "can be more - that is a gift to the Church - but it cannot be less.";
 
     public const string SubmissionNotFound =
         "That submission could not be found.";
@@ -57,12 +84,9 @@ public static class ErrorConstants
     public const string NeedsAPurposeNarrative =
         "Section 2 needs the written explanation of the Church purpose.";
 
-    public const string NeedsEvidence =
-        "Attach at least one itemised receipt or tax invoice. If evidence genuinely cannot be obtained, "
-        + "mark the line Missing in section 3 and complete the missing receipt declaration.";
-
     public const string MissingEvidenceNeedsADeclaration =
-        "A line is marked Missing, so section 5's missing receipt declaration must be completed and agreed.";
+        "A purchase in section 3 has no receipt from the place it was bought, so section 5's missing "
+        + "receipt declaration must be completed and agreed.";
 
     public const string ComplianceQuestionsUnanswered =
         "Every question in section 4 needs a No or a Yes. Leaving one blank is not the same as answering No.";

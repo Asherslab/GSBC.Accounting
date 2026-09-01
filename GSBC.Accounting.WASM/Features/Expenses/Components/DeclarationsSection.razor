@@ -1,10 +1,13 @@
+@using GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses
 @using GSBC.Accounting.WASM.Features.Expenses
 
 @*
     Sections 5 and 6.
 
-    Section 5 appears only when some line in section 3 says Missing - that is what the paper form means
-    by "Complete only when evidence is unavailable". Section 6 is always there.
+    Section 5 appears only when some purchase in section 3 has no receipt from the place it was bought -
+    nothing but a bank line or a screenshot behind it. That is what the paper form means by "Complete
+    only when evidence is unavailable", read against evidence the claimant has already classified rather
+    than against a second checkbox asking the same thing. Section 6 is always there.
 
     Every declaration is quoted from its own form. Only declaration 4 is word-for-word identical between
     the two documents, and declaration 3 is a DIFFERENT declaration on each: repayment on the debit card
@@ -12,7 +15,7 @@
     gap is a decision for finance, not for this page.
 *@
 
-@if (Model.HasMissingEvidence)
+@if (Model.HasMissingEvidence(Attachments))
 {
     <section class="card" id="s5">
         <header>
@@ -96,6 +99,13 @@
     [Parameter, EditorRequired] public required ExpenseFormModel Model { get; set; }
 
     [Parameter, EditorRequired] public required ExpenseFormText Text { get; set; }
+
+    /// <summary>
+    /// Every file on the claim. Needed only to decide whether section 5 is on screen: what opens it is a
+    /// purchase whose evidence is all bank lines, and that is a fact about the attachments rather than
+    /// about anything on the model.
+    /// </summary>
+    [Parameter, EditorRequired] public required IReadOnlyList<ExpenseAttachment> Attachments { get; set; }
 
     [Parameter] public EventCallback OnChanged { get; set; }
 

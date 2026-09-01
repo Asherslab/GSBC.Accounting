@@ -50,10 +50,7 @@ public static class ExpenseFormWording
                                + "purpose without asking.",
 
         Section3Caption = "Purchase and evidence details",
-        Section3Hint = "Itemise the complete card transaction",
-        LineColumn1Header = "Item",
-        LineColumn2Header = "Qty / details",
-        LineColumn3Header = "Church purpose / user",
+        Section3Hint = "One entry per receipt",
 
         GrossTotalLabel = "Total card transaction",
         LessPersonalLabel = "Less personal portion to be repaid immediately",
@@ -135,10 +132,7 @@ public static class ExpenseFormWording
         PurposeNarrativeHint = null,
 
         Section3Caption = "Expense details",
-        Section3Hint = "Use one line per receipt / transaction",
-        LineColumn1Header = "Date",
-        LineColumn2Header = "Supplier & item / service",
-        LineColumn3Header = "Purpose / ministry",
+        Section3Hint = "One entry per receipt",
 
         GrossTotalLabel = "Subtotal of receipts",
         LessPersonalLabel = "Less personal / non-reimbursable portion",
@@ -229,9 +223,11 @@ public record ExpenseFormText
 
     public required string Section3Caption { get; init; }
     public required string Section3Hint { get; init; }
-    public required string LineColumn1Header { get; init; }
-    public required string LineColumn2Header { get; init; }
-    public required string LineColumn3Header { get; init; }
+
+    // The three line-column headers that used to sit here are gone with the table they headed. Section 3
+    // is one panel per receipt now, identically shaped on both forms - a receipt has a supplier and a
+    // date whichever way it was paid for. The two documents' captions and totals labels still differ,
+    // which is why the four properties around this comment survive.
 
     public required string GrossTotalLabel { get; init; }
     public required string LessPersonalLabel { get; init; }

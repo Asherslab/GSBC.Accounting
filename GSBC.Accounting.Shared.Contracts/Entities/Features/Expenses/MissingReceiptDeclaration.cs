@@ -1,9 +1,15 @@
 namespace GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses;
 
 /// <summary>
-/// Section 5, present only when some line is marked <see cref="EvidenceStatus.Missing"/>.
+/// Section 5, present only when some detail carries no receipt from the place the purchase was made -
+/// that is, none of its files is an <see cref="AttachmentKind.SupplierReceipt"/>.
 /// </summary>
 /// <remarks>
+/// A bank line or a banking-app screenshot proves the money moved and who it went to, and says nothing
+/// about what it bought. That is the gap this declaration covers, and it is why the trigger is the
+/// <b>kind of evidence attached</b> rather than a checkbox somebody ticks: the claimant has already said
+/// what each file is, and asking twice is how two answers end up disagreeing.
+/// <para>
 /// The three fields and the reason prompt are byte-for-byte identical on both forms. The declaration
 /// paragraph itself is not - see <c>ExpenseFormWording.MissingReceiptDeclaration</c>; only its closing
 /// GST sentence is shared.

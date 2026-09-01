@@ -85,7 +85,7 @@ public class DraftPurgeService(
             DateTimeOffset cutoff = now - AnonymousSessionOptions.AbandonedDraftLifetime;
 
             List<DbExpenseSubmission> abandoned = await db.ExpenseSubmissions
-                .Include(x => x.Lines)
+                .Include(x => x.Details).ThenInclude(x => x.Items)
                 .Include(x => x.Attachments)
                 .Include(x => x.Attendees)
                 .Include(x => x.Trips)

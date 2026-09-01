@@ -204,48 +204,118 @@ public class SubmissionDocument(DbExpenseSubmission submission) : IDocument
                 .Padding(4).Text(submission.PurposeNarrative ?? "").FontSize(8.5f);
         }));
 
+    /// <summary>
+    /// Section 3: one block per purchase, each naming the files that evidence it.
+    /// </summary>
+    /// <remarks>
+    /// <b>The attachments do not travel with this PDF - they are sent alongside it, usually as separate
+    /// files on an email to finance - so saying which file belongs to which purchase is this section's
+    /// job and not a nicety.</b> Every block prints the filenames it owns, and the evidence manifest at
+    /// the end repeats the mapping the other way round with the hashes. A reviewer holding a printout
+    /// and a folder of JPEGs has to be able to pair them without asking the claimant.
+    /// </remarks>
     private void Section3(IContainer container) =>
         Card(container, _text.Section3Caption, inner => inner.Column(column =>
         {
-            column.Item().Table(table =>
+            column.Spacing(6);
+
+            List<DbExpenseDetail> details = submission.Details.OrderBy(x => x.Ordinal).ToList();
+
+            if (details.Count == 0)
             {
-                table.ColumnsDefinition(c =>
+                column.Item().Text("No purchases recorded.").FontSize(8).FontColor(Colors.Red.Darken2);
+            }
+
+            for (int i = 0; i < details.Count; i++)
+            {
+                DbExpenseDetail detail = details[i];
+                int number = i + 1;
+
+                column.Item().Border(0.5f).BorderColor(Colors.Grey.Medium).Padding(5).Column(block =>
                 {
-                    c.RelativeColumn(3);
-                    c.RelativeColumn(2.4f);
-                    c.RelativeColumn(2.6f);
-                    c.RelativeColumn(1.4f);
-                    c.RelativeColumn(1.5f);
-                    c.RelativeColumn(1.3f);
-                    c.RelativeColumn(1.2f);
+                    block.Spacing(3);
+
+                    block.Item().Row(row =>
+                    {
+                        Field(row, $"Purchase {number} — supplier", detail.Supplier, 3);
+                        Field(row, "Date", Date(detail.PurchaseDate), 2);
+                        Field(row, "Church purpose", detail.Purpose, 4);
+                    });
+
+                    block.Item().Row(row =>
+                    {
+                        Field(row, "Personal items on this receipt", YesNo(detail.ContainsPersonalItems), 2);
+                        Field(row, "Receipt is itemised", YesNo(detail.ReceiptIsItemised), 2);
+                        Field(row, "Total incl. GST", Money(detail.TotalIncGst), 2);
+                        Field(row, "GST shown", Money(detail.GstAmount), 2);
+                        Field(row, "Not claimed", Money(detail.NonReimbursedAmount), 2);
+                    });
+
+                    // The filenames, against the purchase they evidence. This is the pairing a reviewer
+                    // works from when the files arrive beside the PDF rather than inside it.
+                    List<DbExpenseAttachment> files = FilesFor(detail.Key);
+
+                    block.Item().PaddingTop(2).Text(t =>
+                    {
+                        t.DefaultTextStyle(s => s.FontSize(7.5f));
+                        t.Span("Evidence: ").FontColor(Colors.Grey.Darken2);
+
+                        if (files.Count == 0)
+                        {
+                            t.Span("none attached").Bold().FontColor(Colors.Red.Darken2);
+                        }
+                        else
+                        {
+                            t.Span(string.Join(", ", files.Select(x => x.FileName)));
+
+                            if (files.All(x => x.Kind != AttachmentKind.SupplierReceipt))
+                            {
+                                t.Span("  —  no receipt from the supplier; see section 5")
+                                    .Bold().FontColor(Colors.Orange.Darken3);
+                            }
+                        }
+                    });
+
+                    if (detail.Items.Count == 0)
+                        return;
+
+                    block.Item().PaddingTop(3).Text(ItemsCaption(detail))
+                        .FontSize(7).Bold().FontColor(Colors.Grey.Darken2);
+
+                    block.Item().Table(table =>
+                    {
+                        table.ColumnsDefinition(c =>
+                        {
+                            c.RelativeColumn(6);
+                            c.RelativeColumn(1.6f);
+                            c.RelativeColumn(1.6f);
+                        });
+
+                        table.Header(header =>
+                        {
+                            Th(header, "Item");
+                            Th(header, "Amount incl. GST", true);
+                            Th(header, "Church use", true);
+                        });
+
+                        foreach (DbExpenseDetailItem item in detail.Items.OrderBy(x => x.Ordinal))
+                        {
+                            Td(table, item.Description);
+                            Td(table, Money(item.Amount), true);
+                            Td(table, item.IsChurchUse ? "Yes" : "No", true);
+                        }
+                    });
+
+                    // Named rather than left for a reviewer to add up: it is what the "not claimed"
+                    // figure above is floored on, and seeing the two together is how somebody notices a
+                    // claimant chose to absorb more than they had to.
+                    block.Item().PaddingTop(2).Text(
+                            $"Personal / non-church items listed: {Money(PersonalTotal(detail))}")
+                        .FontSize(7).FontColor(Colors.Grey.Darken2);
                 });
+            }
 
-                table.Header(header =>
-                {
-                    Th(header, _text.LineColumn1Header);
-                    Th(header, _text.LineColumn2Header);
-                    Th(header, _text.LineColumn3Header);
-                    Th(header, "Receipt");
-                    Th(header, "Gross incl. GST", true);
-                    Th(header, "GST shown", true);
-                    Th(header, "Church use %", true);
-                });
-
-                foreach (DbExpenseLine line in submission.Lines.OrderBy(x => x.Ordinal))
-                {
-                    Td(table, submission.Kind == SubmissionKind.DebitCardPurchase
-                        ? line.ItemDescription
-                        : Date(line.LineDate));
-                    Td(table, line.Details);
-                    Td(table, line.Purpose);
-                    Td(table, line.Evidence.ToString());
-                    Td(table, Money(line.GrossAmount), true);
-                    Td(table, Money(line.GstAmount), true);
-                    Td(table, $"{line.ChurchUsePercent:0.##}%", true);
-                }
-            });
-
-            column.Item().PaddingTop(5).AlignRight().Width(230).Column(totals =>
+            column.Item().PaddingTop(5).AlignRight().Width(240).Column(totals =>
             {
                 TotalRow(totals, _text.GrossTotalLabel, Money(submission.GrossTotal));
                 TotalRow(totals, "GST shown on evidence", Money(submission.GstTotal));
@@ -254,6 +324,37 @@ public class SubmissionDocument(DbExpenseSubmission submission) : IDocument
                 TotalRow(totals, _text.NetTotalLabel, Money(submission.NetTotal), true);
             });
         }));
+
+    /// <summary>
+    /// The caption over a detail's item table, saying what the claimant was asked to type out - because
+    /// "three items on a $210 receipt" reads as a missing itemisation unless you know only the personal
+    /// lines were wanted.
+    /// </summary>
+    private static string ItemsCaption(DbExpenseDetail detail) =>
+        detail is { ContainsPersonalItems: true, ReceiptIsItemised: true }
+            ? "Personal items itemised by the claimant (the receipt itemises the rest)"
+            : "Full itemisation by the claimant — the evidence does not itemise";
+
+    /// <summary>The files filed against one purchase, oldest first.</summary>
+    private List<DbExpenseAttachment> FilesFor(Guid detailKey) =>
+        submission.Attachments
+            .Where(x => x.DetailKey == detailKey)
+            .OrderBy(x => x.UploadedAt)
+            .ToList();
+
+    private static decimal PersonalTotal(DbExpenseDetail detail) =>
+        Math.Round(detail.Items.Where(x => !x.IsChurchUse).Sum(x => x.Amount), 2, MidpointRounding.ToEven);
+
+    /// <summary>
+    /// A <c>bool?</c> as the claimant answered it. <b>Never a blank for null</b> - on paper a blank is
+    /// indistinguishable from a No, and unanswered is a different fact.
+    /// </summary>
+    private static string YesNo(bool? value) => value switch
+    {
+        true => "Yes",
+        false => "No",
+        null => "NOT ANSWERED"
+    };
 
     private void Section4(IContainer container) =>
         Card(container, _text.Section4Caption, inner => inner.Column(column =>
@@ -442,6 +543,20 @@ public class SubmissionDocument(DbExpenseSubmission submission) : IDocument
     /// <b>content hash</b> of every file, so "is this the file that was uploaded" has an answer that does
     /// not depend on the object store.
     /// </remarks>
+    /// <summary>
+    /// Every file, and which purchase in section 3 it belongs to.
+    /// </summary>
+    /// <remarks>
+    /// <b>The `Purchase` column is why this table is worth its page space.</b> The attachments are sent
+    /// beside this document rather than inside it, so a reviewer opening a folder of four phone photos
+    /// needs a printed statement of which receipt each one is - and that statement has to survive the
+    /// filenames being unhelpful, which <c>IMG_4471.jpeg</c> reliably is.
+    /// <para>
+    /// Files with no purchase against them are listed last under `—`. Those are either uploads that
+    /// predate the per-purchase model or files whose purchase the claimant deleted; showing them against
+    /// purchase 1 would be a claim nobody made.
+    /// </para>
+    /// </remarks>
     private void EvidenceManifest(IContainer container) =>
         Card(container, "EVIDENCE ATTACHED", inner => inner.Column(column =>
         {
@@ -451,34 +566,64 @@ public class SubmissionDocument(DbExpenseSubmission submission) : IDocument
                 return;
             }
 
+            // Purchase number by detail key, so the manifest and section 3 use the same numbering.
+            Dictionary<Guid, int> numbers = submission.Details
+                .OrderBy(x => x.Ordinal)
+                .Select((detail, index) => (detail.Key, Number: index + 1))
+                .ToDictionary(x => x.Key, x => x.Number);
+
+            // ABOVE THE TABLE, not below it. It explains the `Purchase` column, which reads better
+            // before the column than after - and the layout reason is firmer than the editorial one: as
+            // a trailing paragraph it is the last thing that can break, so a manifest that fills a page
+            // pushed one sentence onto a page of its own. Observed on 2026-09-01, a three-line page 3.
+            column.Item().PaddingBottom(4).Text(
+                    "These files are supplied alongside this form, not inside it. The `Purchase` column "
+                    + "matches the numbered blocks in section 3. Each hash identifies exactly the bytes "
+                    + "that were uploaded, and the files themselves are held in the Church's evidence "
+                    + "store against this submission's reference.")
+                .FontSize(7).FontColor(Colors.Grey.Darken1);
+
             column.Item().Table(table =>
             {
                 table.ColumnsDefinition(c =>
                 {
-                    c.RelativeColumn(3); c.RelativeColumn(2); c.RelativeColumn(1.6f);
-                    c.RelativeColumn(1.2f); c.RelativeColumn(4);
+                    c.RelativeColumn(1.1f); c.RelativeColumn(3); c.RelativeColumn(2);
+                    c.RelativeColumn(1.6f); c.RelativeColumn(1.2f); c.RelativeColumn(4);
                 });
                 table.Header(h =>
                 {
-                    Th(h, "File"); Th(h, "Evidence type"); Th(h, "Format");
+                    Th(h, "Purchase"); Th(h, "File"); Th(h, "Evidence type"); Th(h, "Format");
                     Th(h, "Size", true); Th(h, "SHA-256");
                 });
 
-                foreach (DbExpenseAttachment a in submission.Attachments.OrderBy(x => x.UploadedAt))
+                IOrderedEnumerable<DbExpenseAttachment> ordered = submission.Attachments
+                    // Unfiled last, then by purchase, then by when they were uploaded - which is the
+                    // order the claimant added them within one purchase.
+                    .OrderBy(x => x.DetailKey is { } key && numbers.TryGetValue(key, out int n) ? n : int.MaxValue)
+                    .ThenBy(x => x.UploadedAt);
+
+                foreach (DbExpenseAttachment a in ordered)
                 {
+                    Td(table, a.DetailKey is { } key && numbers.TryGetValue(key, out int number)
+                        ? number.ToString()
+                        : "—");
                     Td(table, a.FileName);
-                    Td(table, a.Kind.ToString());
+                    Td(table, EvidenceTypeLabel(a.Kind));
                     Td(table, a.ContentType);
                     Td(table, $"{a.ByteSize / 1024.0:0.#} KB", true);
                     Td(table, a.ContentHash);
                 }
             });
 
-            column.Item().PaddingTop(3).Text(
-                    "The files themselves are held in the Church's evidence store against this submission's "
-                    + "reference. Each hash above identifies exactly the bytes that were uploaded.")
-                .FontSize(7).FontColor(Colors.Grey.Darken1);
         }));
+
+    private static string EvidenceTypeLabel(AttachmentKind kind) => kind switch
+    {
+        AttachmentKind.SupplierReceipt => "Receipt / tax invoice from supplier",
+        AttachmentKind.BankOrCardStatement => "Bank / card statement line",
+        AttachmentKind.QuoteOrOrder => "Quote or order",
+        _ => "Other"
+    };
 
     // ---- small builders -------------------------------------------------------------------------------
 
