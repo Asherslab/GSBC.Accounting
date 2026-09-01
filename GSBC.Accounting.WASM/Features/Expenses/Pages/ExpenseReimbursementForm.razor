@@ -425,12 +425,11 @@
     /// The autosave's save step. Deliberately silent about refusals.
     /// </summary>
     /// <remarks>
-    /// <b>A half-typed form is refused most of the time, and that is normal rather than an error.</b>
-    /// Create validates that there is a line with an amount and, on this form, a date; a claimant two
-    /// fields into section 3 fails that on every keystroke. Showing them the banner would mean a form
-    /// that scolds while it is being filled in. So the errors are dropped, no draft exists yet, and the
-    /// next pause tries again - the claimant sees a problem only when they press Save or Submit, which
-    /// is when they have asked.
+    /// <b>The autosave never puts a refusal on screen.</b> A draft no longer has to be a finished form -
+    /// the completeness rules moved to submit on 2026-09-01 - so what reaches here is a genuine problem
+    /// with what was typed, like an amount that does not parse or a card field with a letter in it. Even
+    /// those are dropped: a form that scolds mid-keystroke is worse than one that waits. The claimant
+    /// sees the problem when they press Save or Submit, which is when they have asked.
     /// </remarks>
     private async Task SaveQuietlyAsync()
     {

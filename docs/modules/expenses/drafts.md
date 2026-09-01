@@ -105,8 +105,9 @@ would hand a session and a row to every visitor and every crawler. It also keeps
 as strictly necessary to a service the claimant actually asked for, which is what keeps it out of
 consent-banner territory.
 
-`Create` mints **after** validation, so a refused create leaves no session behind. The autosave calls
-`Create` speculatively on a half-typed form and expects to be told no.
+`Create` mints **after** validation, so a refused create leaves no session behind — the autosave calls
+`Create` speculatively as the claimant types, and a refusal that had already minted a session would hand
+a cookie to a browser that stored nothing.
 
 ## Lifetimes
 
@@ -194,9 +195,10 @@ every keystroke; a gRPC round trip and a database write are not.
 **Up to two seconds of typing is not yet on the server.** Close the tab mid-sentence and that sentence
 is gone. That is the trade for having drafts that a list page can show.
 
-Autosave is **silent about refusals**, and that matters. `Create` requires a line with an amount, so a
-claimant two fields into section 3 fails validation on every keystroke — showing them the banner would
-mean a form that scolds while it is being filled in. Errors surface only on an explicit Save or Submit.
+Autosave is **silent about refusals**, and that matters. A half-finished form is no longer refused —
+the completeness rules moved to `Submit` on 2026-09-01 — so what reaches the autosave is a genuine
+problem with what was typed, and even that is dropped: showing the banner mid-keystroke would mean a
+form that scolds while it is being filled in. Errors surface only on an explicit Save or Submit.
 Both cancel the pending autosave first: otherwise the stale save lands a second later as an `Update`
 against a now-`Submitted` row and puts a refusal on screen underneath the success message.
 

@@ -111,8 +111,10 @@ take the evidence with it. `IgnoreQueryFilters()` is the only way to see deleted
 ## What the model deliberately does not hold
 
 - **More of a card number than four digits.** The form prints "Never record the full card number, PIN or
-  security code on this form". `CardLastFourDigits` is `HasMaxLength(4)` and validated as four digits, so
-  the column could not hold more even if something tried.
+  security code on this form". `CardLastFourDigits` is `HasMaxLength(4)`, and `Create` refuses anything
+  that is not digits or is longer than four, so the column could not hold more even if something tried.
+  A *draft* may hold fewer than four — "12" is where "1234" passes through on the way in, and refusing it
+  would refuse to save somebody's draft. `Submit` requires all four.
 - **Bank account details.** `BankDetailsOnFile` is a `bool?` and that is the whole banking data model.
   The paper form collects no BSB and no account number, and says so: "Do not email bank details in an
   unsecured message." Adding an account-number field would be a new class of data at rest, not an
@@ -149,18 +151,21 @@ offset — so a value written in Brisbane lands ten hours out, and any later que
 submits. The phases exist because the page is anonymous: an upload endpoint that accepted files with no
 submission id would be an open write endpoint to the object store.
 
-So `Create` validates only what must hold for the row to be coherent — the arithmetic, and the card
-number. Completeness rules (a receipt attached, declarations ticked, lines reconciling against the
-amount charged) belong to submit: a draft is allowed to be half-finished.
+So `Create` validates only what must hold for the row to be coherent — the arithmetic, and that the card
+field cannot be holding a card number. Completeness rules belong to submit: a draft is allowed to be
+half-finished. That includes **having any lines at all**, and section 3's first column — an item
+description on the debit card form, a date on the reimbursement form. Those three were in `Create` until
+2026-09-01, which meant a claimant who typed a line's amount before its description got "this form isn't
+ready to submit" when all they had asked for was to save a draft — and the draft went unsaved.
 
 `BasicResponse` and `BasicReadResponse<T>` carry an `Errors` **list**, not one string. A form that
 reveals its problems one at a time is the one people give up on.
 
 ## Update exists because the draft is created early
 
-The draft appears as soon as the claimant has typed enough for `Create` to accept — long before they
-have finished. Without `Update`, everything typed afterwards never reaches the server, and submit then
-checks a row that no longer matches the screen. That was live on 2026-08-31: correcting the amount
+The draft appears on the first edit, long before the claimant has finished. Without `Update`,
+everything typed afterwards never reaches the server, and submit then checks a row that no longer
+matches the screen. That was live on 2026-08-31: correcting the amount
 charged on the page left the stored row at the old figure, and the reconciliation error could not be
 cleared.
 
@@ -177,7 +182,10 @@ money between lines. The superseded rows are soft-deleted like everything else.
 ## Submit is where a draft stops being allowed to be half-finished
 
 `Create` checks only what must hold for the row to be coherent. Every completeness rule is in `Submit`,
-because somebody filling in a long form needs to save it and come back.
+because somebody filling in a long form needs to save it and come back: a submitter name, the section 2
+narrative, at least one line, an item description or line date on every line, evidence (or a missing
+receipt declaration), all six compliance answers, all five declarations, a signature, and — on the debit
+card form — four card digits, an amount charged, and the reconciliation below.
 
 `Submit` recomputes the totals from the **stored** lines and checks the **stored** submission — never a
 re-sent form, which would let a client submit something different from what it attached receipts to. It

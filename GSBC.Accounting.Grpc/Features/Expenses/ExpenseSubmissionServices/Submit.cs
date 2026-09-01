@@ -106,6 +106,26 @@ public partial class ExpenseSubmissionService
         if (string.IsNullOrWhiteSpace(submission.PurposeNarrative))
             errors.Add(NeedsAPurposeNarrative);
 
+        // Section 3 has to say what was bought. A draft is allowed to have no lines at all - somebody
+        // fills section 1 in first - so this is asked once, here, and never while they are typing.
+        if (submission.Lines.Count == 0)
+            errors.Add(SubmissionNeedsALine);
+
+        // Section 3's first column is a different field on each form, so which one is required depends
+        // on the kind. This is the smallest example of the rule that runs through the whole app: the two
+        // forms share a structure, not their contents.
+        switch (submission.Kind)
+        {
+            case SubmissionKind.DebitCardPurchase
+                when submission.Lines.Any(x => string.IsNullOrWhiteSpace(x.ItemDescription)):
+                errors.Add(DebitCardLineNeedsAnItem);
+                break;
+
+            case SubmissionKind.ExpenseReimbursement when submission.Lines.Any(x => x.LineDate is null):
+                errors.Add(ReimbursementLineNeedsADate);
+                break;
+        }
+
         bool hasMissingLine = submission.Lines.Any(x => x.Evidence == EvidenceStatus.Missing);
         bool hasReceipt = submission.Attachments.Any(x =>
             x.Kind is AttachmentKind.ItemisedReceipt or AttachmentKind.TaxInvoice);
@@ -144,8 +164,15 @@ public partial class ExpenseSubmissionService
 
         if (submission.Kind == SubmissionKind.DebitCardPurchase)
         {
+            // Draft accepts a half-typed "12"; a submitted claim has to carry all four, or the finance
+            // reviewer cannot match it against a bank line.
             if (string.IsNullOrWhiteSpace(submission.CardLastFourDigits))
                 errors.Add(DebitCardNeedsCardLastFour);
+            else if (submission.CardLastFourDigits.Length != 4
+                     || !submission.CardLastFourDigits.All(char.IsAsciiDigit))
+            {
+                errors.Add(CardLastFourDigitsMustBeFourDigits);
+            }
 
             if (submission.AmountCharged is null)
             {
