@@ -38,11 +38,16 @@ public static class ExpenseFormWording
         Section1Hint = "Complete all applicable fields",
         SubmitterNameLabel = "Cardholder name",
         FormDateLabel = "Form date",
+        Section1NoticeTitle = "Card security.",
+        Section1NoticeBody = "Record only the last four digits. The full card number, PIN or security "
+                             + "code must never be entered here or attached in an image.",
 
         Section2Caption = "Church purpose and authorisation",
         PurposeActivityLabel = "Ministry / department",
         PurposeNarrativePrompt = "What was purchased, who used or benefited from it, and how did it "
                                  + "further the Church's charitable/religious purposes?",
+        PurposeNarrativeHint = "Enough detail that someone outside the ministry could see the church "
+                               + "purpose without asking.",
 
         Section3Caption = "Purchase and evidence details",
         Section3Hint = "Itemise the complete card transaction",
@@ -100,7 +105,12 @@ public static class ExpenseFormWording
             "I have identified meal attendees, gift recipients and beneficiaries where applicable, and "
             + "disclosed any conflict of interest or related-party connection."
         ],
-        SignatureLabel = "Cardholder signature (confirming all declarations on page 2)"
+        SignatureLabel = "Cardholder signature (confirming all declarations on page 2)",
+
+        Footnote = "This form supports compliance but does not replace the Church constitution, "
+                   + "delegations, debit card policy, grant conditions, employment obligations, or "
+                   + "professional advice. Finance applies the ATO and ACNC requirements current at the "
+                   + "payment date."
     };
 
     private static readonly ExpenseFormText Reimbursement = new()
@@ -115,10 +125,14 @@ public static class ExpenseFormWording
         Section1Hint = "Complete all applicable fields",
         SubmitterNameLabel = "Claimant name",
         FormDateLabel = "Claim date",
+        Section1NoticeTitle = "Banking privacy.",
+        Section1NoticeBody = "Do not email bank details in an unsecured message. Use the church-approved "
+                             + "secure method. This form never asks for your BSB or account number.",
 
         Section2Caption = "Business purpose and authorisation",
         PurposeActivityLabel = "Purpose / activity",
         PurposeNarrativePrompt = "How did the expenditure further the Church’s charitable/religious purposes?",
+        PurposeNarrativeHint = null,
 
         Section3Caption = "Expense details",
         Section3Hint = "Use one line per receipt / transaction",
@@ -174,7 +188,11 @@ public static class ExpenseFormWording
             "I have disclosed any actual, potential or perceived conflict of interest and any related-party "
             + "connection relevant to this claim."
         ],
-        SignatureLabel = "Claimant signature (confirming all declarations on page 2)"
+        SignatureLabel = "Claimant signature (confirming all declarations on page 2)",
+
+        Footnote = "This form supports compliance but does not replace the Church constitution, "
+                   + "delegations, grant conditions, employment obligations, or professional advice. "
+                   + "Finance applies the ATO and ACNC requirements current at the payment date."
     };
 }
 
@@ -190,9 +208,24 @@ public record ExpenseFormText
     public required string SubmitterNameLabel { get; init; }
     public required string FormDateLabel { get; init; }
 
+    /// <summary>
+    /// The bolded lead of section 1's notice. Paper text, and a different warning on each form: the card
+    /// form's is about never writing down more of the card number, the reimbursement form's about how
+    /// bank details are sent. Neither belongs on the other's page.
+    /// </summary>
+    public required string Section1NoticeTitle { get; init; }
+
+    public required string Section1NoticeBody { get; init; }
+
     public required string Section2Caption { get; init; }
     public required string PurposeActivityLabel { get; init; }
     public required string PurposeNarrativePrompt { get; init; }
+
+    /// <summary>
+    /// The help line under the narrative box, or null where the form prints none. Only the debit card
+    /// form carries one.
+    /// </summary>
+    public string? PurposeNarrativeHint { get; init; }
 
     public required string Section3Caption { get; init; }
     public required string Section3Hint { get; init; }
@@ -235,6 +268,13 @@ public record ExpenseFormText
     public required IReadOnlyList<string> Declarations { get; init; }
 
     public required string SignatureLabel { get; init; }
+
+    /// <summary>
+    /// The closing disclaimer under section 8. This one is the app's own words rather than the paper
+    /// form's, and the two differ only in whether the debit card policy is named - but it is still
+    /// per-kind, so the page has no <c>@if</c> on the kind for a line of prose.
+    /// </summary>
+    public required string Footnote { get; init; }
 }
 
 /// <summary>
