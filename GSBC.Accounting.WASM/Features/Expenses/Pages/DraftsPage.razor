@@ -246,11 +246,17 @@
         }
     }
 
-    private static string ResumeUrl(DraftSummary draft) =>
-        draft.Kind == SubmissionKind.DebitCardPurchase
-            ? $"/forms/debit-card-purchase/{draft.Id}"
-            : $"/forms/expense-reimbursement/{draft.Id}";
+    /// <summary>
+    /// One route for both kinds. The form reads the kind off the stored draft rather than off the URL,
+    /// so a resumed draft comes back with question zero already answered - and answered by the row that
+    /// was validated, not by the link that was clicked.
+    /// </summary>
+    private static string ResumeUrl(DraftSummary draft) => $"/forms/expense/{draft.Id}";
 
+    /// <summary>
+    /// Still per kind, and still shown. A saved draft <i>is</i> one of the two forms by the time it is
+    /// on this list, and somebody scanning three of them needs to see which is which.
+    /// </summary>
     private static string KindLabel(SubmissionKind kind) =>
         kind == SubmissionKind.DebitCardPurchase
             ? "Church Debit Card Purchase"
