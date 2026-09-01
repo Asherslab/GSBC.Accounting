@@ -23,7 +23,22 @@ namespace GSBC.Accounting.WASM.Features.Expenses;
 /// </remarks>
 public class ExpenseFormModel
 {
-    public required SubmissionKind Kind { get; init; }
+    /// <summary>
+    /// Which of the two forms this is, or null until the claimant has answered question zero.
+    /// </summary>
+    /// <remarks>
+    /// <b>Nullable, and settable.</b> The kind used to come from the URL, so a page could state it at
+    /// construction; it is now the form's first question, and a question has no answer until somebody
+    /// gives one. A non-nullable property would not do: <c>DebitCardPurchase</c> is the zero value of
+    /// <see cref="SubmissionKind"/>, so an unanswered form would silently claim to be a card purchase
+    /// and print the card form's wording at somebody who has not chosen it.
+    /// <para>
+    /// Nothing below section 0 renders while this is null - not because of layout, but because every
+    /// caption, question and declaration on the page comes from <see cref="ExpenseFormWording"/> keyed
+    /// by kind, and before the answer there is no correct text to show.
+    /// </para>
+    /// </remarks>
+    public SubmissionKind? Kind { get; set; }
 
     // ---- Section 1, shared ----
     public string? SubmitterName { get; set; }
@@ -86,10 +101,13 @@ public class ExpenseFormModel
     /// 1 (travel) or 2 (meals); the reimbursement form only on question 1 (motor vehicle), because its
     /// question 2 asks for attendees in the free-text block instead.
     /// </summary>
-    public bool DetailTableOpen =>
-        Kind == SubmissionKind.DebitCardPurchase
-            ? Compliance[0] == true || Compliance[1] == true
-            : Compliance[0] == true;
+    public bool DetailTableOpen => Kind switch
+    {
+        SubmissionKind.DebitCardPurchase => Compliance[0] == true || Compliance[1] == true,
+        SubmissionKind.ExpenseReimbursement => Compliance[0] == true,
+        // Unanswered. Section 4 is not on screen yet, so neither is its table.
+        _ => false
+    };
 
     /// <summary>Any Yes opens the shared free-text block.</summary>
     public bool ComplianceDetailsOpen => Compliance.Any(x => x == true);
@@ -267,9 +285,15 @@ public class ExpenseFormModel
         return model;
     }
 
+    /// <summary>
+    /// Builds the write request. Only reachable once question zero has been answered - a form with no
+    /// kind has no section 1 on screen, nothing to save, and no wording to save it under.
+    /// </summary>
     public CreateExpenseSubmissionRequest ToCreateRequest() => new()
     {
-        Kind = Kind,
+        Kind = Kind ?? throw new InvalidOperationException(
+            "The form has no kind. Question zero has to be answered before a draft can be written, "
+            + "because the kind decides what every stored field means."),
         SubmitterName = Trim(SubmitterName),
         FormDate = ToUtc(FormDate),
         Role = Role,
