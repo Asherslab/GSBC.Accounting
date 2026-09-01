@@ -158,6 +158,15 @@ uses `’` in `Church’s`. Cosmetic, but quote each form's own character when r
 
 ## Section 3 — the line-item table
 
+> **The app no longer implements this section as written, and that is on purpose.** Everything below is
+> still an accurate record of what the `.docx` files print — which is what this document is for — but
+> section 3 is the one place the web form deliberately departs from the paper. The seven-column table,
+> `ExpenseLine`, the `Attached / Missing` checkbox pair and the `Church use %` column are all gone,
+> replaced by one panel per receipt with its own attached evidence. See
+> [submission-model.md § Section 3 is per receipt, not per line](submission-model.md#section-3-is-per-receipt-not-per-line)
+> for the reasoning and the current model. Read the rest of this section as *what the paper says*, not as
+> a specification to build against.
+
 Section captions:
 
 - Debit card: `3. PURCHASE AND EVIDENCE DETAILS` / `Itemise the complete card transaction`

@@ -206,7 +206,8 @@ public record ExpenseSubmission : IIdentifiable
     /// </summary>
     public bool IsMockData { get; init; }
 
-    public List<ExpenseLine> Lines { get; init; } = [];
+    /// <summary>Section 3: one entry per receipt, each carrying its own evidence.</summary>
+    public List<ExpenseDetail> Details { get; init; } = [];
 
     /// <summary>Section 4's meals/hospitality table. Debit card form only.</summary>
     public List<ExpenseAttendee> Attendees { get; init; } = [];
@@ -224,7 +225,9 @@ public record ExpenseSubmission : IIdentifiable
     /// </remarks>
     public List<ExpenseAttachment> Attachments { get; init; } = [];
 
-    /// <summary>Section 5, present only when some line is marked Missing.</summary>
+    /// <summary>
+    /// Section 5, present only when some detail carries no receipt from the place it was bought.
+    /// </summary>
     public MissingReceiptDeclaration? MissingReceipt { get; init; }
 }
 

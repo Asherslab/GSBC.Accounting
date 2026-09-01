@@ -31,8 +31,25 @@ public class AttachmentClient(HttpClient http)
     /// </summary>
     public const long MaxBytes = 20L * 1024 * 1024;
 
+    /// <summary>
+    /// The URL an <c>&lt;img&gt;</c> can render one attachment from.
+    /// </summary>
+    /// <remarks>
+    /// <b>Same-origin, so the draft session cookie rides along on the image request</b> - which is what
+    /// makes a private draft's receipt visible to the person who uploaded it and to nobody else. The
+    /// <c>inline=1</c> is honoured by the server only for image types; anything else still comes back as
+    /// a download, so the preview modal offers a link rather than a broken picture for those.
+    /// </remarks>
+    public static string PreviewUrl(Guid submissionId, Guid attachmentId) =>
+        $"api/submissions/{submissionId}/attachments/{attachmentId}?inline=1";
+
+    /// <summary>The URL that saves the file to the claimant's device, whatever type it is.</summary>
+    public static string DownloadUrl(Guid submissionId, Guid attachmentId) =>
+        $"api/submissions/{submissionId}/attachments/{attachmentId}";
+
     public async Task<AttachmentUploadResult> UploadAsync(
         Guid submissionId,
+        Guid detailKey,
         string fileName,
         string contentType,
         Stream content,
@@ -40,8 +57,10 @@ public class AttachmentClient(HttpClient http)
         CancellationToken token = default
     )
     {
+        // detailKey says which purchase this file evidences. The claimant's own key for it, not a row
+        // id - the draft's details are rewritten on every autosave, and a row id would come unlinked.
         string url = $"api/submissions/{submissionId}/attachments"
-                     + $"?fileName={Uri.EscapeDataString(fileName)}&kind={kind}";
+                     + $"?fileName={Uri.EscapeDataString(fileName)}&kind={kind}&detailKey={detailKey}";
 
         StreamContent body = new(content);
         body.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(

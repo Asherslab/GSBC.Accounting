@@ -1,0 +1,544 @@
+@using GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses
+@using GSBC.Accounting.WASM.Features.Expenses
+
+@*
+    One purchase: its evidence, the two questions that decide how much of it has to be typed out, and the
+    money.
+
+    THE ORDER OF THIS PANEL IS THE ARGUMENT. The files come first because they are what created the
+    panel; then the two questions, because their answers decide what the rest of the form asks for; then
+    the itemisation, if any; then the money. Asking for a total before knowing whether the receipt needs
+    itemising would mean a form that rearranges itself under somebody's hands after they have started
+    typing figures into it.
+
+    The three fields between - supplier, date, purpose - are asked once per receipt rather than once per
+    item, which is the whole reason a "detail" is a receipt and not a line: they are facts about the
+    purchase, and there is exactly one purchase here.
+*@
+
+<article class="detail">
+    <header class="detailhead">
+        <span class="num">@(Index + 1)</span>
+        <h4>@(string.IsNullOrWhiteSpace(Detail.Supplier) ? "New purchase" : Detail.Supplier)</h4>
+        <span class="hint">@Summary</span>
+        <button class="rowbtn" type="button" title="Remove this purchase"
+                aria-label="@($"Remove purchase {Index + 1}")" @onclick="Remove">&times;</button>
+    </header>
+
+    <div class="detailbody">
+
+        @* ---- 1. The evidence ------------------------------------------------------------------- *@
+
+        <ul class="files">
+            @foreach (ExpenseAttachment file in Files)
+            {
+                <li class="file" @key="file.Id">
+                    <span class="thumb">@Extension(file)</span>
+                    <span class="meta">
+                        <span class="name">@file.FileName</span>
+                        <span class="sz">@Size(file.ByteSize)</span>
+                    </span>
+                    @* A dropdown rather than a badge, because the kind is picked before the file is and
+                       correcting it used to mean removing the receipt and uploading it again. Only the
+                       label changes; the stored bytes are untouched. It is load-bearing here: a purchase
+                       whose files are all bank lines is what opens section 5. *@
+                    <select class="kind" disabled="@Busy" aria-label="@($"What {file.FileName} is")"
+                            value="@file.Kind" @onchange="args => Refile(file, args)">
+                        @foreach (AttachmentKind kind in Enum.GetValues<AttachmentKind>())
+                        {
+                            <option value="@kind" selected="@(kind == file.Kind)">@KindLabel(kind)</option>
+                        }
+                    </select>
+                    @* view / del rather than two bare .rowbtns: under 900px app.css lays this row out
+                       with named grid areas, and two buttons with no way to tell them apart land in the
+                       same cell on top of each other. *@
+                    <button class="rowbtn view" type="button" title="Look at this file"
+                            aria-label="@($"Look at {file.FileName}")" @onclick="() => Preview(file)">
+                        @* An eye rather than the word "view": the row is already three controls wide on
+                           a phone. *@
+                        &#128065;
+                    </button>
+                    <button class="rowbtn del" type="button" title="Remove this file"
+                            aria-label="@($"Remove {file.FileName}")" @onclick="() => Detach(file)">
+                        &times;
+                    </button>
+                </li>
+            }
+        </ul>
+
+        <label class="drop small @(Busy ? "over" : "")" for="@_inputId">
+            <span class="big">@(Busy ? "Uploading…" : "+ Add another file to this receipt")</span>
+            <span class="small">
+                Only if it is the same receipt or purchase &mdash; a long docket photographed in parts, or
+                the bank line that proves it was paid. A different shop is a different entry.
+            </span>
+        </label>
+
+        <InputFile id="@_inputId" multiple OnChange="OnFilesChosen" disabled="@Busy"
+                   accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.webp" style="display:none"/>
+
+        @if (!Files.Any(x => x.Kind == AttachmentKind.SupplierReceipt) && Files.Count > 0)
+        {
+            <div class="notice warn" style="margin-top:12px">
+                <span class="ico">!</span>
+                <div>
+                    <b>Nothing here came from the supplier.</b> A bank line shows that money moved and to
+                    whom, but not what was bought &mdash; so section 5's missing receipt declaration opens
+                    below and has to be completed.
+                </div>
+            </div>
+        }
+
+        @* ---- 2. What and where ----------------------------------------------------------------- *@
+
+        <div class="grid" style="margin-top:16px">
+            <div class="f c5">
+                <label for="@($"sup-{Detail.Key}")">Where it was bought <span class="req">*</span></label>
+                <input type="text" id="@($"sup-{Detail.Key}")" placeholder="e.g. Bunnings Springwood"
+                       @bind="Detail.Supplier" @bind:event="oninput" @bind:after="Changed"/>
+            </div>
+            <div class="f c3">
+                <label for="@($"date-{Detail.Key}")">Date of purchase <span class="req">*</span></label>
+                <input type="date" id="@($"date-{Detail.Key}")"
+                       @bind="Detail.PurchaseDate" @bind:event="oninput" @bind:after="Changed"/>
+            </div>
+            <div class="f c4">
+                <label for="@($"purp-{Detail.Key}")">Church purpose <span class="req">*</span></label>
+                <input type="text" id="@($"purp-{Detail.Key}")" placeholder="e.g. Friday night youth"
+                       @bind="Detail.Purpose" @bind:event="oninput"/>
+            </div>
+        </div>
+
+        @* ---- 3. The two questions -------------------------------------------------------------- *@
+
+        <div class="stack" style="margin-top:16px">
+            @*
+                No/Yes radio pairs, never checkboxes, and for the same reason section 4 uses them: an
+                unticked checkbox cannot be told apart from an unanswered question, and these two answers
+                decide what the rest of the panel asks for. "Not answered" is a state Submit refuses by
+                name rather than one it silently reads as No.
+            *@
+            <div class="q">
+                <span class="qlabel">Does this receipt include anything that isn't a Church expense?</span>
+                <p>
+                    Personal shopping picked up in the same transaction, a family member's meal, anything
+                    you would not ask the Church to pay for.
+                </p>
+                <div class="yn" style="margin-top:8px">
+                    <label>
+                        <input type="radio" name="@($"pers-{Detail.Key}")"
+                               checked="@(Detail.ContainsPersonalItems == false)"
+                               @onchange="() => SetPersonal(false)"/>No
+                    </label>
+                    <label>
+                        <input type="radio" name="@($"pers-{Detail.Key}")" value="yes"
+                               checked="@(Detail.ContainsPersonalItems == true)"
+                               @onchange="() => SetPersonal(true)"/>Yes
+                    </label>
+                </div>
+            </div>
+
+            <div class="q">
+                <span class="qlabel">Does the receipt list what was bought, item by item?</span>
+                <p>
+                    A supermarket or hardware docket does. A card terminal slip, a handwritten total, or a
+                    line on a bank statement does not.
+                </p>
+                <div class="yn" style="margin-top:8px">
+                    <label>
+                        <input type="radio" name="@($"item-{Detail.Key}")" value="yes"
+                               checked="@(Detail.ReceiptIsItemised == false)"
+                               @onchange="() => SetItemised(false)"/>No
+                    </label>
+                    <label>
+                        <input type="radio" name="@($"item-{Detail.Key}")"
+                               checked="@(Detail.ReceiptIsItemised == true)"
+                               @onchange="() => SetItemised(true)"/>Yes
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        @if (!Detail.Answered)
+        {
+            <p class="help" style="margin-top:12px">
+                Answer both and the rest of this purchase appears. What they come to decides how much of
+                the receipt you need to type out.
+            </p>
+        }
+        else
+        {
+            @* ---- 4. The itemisation, where one is needed --------------------------------------- *@
+
+            <div class="notice" style="margin-top:16px">
+                <span class="ico">@(Detail.Itemisation == ItemisationRequirement.None ? "OK" : "!")</span>
+                <div>@((MarkupString)ItemisationExplanation)</div>
+            </div>
+
+            @if (Detail.Itemisation != ItemisationRequirement.None)
+            {
+                <div class="tablewrap" style="margin-top:12px">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th style="min-width:220px">@ItemColumnHeader <span class="req">*</span></th>
+                            <th class="num" style="width:130px">Amount incl. GST <span class="req">*</span></th>
+                            @if (Detail.ItemsAreMixed)
+                            {
+                                <th style="width:150px">Church use?</th>
+                            }
+                            <th style="width:38px"><span class="sr-only">Remove</span></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (ExpenseDetailItemModel item in Detail.Items)
+                        {
+                            @* @key on the model's own stable Guid: without it Blazor reuses a removed
+                               row's DOM for the row that shifted up, and the cursor and any uncommitted
+                               keystroke land in the wrong item. *@
+                            <tr @key="item.Key">
+                                <td data-label="@ItemColumnHeader">
+                                    <input type="text" aria-label="@ItemColumnHeader"
+                                           @bind="item.Description" @bind:event="oninput"/>
+                                </td>
+                                <td class="num" data-label="Amount incl. GST">
+                                    <div class="money">
+                                        <input type="number" inputmode="decimal" step="0.01" min="0"
+                                               aria-label="Amount including GST"
+                                               @bind="item.Amount" @bind:event="oninput" @bind:after="ItemsChanged"/>
+                                    </div>
+                                </td>
+                                @if (Detail.ItemsAreMixed)
+                                {
+                                    <td data-label="Church use?">
+                                        <div class="yn">
+                                            <label>
+                                                <input type="radio" name="@($"cu-{item.Key}")" value="yes"
+                                                       checked="@(!item.IsChurchUse)"
+                                                       @onchange="() => SetChurchUse(item, false)"/>No
+                                            </label>
+                                            <label>
+                                                <input type="radio" name="@($"cu-{item.Key}")"
+                                                       checked="@item.IsChurchUse"
+                                                       @onchange="() => SetChurchUse(item, true)"/>Yes
+                                            </label>
+                                        </div>
+                                    </td>
+                                }
+                                <td class="rowdel">
+                                    <button class="rowbtn" type="button" title="Remove this item"
+                                            aria-label="Remove item" @onclick="() => RemoveItem(item)">&times;</button>
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+
+                <button class="btn-add" type="button" @onclick="AddItem">+ Add item</button>
+
+                @if (Detail.Itemisation == ItemisationRequirement.Everything)
+                {
+                    <p class="help">
+                        Best effort is enough. If the receipt has faded or you genuinely can't recall an
+                        exact price, put down the closest you can and say so in section 2 &mdash; a made-up
+                        line that makes the total come out right is worse than an honest estimate.
+                    </p>
+                }
+            }
+
+            @* ---- 5. The money ------------------------------------------------------------------ *@
+
+            <div class="grid" style="margin-top:16px">
+                <div class="f c4">
+                    <label for="@($"tot-{Detail.Key}")">Total on the receipt, incl. GST <span class="req">*</span></label>
+                    <div class="money">
+                        <input type="number" inputmode="decimal" step="0.01" min="0" id="@($"tot-{Detail.Key}")"
+                               @bind="Detail.TotalIncGst" @bind:event="oninput" @bind:after="Changed"/>
+                    </div>
+                    <span class="help">Everything on it, personal items included.</span>
+                </div>
+                <div class="f c4">
+                    <label for="@($"gst-{Detail.Key}")">GST shown</label>
+                    <div class="money">
+                        <input type="number" inputmode="decimal" step="0.01" min="0" id="@($"gst-{Detail.Key}")"
+                               @bind="Detail.GstAmount" @bind:event="oninput" @bind:after="Changed"/>
+                    </div>
+                    <span class="help">Leave blank if the supplier isn't registered for GST.</span>
+                </div>
+                <div class="f c4">
+                    <label for="@($"nr-{Detail.Key}")">Not claimed from the Church</label>
+                    <div class="money">
+                        @*
+                            min is the floor, and it is the personal items total rather than zero whenever
+                            there is one. The browser's own validation is not what enforces it - Submit
+                            does - but a spinner that refuses to step below the floor is what stops
+                            somebody discovering the rule at the end of the form.
+                        *@
+                        <input type="number" inputmode="decimal" step="0.01" min="@Floor" id="@($"nr-{Detail.Key}")"
+                               @bind="Detail.NonReimbursedAmount" @bind:event="oninput" @bind:after="Changed"/>
+                    </div>
+                    <span class="help">@NonReimbursedHelp</span>
+                </div>
+            </div>
+
+            @if (BelowFloor)
+            {
+                <div class="notice bad" style="margin-top:12px" role="alert">
+                    <span class="ico">!</span>
+                    <div>
+                        <b>That's less than the personal items you listed.</b> They come to
+                        <span class="mono">@Detail.PersonalItemsTotal.ToString("C2")</span>, so the Church
+                        can't be asked to cover any of it. You can put more here &mdash; that's a gift
+                        &mdash; but not less.
+                    </div>
+                </div>
+            }
+
+            @if (Detail.ItemisationDiffers)
+            {
+                <div class="notice warn" style="margin-top:12px">
+                    <span class="ico">&ne;</span>
+                    <div>
+                        <b>The items don't add up to the receipt.</b> They come to
+                        <span class="mono">@Detail.ItemisedTotal.ToString("C2")</span> against a total of
+                        <span class="mono">@(Detail.TotalIncGst?.ToString("C2"))</span>. That is allowed
+                        &mdash; best effort on an unitemised receipt is what was asked for &mdash; but
+                        check it before you submit.
+                    </div>
+                </div>
+            }
+        }
+
+        @if (_errors.Count > 0)
+        {
+            <div class="notice bad" style="margin-top:12px" role="alert">
+                <span class="ico">!</span>
+                <div>
+                    @foreach (string error in _errors)
+                    {
+                        <div>@error</div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</article>
+
+@code
+{
+    [Parameter, EditorRequired] public required ExpenseDetailModel Detail { get; set; }
+
+    /// <summary>Position in section 3, zero-based. Shown as the purchase number, which the PDF matches.</summary>
+    [Parameter, EditorRequired] public required int Index { get; set; }
+
+    /// <summary>This purchase's files. Owned by the page, which holds every attachment on the claim.</summary>
+    [Parameter, EditorRequired] public required IReadOnlyList<ExpenseAttachment> Files { get; set; }
+
+    /// <summary>
+    /// Uploads one file against this purchase. The card cannot do it itself - only the page knows the
+    /// submission id, and creating the draft if there is not one yet is the page's job.
+    /// </summary>
+    [Parameter, EditorRequired] public required Func<Guid, IBrowserFile, Task<string?>> Upload { get; set; }
+
+    [Parameter, EditorRequired] public required Func<ExpenseAttachment, Task<string?>> DetachFile { get; set; }
+
+    [Parameter, EditorRequired]
+    public required Func<ExpenseAttachment, AttachmentKind, Task<string?>> RefileAs { get; set; }
+
+    [Parameter, EditorRequired] public required EventCallback<ExpenseAttachment> OnPreview { get; set; }
+
+    [Parameter, EditorRequired] public required EventCallback<ExpenseDetailModel> OnRemove { get; set; }
+
+    /// <summary>True while the page has an upload in flight anywhere, so every card's controls settle.</summary>
+    [Parameter] public bool Busy { get; set; }
+
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private readonly string _inputId = $"detail-files-{Guid.NewGuid():N}";
+    private readonly List<string> _errors = [];
+
+    /// <summary>The lowest the non-reimbursed field may go: whatever was itemised as personal.</summary>
+    private decimal Floor =>
+        Detail.Itemisation == ItemisationRequirement.None ? 0m : Detail.PersonalItemsTotal;
+
+    private bool BelowFloor => (Detail.NonReimbursedAmount ?? 0m) < Floor;
+
+    private string ItemColumnHeader => Detail.Itemisation == ItemisationRequirement.PersonalItemsOnly
+        ? "Personal item"
+        : "Item";
+
+    private string NonReimbursedHelp => Detail.Itemisation switch
+    {
+        ItemisationRequirement.None =>
+            "Leave at zero unless you want to cover part of this yourself.",
+        _ when Floor > 0m =>
+            $"At least {Floor:C2} — the personal items above. More is a gift to the Church.",
+        _ => "Filled in from the personal items above as you list them."
+    };
+
+    /// <summary>
+    /// The sentence that tells somebody what this receipt needs, in the words of their own two answers.
+    /// </summary>
+    /// <remarks>
+    /// Written out per case rather than assembled from clauses. These four sentences are the entire
+    /// explanation of the rule, and a claimant reading one has to be told what to do <b>and why it is
+    /// less work than they feared</b> - "we can see the rest on your receipt" is the sentence that stops
+    /// somebody typing out a forty-line grocery docket nobody wanted.
+    /// </remarks>
+    private string ItemisationExplanation => (Detail.ContainsPersonalItems, Detail.ReceiptIsItemised) switch
+    {
+        (false, true) =>
+            "<b>Nothing to type out.</b> The receipt itemises itself and it is all the Church's, so the "
+            + "total and the GST below are all this needs.",
+
+        (true, true) =>
+            "<b>List the personal items only.</b> The receipt already shows the rest, so there is no need "
+            + "to copy it out. What you list here is what comes off the claim.",
+
+        (true, false) =>
+            "<b>List everything on the receipt.</b> It doesn't itemise, so this is the only record of "
+            + "what the money bought - and mark each line as Church use or not.",
+
+        _ =>
+            "<b>List everything on the receipt.</b> It doesn't itemise, so this is the only record of "
+            + "what the money bought. You have said none of it is personal, so all of it is claimed."
+    };
+
+    private string Summary
+    {
+        get
+        {
+            string files = $"{Files.Count} file{(Files.Count == 1 ? "" : "s")}";
+
+            return Detail.TotalIncGst is { } total and > 0m
+                ? $"{files} · {total:C2}"
+                : files;
+        }
+    }
+
+    private async Task SetPersonal(bool value)
+    {
+        Detail.ContainsPersonalItems = value;
+        Detail.ReconcileToAnswers();
+
+        await Changed();
+    }
+
+    private async Task SetItemised(bool value)
+    {
+        Detail.ReceiptIsItemised = value;
+        Detail.ReconcileToAnswers();
+
+        await Changed();
+    }
+
+    private async Task SetChurchUse(ExpenseDetailItemModel item, bool churchUse)
+    {
+        item.IsChurchUse = churchUse;
+
+        await ItemsChanged();
+    }
+
+    private async Task AddItem()
+    {
+        Detail.Items.Add(new ExpenseDetailItemModel());
+
+        await Changed();
+    }
+
+    private async Task RemoveItem(ExpenseDetailItemModel item)
+    {
+        Detail.Items.Remove(item);
+
+        await ItemsChanged();
+    }
+
+    /// <summary>
+    /// An item's amount or church-use flag changed, so the floor under the non-reimbursed field has
+    /// moved. Raises it to the new floor - never lowers it, which would take back a gift somebody chose
+    /// to make.
+    /// </summary>
+    private async Task ItemsChanged()
+    {
+        Detail.ClampNonReimbursed();
+
+        await Changed();
+    }
+
+    private Task Remove() => OnRemove.InvokeAsync(Detail);
+
+    private Task Preview(ExpenseAttachment file) => OnPreview.InvokeAsync(file);
+
+    private async Task OnFilesChosen(InputFileChangeEventArgs args)
+    {
+        _errors.Clear();
+
+        // GetMultipleFiles needs an explicit ceiling; its default is one file and it throws rather than
+        // truncating.
+        foreach (IBrowserFile file in args.GetMultipleFiles(25))
+        {
+            if (await Upload(Detail.Key, file) is { } error)
+                _errors.Add(error);
+        }
+
+        await Changed();
+    }
+
+    private async Task Detach(ExpenseAttachment file)
+    {
+        _errors.Clear();
+
+        if (await DetachFile(file) is { } error)
+            _errors.Add(error);
+
+        await Changed();
+    }
+
+    /// <summary>
+    /// Refiles one file as a different kind of evidence.
+    /// </summary>
+    /// <remarks>
+    /// The server is asked first and the list is updated from what it answers with. A dropdown that
+    /// moved on its own and silently failed would leave somebody believing a bank line is now a supplier
+    /// receipt while the draft still says otherwise - and that difference is what decides whether section
+    /// 5's declaration is required.
+    /// </remarks>
+    private async Task Refile(ExpenseAttachment file, ChangeEventArgs args)
+    {
+        if (!Enum.TryParse(args.Value?.ToString(), out AttachmentKind kind) || kind == file.Kind)
+            return;
+
+        _errors.Clear();
+
+        if (await RefileAs(file, kind) is { } error)
+            _errors.Add(error);
+
+        await Changed();
+    }
+
+    private async Task Changed() => await OnChanged.InvokeAsync();
+
+    private static string Extension(ExpenseAttachment file) => file.ContentType switch
+    {
+        "application/pdf" => "PDF",
+        "image/jpeg" => "JPG",
+        "image/png" => "PNG",
+        "image/heic" or "image/heif" => "HEIC",
+        "image/webp" => "WEBP",
+        _ => "FILE"
+    };
+
+    private static string Size(long bytes) =>
+        bytes < 1024 ? $"{bytes} B"
+        : bytes < 1024 * 1024 ? $"{bytes / 1024.0:0.#} KB"
+        : $"{bytes / (1024.0 * 1024.0):0.#} MB";
+
+    private static string KindLabel(AttachmentKind kind) => kind switch
+    {
+        AttachmentKind.SupplierReceipt => "Receipt from the shop",
+        AttachmentKind.BankOrCardStatement => "Bank / card line",
+        AttachmentKind.QuoteOrOrder => "Quote or order",
+        _ => "Other"
+    };
+}

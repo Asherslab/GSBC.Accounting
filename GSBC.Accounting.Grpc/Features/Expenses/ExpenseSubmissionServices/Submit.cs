@@ -38,9 +38,10 @@ public partial class ExpenseSubmissionService
             return BasicResponse.WithError(SubmissionNotFound);
 
         DbExpenseSubmission? submission = await db.ExpenseSubmissions
-            .Include(x => x.Lines)
+            .Include(x => x.Details).ThenInclude(x => x.Items)
             .Include(x => x.Attachments)
             .Include(x => x.MissingReceipt)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(
                 x => x.Id == request.SubmissionId && x.OwnerSessionId == sessionId, token);
 
@@ -54,29 +55,48 @@ public partial class ExpenseSubmissionService
 
         // The totals are recomputed here, not trusted from the row - the row was written by Create from
         // a client's request, and this is the last point before the claim becomes evidence.
-        List<ExpenseLine> lines = submission.Lines
+        List<ExpenseDetail> details = submission.Details
             .OrderBy(x => x.Ordinal)
-            .Select(x => new ExpenseLine
+            // EVERY FIELD ValidateForSubmit READS HAS TO BE HERE. This projection is the stored row as
+            // the validator sees it, so a field left out of it reads as absent no matter what the
+            // database holds - which lands on the claimant as "every purchase needs the place it was
+            // bought" printed over a form that plainly says Woolworths. Observed on 2026-09-01, when
+            // Supplier, PurchaseDate and Purpose were all missing from here.
+            .Select(x => new ExpenseDetail
             {
                 SubmissionId = x.SubmissionId,
+                Key = x.Key,
                 Ordinal = x.Ordinal,
-                Evidence = x.Evidence,
-                GrossAmount = x.GrossAmount,
+                Supplier = x.Supplier,
+                PurchaseDate = x.PurchaseDate?.UtcDateTime,
+                Purpose = x.Purpose,
+                ContainsPersonalItems = x.ContainsPersonalItems,
+                ReceiptIsItemised = x.ReceiptIsItemised,
+                TotalIncGst = x.TotalIncGst,
                 GstAmount = x.GstAmount,
-                ChurchUsePercent = x.ChurchUsePercent
+                NonReimbursedAmount = x.NonReimbursedAmount,
+                Items = x.Items.OrderBy(item => item.Ordinal).Select(item => new ExpenseDetailItem
+                {
+                    DetailId = item.DetailId,
+                    Ordinal = item.Ordinal,
+                    Description = item.Description,
+                    Amount = item.Amount,
+                    IsChurchUse = item.IsChurchUse
+                }).ToList()
             })
             .ToList();
 
-        (decimal gross, decimal gst) = ExpenseTotals.SumLines(lines);
-        decimal net = ExpenseTotals.Net(gross, submission.LessPersonalAmount);
+        (decimal gross, decimal gst, decimal lessPersonal) = ExpenseTotals.SumDetails(details);
+        decimal net = ExpenseTotals.Net(gross, lessPersonal);
 
-        List<string> errors = ValidateForSubmit(submission, gross);
+        List<string> errors = ValidateForSubmit(submission, details, gross);
 
         if (errors.Count > 0)
             return BasicResponse.WithErrors(errors);
 
         submission.GrossTotal = gross;
         submission.GstTotal = gst;
+        submission.LessPersonalAmount = lessPersonal;
         submission.NetTotal = net;
         submission.Status = SubmissionStatus.Submitted;
         submission.SubmittedAt = DateTimeOffset.UtcNow;
@@ -86,6 +106,7 @@ public partial class ExpenseSubmissionService
         // column and would silently revert anything another writer committed since the read above.
         db.Entry(submission).Property(x => x.GrossTotal).IsModified = true;
         db.Entry(submission).Property(x => x.GstTotal).IsModified = true;
+        db.Entry(submission).Property(x => x.LessPersonalAmount).IsModified = true;
         db.Entry(submission).Property(x => x.NetTotal).IsModified = true;
         db.Entry(submission).Property(x => x.Status).IsModified = true;
         db.Entry(submission).Property(x => x.SubmittedAt).IsModified = true;
@@ -96,7 +117,16 @@ public partial class ExpenseSubmissionService
         return new BasicResponse { Success = true };
     }
 
-    private static List<string> ValidateForSubmit(DbExpenseSubmission submission, decimal gross)
+    /// <summary>
+    /// Every completeness rule the form has. <paramref name="details"/> is the stored section 3 read
+    /// back through the contract, so the itemisation rules are evaluated against the same
+    /// <see cref="ExpenseDetail.Itemisation"/> the page used to decide what to ask for.
+    /// </summary>
+    private static List<string> ValidateForSubmit(
+        DbExpenseSubmission submission,
+        IReadOnlyList<ExpenseDetail> details,
+        decimal gross
+    )
     {
         List<string> errors = [];
 
@@ -106,36 +136,84 @@ public partial class ExpenseSubmissionService
         if (string.IsNullOrWhiteSpace(submission.PurposeNarrative))
             errors.Add(NeedsAPurposeNarrative);
 
-        // Section 3 has to say what was bought. A draft is allowed to have no lines at all - somebody
+        // Section 3 has to say what was bought. A draft is allowed to have no details at all - somebody
         // fills section 1 in first - so this is asked once, here, and never while they are typing.
-        if (submission.Lines.Count == 0)
-            errors.Add(SubmissionNeedsALine);
+        if (details.Count == 0)
+            errors.Add(SubmissionNeedsADetail);
 
-        // Section 3's first column is a different field on each form, so which one is required depends
-        // on the kind. This is the smallest example of the rule that runs through the whole app: the two
-        // forms share a structure, not their contents.
-        switch (submission.Kind)
+        // Section 3 is now the same shape on both forms, which is the one place this rewrite made the
+        // app simpler rather than richer. The old table's first column was a DIFFERENT FIELD on each
+        // document - an item description on the card form, a date on the reimbursement one - and needed
+        // a switch on the kind right here. A receipt has a supplier and a date on both.
+        bool hasUnreceiptedPurchase = false;
+
+        foreach (ExpenseDetail detail in details)
         {
-            case SubmissionKind.DebitCardPurchase
-                when submission.Lines.Any(x => string.IsNullOrWhiteSpace(x.ItemDescription)):
-                errors.Add(DebitCardLineNeedsAnItem);
-                break;
+            List<DbExpenseAttachment> files = submission.Attachments
+                .Where(x => x.DetailKey == detail.Key)
+                .ToList();
 
-            case SubmissionKind.ExpenseReimbursement when submission.Lines.Any(x => x.LineDate is null):
-                errors.Add(ReimbursementLineNeedsADate);
-                break;
+            // A detail exists because a file was attached to it, so an empty one means the claimant
+            // removed the last file and left the panel behind.
+            if (files.Count == 0)
+                errors.Add(DetailNeedsAnAttachment);
+            else if (files.All(x => x.Kind != AttachmentKind.SupplierReceipt))
+                hasUnreceiptedPurchase = true;
+
+            if (string.IsNullOrWhiteSpace(detail.Supplier))
+                errors.Add(DetailNeedsASupplier);
+
+            if (detail.PurchaseDate is null)
+                errors.Add(DetailNeedsAPurchaseDate);
+
+            if (string.IsNullOrWhiteSpace(detail.Purpose))
+                errors.Add(DetailNeedsAPurpose);
+
+            if (detail.TotalIncGst <= 0)
+                errors.Add(DetailNeedsATotal);
+
+            // Both, and separately from the itemisation rules below: what those rules ARE is decided by
+            // these two answers, so an unanswered pair is not a receipt that needs no itemising - it is
+            // a receipt nobody has said anything about yet.
+            if (detail.ContainsPersonalItems is null || detail.ReceiptIsItemised is null)
+                errors.Add(DetailQuestionsUnanswered);
+
+            if (detail.Itemisation != ItemisationRequirement.None)
+            {
+                if (detail.Items.Count == 0)
+                    errors.Add(DetailNeedsItemisation);
+
+                if (detail.Items.Any(x => string.IsNullOrWhiteSpace(x.Description)))
+                    errors.Add(ItemNeedsADescription);
+
+                // Only meaningful in the everything-itemised mode, where the church/personal toggle is
+                // on screen. In the personal-items-only mode every stored item is already personal -
+                // Create forces IsChurchUse false there - so the condition cannot fire.
+                if (detail.ContainsPersonalItems == true && detail.Items.Count > 0
+                    && detail.Items.All(x => x.IsChurchUse))
+                {
+                    errors.Add(PersonalItemsNeedListing);
+                }
+            }
+
+            // THE FLOOR, and it is only checked here. A claimant halfway through typing the personal
+            // lines has itemised $12 of an eventual $40, and a DRAFT refused for that is a draft that
+            // goes unsaved while somebody is still working on it - so Create lets it through.
+            //
+            // Above the floor is deliberately fine. Somebody choosing to carry more of a legitimate cost
+            // than they have to is making a gift, and the form has no business refusing one.
+            if (ExpenseTotals.Money(detail.NonReimbursedAmount) < ExpenseTotals.PersonalItemsTotal(detail))
+                errors.Add(NonReimbursedBelowPersonalItems);
         }
 
-        bool hasMissingLine = submission.Lines.Any(x => x.Evidence == EvidenceStatus.Missing);
-        bool hasReceipt = submission.Attachments.Any(x =>
-            x.Kind is AttachmentKind.ItemisedReceipt or AttachmentKind.TaxInvoice);
+        // NOT "the itemised lines have to add up to the receipt total". Where the evidence does not
+        // itemise, a claimant reading a faded thermal docket is asked for best effort, and a form that
+        // refuses to submit until the cents reconcile is a form that gets a made-up line added to it to
+        // close the gap. The page shows the difference; a reviewer can see it and ask.
 
-        // At least one itemised receipt is mandatory; it is the point of the form. The one way out is
-        // the one the paper form itself provides - mark the line Missing and complete section 5.
-        if (!hasReceipt && !hasMissingLine)
-            errors.Add(NeedsEvidence);
-
-        if (hasMissingLine && submission.MissingReceipt is not { Declared: true })
+        // Section 5: a purchase evidenced only by a bank line or a screenshot. That proves the money
+        // moved and says nothing about what it bought, which is exactly the gap the declaration covers.
+        if (hasUnreceiptedPurchase && submission.MissingReceipt is not { Declared: true })
             errors.Add(MissingEvidenceNeedsADeclaration);
 
         // null is unanswered, and unanswered is not No.
@@ -191,8 +269,8 @@ public partial class ExpenseSubmissionService
                 if (charged != gross)
                 {
                     errors.Add(
-                        $"The itemised lines total {Money(gross)} but section 1 says the card was "
-                        + $"charged {Money(charged)}. Add the missing lines, or correct the amount charged.");
+                        $"The receipts in section 3 total {Money(gross)} but section 1 says the card was "
+                        + $"charged {Money(charged)}. Attach the missing receipt, or correct the amount charged.");
                 }
             }
         }

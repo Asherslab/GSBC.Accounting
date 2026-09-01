@@ -428,9 +428,23 @@ td .money input{padding-left:18px;text-align:right}
 .drop:hover,.drop.over{border-color:var(--brand-2);background:var(--brand-wash)}
 .drop .big{font-size:14.5px;font-weight:600;color:var(--ink);display:block;margin-bottom:3px}
 .drop .small{font-size:12.5px;color:var(--ink-3)}
+/*
+  The drop zone inside a purchase panel, for the second and third photo of one long docket. Quieter than
+  the section's own: it is a secondary action sitting under a list of files that are already there, and
+  at the section's weight it competed with the panel's own fields for attention.
+*/
+.drop.small{padding:14px 16px;border-width:1px}
+.drop.small .big{font-size:13.5px;margin-bottom:2px}
+.drop.small .small{font-size:12px}
+
 .files{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+/*
+  FIVE columns, and it was four until each file gained a preview button. minmax(0,1fr) rather than 1fr
+  on the meta column: a bare 1fr has an auto minimum, so a long filename widens the track instead of
+  ellipsising inside it, and the row's controls get pushed off the card.
+*/
 .file{
-  display:grid;grid-template-columns:44px 1fr auto auto;gap:12px;align-items:center;
+  display:grid;grid-template-columns:44px minmax(0,1fr) repeat(3,auto);gap:12px;align-items:center;
   padding:9px 11px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);
 }
 .thumb{
@@ -450,6 +464,75 @@ td .money input{padding-left:18px;text-align:right}
 .file .name{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .file .sz{font-size:12px;color:var(--ink-3);font-family:"IBM Plex Mono",monospace}
 .file select{width:auto;font-size:12.5px;padding:5px 8px}
+
+/* ---------- section 3: one panel per purchase ---------- */
+/*
+  Section 3 is a list of receipts rather than a table of rows, so each purchase is a bordered panel with
+  its own header. Deliberately a step quieter than .card: these sit INSIDE the section 3 card, and giving
+  them the same border weight made the page read as nine sections rather than eight.
+*/
+.details{display:flex;flex-direction:column;gap:16px;margin-top:16px}
+.detail{border:1px solid var(--line-strong);border-radius:var(--radius);background:var(--surface)}
+.detailhead{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 12px;border-bottom:1px solid var(--line);background:var(--surface-sunk);
+}
+/*
+  The purchase number, and it is the same number the PDF prints in its evidence manifest. A reviewer
+  holding a printout and a folder of photos pairs them on this.
+*/
+.detailhead .num{
+  font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:700;color:var(--brand);
+  width:22px;height:22px;border-radius:3px;background:var(--brand-wash);
+  display:grid;place-items:center;flex:none;
+}
+.detailhead h4{margin:0;font-size:14.5px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.detailhead .hint{font-size:12.5px;color:var(--ink-3);margin-left:auto;white-space:nowrap;flex:none}
+.detailbody{padding:14px}
+.detailbody .files{margin-top:0}
+.detailbody .btn-add{margin-top:10px}
+
+/* ---------- attachment preview ---------- */
+/*
+  Looking at one receipt without leaving the form - see AttachmentPreview.razor for why this exists at
+  all. position:fixed and a z-index above the action bar, which is 50 and would otherwise sit on top of
+  the modal's own footer.
+*/
+.preview{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:20px}
+/*
+  A real <button>, not a div: the backdrop closes the modal, and a click target that closes something has
+  to be reachable by keyboard and announced as a control. Stretched over the viewport behind the panel.
+*/
+.preview-scrim{
+  position:absolute;inset:0;border:0;padding:0;cursor:pointer;
+  background:rgba(0,0,0,.55);backdrop-filter:blur(2px);
+}
+.preview-panel{
+  position:relative;z-index:1;
+  display:flex;flex-direction:column;max-width:min(680px,100%);max-height:100%;
+  background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius);
+  box-shadow:0 24px 60px -20px rgba(0,0,0,.55);
+}
+.preview-panel > header{
+  display:flex;align-items:center;gap:12px;
+  padding:11px 13px;border-bottom:1px solid var(--line);
+}
+.preview-panel > header .meta{min-width:0}
+.preview-panel > header .name{display:block;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.preview-panel > header .sz{display:block;font-size:12px;color:var(--ink-3)}
+.preview-panel > header .rowbtn{margin-left:auto;flex:none}
+/*
+  The image scrolls inside this rather than growing the panel, so a tall receipt photographed portrait
+  does not push the footer's buttons off the bottom of a phone screen.
+*/
+.preview-body{overflow:auto;padding:13px;background:var(--surface-sunk);display:grid;place-items:center}
+.preview-body img{max-width:100%;height:auto;display:block;border:1px solid var(--line)}
+.preview-panel > footer{
+  display:flex;gap:9px;justify-content:flex-end;
+  padding:11px 13px;border-top:1px solid var(--line);
+}
+/* The "open the file" control is an <a>, so it needs the button's box drawn on it explicitly. */
+.preview-panel > footer a.b{text-decoration:none;display:inline-flex;align-items:center}
 
 .badge{
   display:inline-flex;align-items:center;gap:5px;
@@ -688,15 +771,31 @@ button.b.primary:hover{background:var(--brand-2);border-color:var(--brand-2)}
   /* ----- attachments ----- */
   .drop{padding:22px 14px}
   .drop .big{font-size:15px}
+  /*
+    Named areas, because the row now has two buttons rather than one - preview and remove - and auto
+    placement would drop the second onto a line of its own. `btns` holds both, side by side at the
+    row's top right where the single × used to sit.
+  */
   .file{
-    grid-template-columns:40px minmax(0,1fr) 34px;
-    grid-template-areas:"thumb meta del" "badge badge badge";
-    row-gap:9px;padding:10px;
+    grid-template-columns:40px minmax(0,1fr) auto auto;
+    grid-template-areas:"thumb meta view del" "badge badge badge badge";
+    row-gap:9px;padding:10px;align-items:start;
   }
   .file .thumb{grid-area:thumb}
   .file .meta{grid-area:meta}
   .file .badge,.file .kind{grid-area:badge;justify-self:start}
-  .file .rowbtn{grid-area:del;font-size:20px}
+  .file .rowbtn.view{grid-area:view}
+  .file .rowbtn.del{grid-area:del;font-size:20px}
+
+  /* ----- section 3 purchase panels ----- */
+  .detailhead{flex-wrap:wrap;row-gap:4px}
+  .detailhead .hint{margin-left:0;width:100%}
+  .detailhead .rowbtn{margin-left:auto}
+  .detailbody{padding:12px}
+
+  /* The preview fills the phone screen rather than floating in the middle of it. */
+  .preview{padding:0}
+  .preview-panel{max-width:100%;width:100%;height:100%;border:0;border-radius:0}
 
   /* ----- action bar ----- */
   /*
@@ -708,6 +807,12 @@ button.b.primary:hover{background:var(--brand-2);border-color:var(--brand-2)}
 
     env(safe-area-inset-bottom) still applies - unpinned or not, it is the last thing above the iPhone
     home indicator. It needs viewport-fit=cover in index.html to be anything other than 0.
+
+    NOT sticky either, and that is the same decision rather than a second one. `position:sticky` still
+    holds the bottom edge of the viewport, so it still lands on top of the field being typed into when
+    the keyboard comes up - it is `fixed` with extra steps for this purpose. Tried on 2026-09-01 on the
+    theory that a longer section 3 makes Submit harder to reach; the keyboard problem is the one that
+    happens on every field of every form, and it wins.
   */
   .actionbar{
     position:static;

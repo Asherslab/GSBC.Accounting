@@ -34,7 +34,8 @@ public partial class ExpenseSubmissionService
             return BasicReadResponse<ExpenseSubmission>.WithError(SubmissionNotFound);
 
         DbExpenseSubmission? submission = await db.ExpenseSubmissions
-            .Include(x => x.Lines.OrderBy(line => line.Ordinal))
+            .Include(x => x.Details.OrderBy(detail => detail.Ordinal))
+            .ThenInclude(x => x.Items.OrderBy(item => item.Ordinal))
             .Include(x => x.Attachments)
             .Include(x => x.Attendees.OrderBy(attendee => attendee.Ordinal))
             .Include(x => x.Trips.OrderBy(trip => trip.Ordinal))

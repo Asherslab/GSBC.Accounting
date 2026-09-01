@@ -31,7 +31,8 @@ public record DraftSummary
 
     public decimal GrossTotal { get; init; }
 
-    public int LineCount { get; init; }
+    /// <summary>How many receipts have been entered - one detail per purchase.</summary>
+    public int DetailCount { get; init; }
 
     /// <summary>
     /// Shown because a draft with no receipt cannot be submitted, so the count is the one number that

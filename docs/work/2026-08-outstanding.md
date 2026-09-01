@@ -65,6 +65,13 @@ What is genuinely still outstanding:
 
 ## Known gaps in the app
 
+**The rendered examples in `docs/examples/` are from the old section 3 and are now wrong.** They show
+the seven-column line table, the `Attached / Missing` column and `Church use %`, none of which the app
+prints any more — section 3 is one block per receipt. Regenerate both before putting them in front of
+the accountant, or the parked output-format conversation happens about a layout that no longer exists.
+The manifest question above is unchanged and, if anything, sharper: every file now carries the purchase
+number it evidences, so "is the manifest enough" is a fairer question than it was.
+
 **Rate limiting is a speed bump, not a defence.** Partitioning by remote IP means a shared NAT puts a
 whole office in one bucket, and it trusts the ingress to set `X-Forwarded-For`. Real protection needs
 authentication or something in front. See [attachments.md](../modules/expenses/attachments.md).

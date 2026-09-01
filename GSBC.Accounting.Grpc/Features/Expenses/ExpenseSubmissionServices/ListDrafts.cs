@@ -23,8 +23,10 @@ public partial class ExpenseSubmissionService
     /// </para>
     /// <para>
     /// The counts respect the soft-delete filter because they are subqueries over the filtered sets -
-    /// <c>Lines</c> and <c>Attachments</c> both carry a global <c>!Deleted</c> filter, so a line the
-    /// claimant removed is not counted. That is the behaviour anyone reading "3 lines" expects.
+    /// <c>Details</c> and <c>Attachments</c> both carry a global <c>!Deleted</c> filter, so a receipt
+    /// the claimant removed is not counted. That is the behaviour anyone reading "3 receipts" expects,
+    /// and it matters more than it did: <c>Update</c> soft-deletes and re-adds every detail on every
+    /// autosave, so an unfiltered count would climb by the size of section 3 every two seconds.
     /// </para>
     /// </remarks>
     public async Task<ListDraftsResponse> ListDrafts(
@@ -47,7 +49,7 @@ public partial class ExpenseSubmissionService
                 x.SubmitterName,
                 x.PurposeActivity,
                 x.GrossTotal,
-                LineCount = x.Lines.Count,
+                DetailCount = x.Details.Count,
                 AttachmentCount = x.Attachments.Count,
                 x.CreatedAt,
                 x.UpdatedAt
@@ -66,7 +68,7 @@ public partial class ExpenseSubmissionService
                 SubmitterName = x.SubmitterName,
                 PurposeActivity = x.PurposeActivity,
                 GrossTotal = x.GrossTotal,
-                LineCount = x.LineCount,
+                DetailCount = x.DetailCount,
                 AttachmentCount = x.AttachmentCount,
                 CreatedAt = x.CreatedAt.UtcDateTime,
                 UpdatedAt = x.UpdatedAt.UtcDateTime,

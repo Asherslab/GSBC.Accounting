@@ -13,13 +13,18 @@ public partial class ExpenseSubmissionService
     /// Rewrites a draft with the form as it now stands.
     /// </summary>
     /// <remarks>
-    /// The children are <b>replaced</b>, not merged. A line the claimant deleted has to disappear, and
-    /// matching rows up by position across an edit that inserted one in the middle is a way to silently
-    /// move somebody's money between lines.
+    /// The children are <b>replaced</b>, not merged. A receipt the claimant deleted has to disappear,
+    /// and matching rows up by position across an edit that inserted one in the middle is a way to
+    /// silently move somebody's money between purchases.
     /// <para>
     /// The rows are soft-deleted rather than removed, like everything else here: seven-year retention
-    /// applies to a draft too, and a superseded line is part of how a submission came to say what it
+    /// applies to a draft too, and a superseded detail is part of how a submission came to say what it
     /// says.
+    /// </para>
+    /// <para>
+    /// <b>Replacing the details is why <see cref="ExpenseDetail.Key"/> exists.</b> Every autosave gives
+    /// each detail a new row id, so the uploaded files point at the claimant's own stable key instead -
+    /// which the client sends back unchanged and <c>WriteDetails</c> writes through.
     /// </para>
     /// </remarks>
     public async Task<BasicResponse> Update(UpdateExpenseSubmissionRequest request, CallContext context = default)
@@ -37,10 +42,12 @@ public partial class ExpenseSubmissionService
             return BasicResponse.WithError(SubmissionNotFound);
 
         DbExpenseSubmission? submission = await db.ExpenseSubmissions
-            .Include(x => x.Lines)
+            .Include(x => x.Details).ThenInclude(x => x.Items)
+            .Include(x => x.Attachments)
             .Include(x => x.Attendees)
             .Include(x => x.Trips)
             .Include(x => x.MissingReceipt)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(
                 x => x.Id == request.SubmissionId && x.OwnerSessionId == sessionId, token);
 
@@ -64,8 +71,7 @@ public partial class ExpenseSubmissionService
 
         submission.Kind = form.Kind;
 
-        (decimal gross, decimal gst) = ExpenseTotals.SumLines(form.Lines);
-        decimal lessPersonal = ExpenseTotals.Money(form.LessPersonalAmount);
+        (decimal gross, decimal gst, decimal lessPersonal) = ExpenseTotals.SumDetails(form.Details);
 
         submission.SubmitterName = form.SubmitterName;
         submission.FormDate = ToOffset(form.FormDate);
@@ -125,8 +131,13 @@ public partial class ExpenseSubmissionService
         // not ninety days after they started.
         submission.UpdatedAt = DateTimeOffset.UtcNow;
 
-        foreach (DbExpenseLine line in submission.Lines)
-            line.Deleted = true;
+        foreach (DbExpenseDetail detail in submission.Details)
+        {
+            detail.Deleted = true;
+
+            foreach (DbExpenseDetailItem item in detail.Items)
+                item.Deleted = true;
+        }
 
         foreach (DbExpenseAttendee attendee in submission.Attendees)
             attendee.Deleted = true;
@@ -134,24 +145,18 @@ public partial class ExpenseSubmissionService
         foreach (DbExpenseTrip trip in submission.Trips)
             trip.Deleted = true;
 
-        int ordinal = 0;
+        WriteDetails(submission, form.Details);
 
-        foreach (ExpenseLine line in form.Lines)
+        // A file whose detail the claimant has just deleted is now pointing at nothing. It stays on the
+        // submission - nothing here throws evidence away - but the link is cleared, so the PDF lists it
+        // under "not filed against a purchase" rather than against a receipt that is no longer on the
+        // form. Detaching the file itself is a separate, deliberate act with its own endpoint.
+        HashSet<Guid> liveKeys = form.Details.Select(x => x.Key).ToHashSet();
+
+        foreach (DbExpenseAttachment attachment in submission.Attachments)
         {
-            submission.Lines.Add(new DbExpenseLine
-            {
-                Id = Guid.Empty,
-                SubmissionId = submission.Id,
-                Ordinal = ordinal++,
-                ItemDescription = line.ItemDescription,
-                LineDate = ToOffset(line.LineDate),
-                Details = line.Details,
-                Purpose = line.Purpose,
-                Evidence = line.Evidence,
-                GrossAmount = ExpenseTotals.Money(line.GrossAmount),
-                GstAmount = line.GstAmount is { } g ? ExpenseTotals.Money(g) : null,
-                ChurchUsePercent = line.ChurchUsePercent
-            });
+            if (attachment.DetailKey is { } key && !liveKeys.Contains(key))
+                attachment.DetailKey = null;
         }
 
         if (submission.Kind == SubmissionKind.DebitCardPurchase)
@@ -195,9 +200,20 @@ public partial class ExpenseSubmissionService
             }
         }
 
-        bool hasMissingLine = form.Lines.Any(x => x.Evidence == EvidenceStatus.Missing);
+        // Section 5's trigger, evaluated against the STORED attachments and the form's details: a
+        // purchase with files against it, none of which came from the place it was bought. A detail with
+        // no files at all is not this - it is a form somebody is still filling in - so it does not open
+        // section 5 and would not be submittable anyway.
+        bool hasUnreceiptedPurchase = form.Details.Any(detail =>
+        {
+            List<DbExpenseAttachment> files = submission.Attachments
+                .Where(x => x.DetailKey == detail.Key && !x.Deleted)
+                .ToList();
 
-        if (hasMissingLine && form.MissingReceipt is { } missing)
+            return files.Count > 0 && files.All(x => x.Kind != AttachmentKind.SupplierReceipt);
+        });
+
+        if (hasUnreceiptedPurchase && form.MissingReceipt is { } missing)
         {
             // 0..1, so it is updated in place rather than replaced - a second row would violate the
             // one-per-submission relationship.
@@ -216,7 +232,8 @@ public partial class ExpenseSubmissionService
         }
         else if (submission.MissingReceipt is not null)
         {
-            // No line says Missing any more, so the declaration no longer belongs to this submission.
+            // Every purchase now has a receipt from where it was bought, so the declaration no longer
+            // belongs to this submission.
             submission.MissingReceipt.Deleted = true;
         }
 
@@ -243,8 +260,9 @@ public partial class ExpenseSubmissionService
     /// to blank, and as the backstop for a client that does not.
     /// </para>
     /// <para>
-    /// The section 4 detail tables are not touched here either. Every attendee and trip row was already
-    /// soft-deleted above, and only the table belonging to the stored kind is re-added.
+    /// Section 3 is not touched here either, and that is the point of it: a receipt is a receipt on both
+    /// forms. The section 4 detail tables are not touched either - every attendee and trip row was
+    /// already soft-deleted above, and only the table belonging to the stored kind is re-added.
     /// </para>
     /// </remarks>
     private static void ClearFieldsForOtherKind(DbExpenseSubmission submission)

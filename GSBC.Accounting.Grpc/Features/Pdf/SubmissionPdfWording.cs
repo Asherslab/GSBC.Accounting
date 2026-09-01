@@ -31,9 +31,6 @@ public static class SubmissionPdfWording
         PurposeNarrativePrompt = "What was purchased, who used or benefited from it, and how did it further "
                                  + "the Church's charitable/religious purposes?",
         Section3Caption = "3. PURCHASE AND EVIDENCE DETAILS",
-        LineColumn1Header = "Item",
-        LineColumn2Header = "Qty / details",
-        LineColumn3Header = "Church purpose / user",
         GrossTotalLabel = "Total card transaction",
         LessPersonalLabel = "Less personal portion to be repaid immediately",
         NetTotalLabel = "NET AUTHORISED CHURCH EXPENSE",
@@ -90,9 +87,6 @@ public static class SubmissionPdfWording
         PurposeActivityLabel = "Purpose / activity",
         PurposeNarrativePrompt = "How did the expenditure further the Church’s charitable/religious purposes?",
         Section3Caption = "3. EXPENSE DETAILS",
-        LineColumn1Header = "Date",
-        LineColumn2Header = "Supplier & item / service",
-        LineColumn3Header = "Purpose / ministry",
         GrossTotalLabel = "Subtotal of receipts",
         LessPersonalLabel = "Less personal / non-reimbursable portion",
         NetTotalLabel = "TOTAL REIMBURSEMENT CLAIMED",
@@ -148,9 +142,10 @@ public record PdfText
     public required string PurposeActivityLabel { get; init; }
     public required string PurposeNarrativePrompt { get; init; }
     public required string Section3Caption { get; init; }
-    public required string LineColumn1Header { get; init; }
-    public required string LineColumn2Header { get; init; }
-    public required string LineColumn3Header { get; init; }
+
+    // The three line-column headers that used to sit here are gone with the table they headed. Section 3
+    // is now one block per receipt, identically shaped on both forms - a receipt has a supplier and a
+    // date whichever way it was paid for - so there is nothing left in it to word per kind.
     public required string GrossTotalLabel { get; init; }
     public required string LessPersonalLabel { get; init; }
     public required string NetTotalLabel { get; init; }

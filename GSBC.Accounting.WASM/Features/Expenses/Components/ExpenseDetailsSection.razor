@@ -1,0 +1,430 @@
+@using GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses
+@using GSBC.Accounting.WASM.Features.Expenses
+@inject AttachmentClient Attachments
+
+@*
+    Section 3, and the section that changed shape when this stopped being a copy of the paper form.
+
+    THE RECEIPTS COME FIRST AND EVERYTHING ELSE HANGS OFF THEM. On paper, section 3 is a grid you write
+    across and the receipts are stapled to the back; nothing on the page records which row a given
+    receipt belongs to. This asks for the file first and opens the questions about that specific
+    purchase underneath it - so the link is recorded rather than left for a reviewer to infer from the
+    amounts, which matters because the files are emailed to finance beside the PDF rather than inside it.
+
+    Two-phase by necessity: the upload endpoint needs a submission id, so the first dropped file creates
+    the draft, then the files go up against it. An endpoint that accepted files with no id would be an
+    open write endpoint to the object store.
+
+    Every call here carries the draft session cookie, and the server checks the draft belongs to it. The
+    submission id alone is not enough to attach a file to somebody's form, or to take one off it.
+*@
+
+<section class="card" id="s3">
+    <header>
+        <span class="num">03</span>
+        <h3>@Text.Section3Caption</h3>
+        <span class="hint">
+            @(Model.Details.Count == 0
+                ? "Start by attaching a receipt"
+                : $"{Model.Details.Count} purchase{(Model.Details.Count == 1 ? "" : "s")}")
+        </span>
+    </header>
+    <div class="body">
+
+        <label class="drop @(_busy ? "over" : "")" for="@_inputId">
+            <span class="big">
+                @(_busy ? "Uploading…" : Model.Details.Count == 0
+                    ? "Attach a receipt to start"
+                    : "+ Attach the next receipt")
+            </span>
+            <span class="small">
+                PDF, JPG, PNG, HEIC or WebP &middot; up to 20&nbsp;MB each &middot; photos of paper
+                receipts are fine
+            </span>
+        </label>
+
+        @* InputFile renders its own <input type="file">; the label above targets it by id, which is what
+           makes the whole dashed panel clickable and keyboard-reachable without any JS interop. *@
+        <InputFile id="@_inputId" multiple OnChange="OnFilesChosen" disabled="@_busy"
+                   accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.webp" style="display:none"/>
+
+        <div class="notice" style="margin-top:14px">
+            <span class="ico">i</span>
+            <div>
+                <b>One entry per receipt, one shop per entry.</b> Everything you pick here at once becomes
+                <b>one</b> purchase &mdash; so choose all the photos of a single long docket together, and
+                come back to this box for the next shop. Each entry then asks its own questions, and the
+                answers only make sense about one receipt.
+                <div class="help" style="margin-top:6px">
+                    <b>No receipt from the shop?</b> Attach a screenshot or statement line from your
+                    banking app instead, showing the amount and who it was paid to, and mark it
+                    &ldquo;Bank / card line&rdquo;. You will be asked to complete the missing receipt
+                    declaration in section 5.
+                </div>
+            </div>
+        </div>
+
+        @if (_errors.Count > 0)
+        {
+            <div class="notice bad" style="margin-top:14px" role="alert">
+                <span class="ico">!</span>
+                <div>
+                    @foreach (string error in _errors)
+                    {
+                        <div>@error</div>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (Model.Details.Count == 0)
+        {
+            <p class="help" style="margin-top:14px">
+                Nothing attached yet. Section 3 fills itself in from the receipts &mdash; there is nothing
+                to type here until one is on the form.
+            </p>
+        }
+
+        <div class="details">
+            @foreach ((ExpenseDetailModel detail, int index) in Model.Details.Select((x, i) => (x, i)))
+            {
+                @* @key on the detail's own stable Guid - the same key the server files its attachments
+                   against. Without it Blazor reuses a removed panel's DOM for the panel that shifted up,
+                   and a half-typed amount lands on the wrong purchase. *@
+                <ExpenseDetailCard @key="detail.Key"
+                                   Detail="detail"
+                                   Index="index"
+                                   Files="FilesFor(detail)"
+                                   Busy="_busy"
+                                   Upload="UploadToDetail"
+                                   DetachFile="DetachAsync"
+                                   RefileAs="RefileAsync"
+                                   OnPreview="ShowPreview"
+                                   OnRemove="RemoveDetail"
+                                   OnChanged="Changed"/>
+            }
+        </div>
+
+        @*
+            Files that belong to no purchase. Reachable when somebody deletes a purchase without first
+            removing its files - Update clears the link rather than throwing evidence away, because
+            detaching a receipt is a deliberate act with its own confirmation and its own endpoint.
+
+            Shown rather than hidden: an unfiled file is still on the claim and still printed on the PDF's
+            evidence manifest, and a claimant who cannot see it cannot decide what to do about it.
+        *@
+        @if (Unfiled.Count > 0)
+        {
+            <div class="notice warn" style="margin-top:16px">
+                <span class="ico">!</span>
+                <div>
+                    <b>These files aren't against any purchase.</b> They stay on the claim and finance
+                    will see them listed, but nothing says what they are evidence of. Remove them, or
+                    attach them again to the purchase they belong to.
+                </div>
+            </div>
+
+            <ul class="files">
+                @foreach (ExpenseAttachment file in Unfiled)
+                {
+                    <li class="file" @key="file.Id">
+                        <span class="thumb">@Extension(file)</span>
+                        <span class="meta">
+                            <span class="name">@file.FileName</span>
+                            <span class="sz">@Size(file.ByteSize)</span>
+                        </span>
+                        <button class="rowbtn view" type="button" title="Look at this file"
+                                aria-label="@($"Look at {file.FileName}")" @onclick="() => ShowPreview(file)">
+                            &#128065;
+                        </button>
+                        <button class="rowbtn del" type="button" title="Remove this file"
+                                aria-label="@($"Remove {file.FileName}")" @onclick="() => RemoveUnfiled(file)">
+                            &times;
+                        </button>
+                    </li>
+                }
+            </ul>
+        }
+
+        <div class="totals">
+            <span class="k">@Text.GrossTotalLabel</span>
+            <span class="v mono">@Model.GrossTotal.ToString("C2")</span>
+
+            <span class="k">GST shown on evidence</span>
+            <span class="v mono">@Model.GstTotal.ToString("C2")</span>
+
+            @*
+                Read-only, and it used to be a box somebody typed into. It is now the sum of what each
+                receipt says it is not claiming, because the claim states the personal portion per
+                purchase - and a second figure at the foot of the form would be a way for the two to
+                disagree about the same money.
+            *@
+            <span class="k">@Text.LessPersonalLabel</span>
+            <span class="v mono">@Model.LessPersonalAmount.ToString("C2")</span>
+
+            <span class="rule"></span>
+
+            <span class="k net">@Text.NetTotalLabel</span>
+            <span class="v net mono">@Model.NetTotal.ToString("C2")</span>
+        </div>
+
+        @*
+            These figures are the browser's. The server recomputes all of them from the details and writes
+            its own; if they ever disagree the server is right and this is the bug. They exist because a
+            total that only updates after a round trip makes a form feel broken.
+        *@
+
+        @if (Model.ChargeMismatch)
+        {
+            <div class="notice warn" style="margin-top:14px">
+                <span class="ico">&ne;</span>
+                <div>
+                    <b>The receipts don't match the card charge.</b> They total
+                    <span class="mono">@Model.GrossTotal.ToString("C2")</span> but the amount charged in
+                    section 1 is <span class="mono">@(Model.AmountCharged?.ToString("C2"))</span>. Attach
+                    the missing receipt or correct the charge before submitting.
+                </div>
+            </div>
+        }
+    </div>
+</section>
+
+<AttachmentPreview File="_preview" OnClose="ClosePreview"/>
+
+@code
+{
+    [Parameter, EditorRequired] public required ExpenseFormModel Model { get; set; }
+
+    [Parameter, EditorRequired] public required ExpenseFormText Text { get; set; }
+
+    /// <summary>Every file on the claim. Owned by the page, because a submit has to see them.</summary>
+    [Parameter, EditorRequired] public required List<ExpenseAttachment> Files { get; set; }
+
+    /// <summary>
+    /// Creates the draft if there is not one yet and returns its id, or null if that failed. This
+    /// section cannot do it itself - only the page knows the form.
+    /// </summary>
+    [Parameter, EditorRequired] public required Func<Task<Guid?>> EnsureSubmission { get; set; }
+
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private readonly string _inputId = $"files-{Guid.NewGuid():N}";
+    private readonly List<string> _errors = [];
+    private bool _busy;
+
+    /// <summary>The file the preview modal is showing, or null when it is closed.</summary>
+    private ExpenseAttachment? _preview;
+
+    private IReadOnlyList<ExpenseAttachment> FilesFor(ExpenseDetailModel detail) =>
+        Files.Where(x => x.DetailKey == detail.Key).OrderBy(x => x.UploadedAt).ToList();
+
+    private List<ExpenseAttachment> Unfiled =>
+        Files.Where(x => x.DetailKey is null
+                         || Model.Details.All(detail => detail.Key != x.DetailKey))
+            .ToList();
+
+    /// <summary>
+    /// The batch that starts a new purchase. Everything chosen in one go becomes <b>one</b> detail.
+    /// </summary>
+    /// <remarks>
+    /// <b>One detail per batch, not per file</b>, and that is the whole reason the caption above says to
+    /// pick a single receipt's photos together. A long docket photographed in three parts is one
+    /// purchase, and creating three panels asking three times who the supplier was would be the form
+    /// misunderstanding what somebody just did. The other direction is recoverable in a way this is not:
+    /// a claimant who picks two shops at once sees one panel and can attach the second properly, whereas
+    /// merging three panels back into one is not something the page offers.
+    /// <para>
+    /// The detail is created <b>before</b> the first upload and removed again if none of the files lands,
+    /// because the upload has to carry the key it is being filed against.
+    /// </para>
+    /// </remarks>
+    private async Task OnFilesChosen(InputFileChangeEventArgs args)
+    {
+        _errors.Clear();
+
+        // GetMultipleFiles needs an explicit ceiling; its default is one file and it throws rather than
+        // truncating.
+        List<IBrowserFile> chosen = args.GetMultipleFiles(25).ToList();
+
+        if (chosen.Count == 0)
+            return;
+
+        ExpenseDetailModel detail = Model.AddDetail();
+        int landed = 0;
+
+        foreach (IBrowserFile file in chosen)
+        {
+            if (await UploadToDetail(detail.Key, file) is { } error)
+                _errors.Add(error);
+            else
+                landed++;
+        }
+
+        // Nothing uploaded, so there is no purchase - an empty panel asking about a receipt that is not
+        // there reads as the form having accepted something it refused.
+        if (landed == 0)
+            Model.RemoveDetail(detail);
+
+        await Changed();
+    }
+
+    /// <summary>
+    /// Uploads one file against one purchase. Returns the problem to show, or null when it worked.
+    /// </summary>
+    /// <remarks>
+    /// Shared with the per-purchase "add another file" box, which is why it takes the key rather than
+    /// reading it off a field. The default kind is a supplier receipt: it is what most files are, and it
+    /// is the answer that does <b>not</b> open section 5 - defaulting the other way would put a
+    /// declaration in front of everybody and train them to dismiss it.
+    /// </remarks>
+    private async Task<string?> UploadToDetail(Guid detailKey, IBrowserFile file)
+    {
+        _busy = true;
+        StateHasChanged();
+
+        try
+        {
+            Guid? submissionId = await EnsureSubmission();
+
+            if (submissionId is null)
+            {
+                return "The form has to be saved before receipts can be attached. Fix the problems above "
+                       + "and try again.";
+            }
+
+            if (file.Size > AttachmentClient.MaxBytes)
+                return $"{file.Name} is larger than 20 MB.";
+
+            await using Stream stream = file.OpenReadStream(AttachmentClient.MaxBytes);
+
+            AttachmentUploadResult result = await Attachments.UploadAsync(
+                submissionId.Value, detailKey, file.Name, file.ContentType, stream,
+                AttachmentKind.SupplierReceipt);
+
+            if (result is not { Success: true, Attachment: not null })
+                return $"{file.Name}: {result.Error}";
+
+            // The server answers with the existing row when the same bytes are uploaded twice, so replace
+            // rather than append - otherwise a file re-attached to a different purchase shows up twice,
+            // once under each.
+            int existing = Files.FindIndex(x => x.Id == result.Attachment.Id);
+
+            if (existing >= 0)
+                Files[existing] = result.Attachment;
+            else
+                Files.Add(result.Attachment);
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return $"{file.Name}: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>
+    /// Removes a file from the draft, on the server as well as on screen.
+    /// </summary>
+    /// <remarks>
+    /// <b>This is not a screen-only change, and it stopped being tenable as one when drafts became
+    /// resumable.</b> A file forgotten by the page alone came straight back the next time the claimant
+    /// opened the draft. The endpoint soft-deletes, so nothing hard-deletes evidence and the seven-year
+    /// rule is untouched; what changes is that the submission stops referencing the file.
+    /// <para>
+    /// The row is dropped from the list only once the server has agreed. Removing it first and putting it
+    /// back on failure is the kind of optimism that leaves somebody believing they removed a receipt they
+    /// did not.
+    /// </para>
+    /// </remarks>
+    private async Task<string?> DetachAsync(ExpenseAttachment file)
+    {
+        if (await Attachments.DetachAsync(file.SubmissionId, file.Id) is { } error)
+            return $"{file.FileName}: {error}";
+
+        Files.Remove(file);
+
+        // The preview may be showing the file that has just gone.
+        if (_preview?.Id == file.Id)
+            _preview = null;
+
+        return null;
+    }
+
+    private async Task<string?> RefileAsync(ExpenseAttachment file, AttachmentKind kind)
+    {
+        AttachmentUploadResult result = await Attachments.SetKindAsync(file.SubmissionId, file.Id, kind);
+
+        if (result is not { Success: true, Attachment: not null })
+            return $"{file.FileName}: {result.Error}";
+
+        // In place, so the file keeps its position rather than jumping to the end when somebody corrects
+        // what it is.
+        int index = Files.IndexOf(file);
+
+        if (index >= 0)
+            Files[index] = result.Attachment;
+
+        return null;
+    }
+
+    private async Task RemoveUnfiled(ExpenseAttachment file)
+    {
+        _errors.Clear();
+
+        if (await DetachAsync(file) is { } error)
+            _errors.Add(error);
+
+        await Changed();
+    }
+
+    /// <summary>
+    /// Removes a purchase. Its files are detached first, so nothing is left stranded on the claim.
+    /// </summary>
+    /// <remarks>
+    /// Detaching them here rather than leaving them unfiled is the opposite of what <c>Update</c> does on
+    /// the server, and both are right for where they sit. The server cannot know whether a detail vanished
+    /// because somebody deleted it or because a client sent a stale form, so it keeps the evidence and
+    /// clears the link. Here the claimant has just pressed × on the panel, which is an unambiguous
+    /// statement that this purchase is not part of the claim - and leaving its receipts behind under a
+    /// warning they now have to clear is a chore the button should have done.
+    /// </remarks>
+    private async Task RemoveDetail(ExpenseDetailModel detail)
+    {
+        _errors.Clear();
+
+        foreach (ExpenseAttachment file in FilesFor(detail))
+        {
+            if (await DetachAsync(file) is { } error)
+                _errors.Add(error);
+        }
+
+        Model.RemoveDetail(detail);
+
+        await Changed();
+    }
+
+    private void ShowPreview(ExpenseAttachment file) => _preview = file;
+
+    private void ClosePreview() => _preview = null;
+
+    private async Task Changed() => await OnChanged.InvokeAsync();
+
+    private static string Extension(ExpenseAttachment file) => file.ContentType switch
+    {
+        "application/pdf" => "PDF",
+        "image/jpeg" => "JPG",
+        "image/png" => "PNG",
+        "image/heic" or "image/heif" => "HEIC",
+        "image/webp" => "WEBP",
+        _ => "FILE"
+    };
+
+    private static string Size(long bytes) =>
+        bytes < 1024 ? $"{bytes} B"
+        : bytes < 1024 * 1024 ? $"{bytes / 1024.0:0.#} KB"
+        : $"{bytes / (1024.0 * 1024.0):0.#} MB";
+}

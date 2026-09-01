@@ -76,9 +76,13 @@ public class ExpenseFormModel
     public string? PurposeNarrative { get; set; }
 
     // ---- Section 3 ----
-    public List<ExpenseLineModel> Lines { get; set; } = [new()];
 
-    public decimal LessPersonalAmount { get; set; }
+    /// <summary>
+    /// One entry per purchase. <b>Starts empty, unlike the line table it replaced, which always had a
+    /// blank row.</b> A detail is created by attaching a receipt, so a form with no attachments has
+    /// nothing to show and an empty panel would be a set of questions about a receipt nobody has picked.
+    /// </summary>
+    public List<ExpenseDetailModel> Details { get; set; } = [];
 
     // ---- Section 4 ----
 
@@ -131,14 +135,20 @@ public class ExpenseFormModel
 
     // ---- Display totals. The server's are authoritative. ----
 
-    public decimal GrossTotal => Round(Lines.Sum(x => Round(x.GrossAmount ?? 0m)));
+    public decimal GrossTotal => Round(Details.Sum(x => Round(x.TotalIncGst ?? 0m)));
 
-    public decimal GstTotal => Round(Lines.Sum(x => Round(x.GstAmount ?? 0m)));
-
-    public decimal NetTotal => Round(GrossTotal - Round(LessPersonalAmount));
+    public decimal GstTotal => Round(Details.Sum(x => Round(x.GstAmount ?? 0m)));
 
     /// <summary>
-    /// True when the debit card form's lines do not add up to what the card was charged. The
+    /// Summed from the details rather than typed once at the foot of the form, which is what it used to
+    /// be. Each receipt states its own personal portion, so there is one place the number comes from.
+    /// </summary>
+    public decimal LessPersonalAmount => Round(Details.Sum(x => Round(x.NonReimbursedAmount ?? 0m)));
+
+    public decimal NetTotal => Round(GrossTotal - LessPersonalAmount);
+
+    /// <summary>
+    /// True when the debit card form's receipts do not add up to what the card was charged. The
     /// reimbursement form has no equivalent, because nothing external states its total.
     /// </summary>
     /// <remarks>
@@ -149,11 +159,30 @@ public class ExpenseFormModel
     public bool ChargeMismatch =>
         Kind == SubmissionKind.DebitCardPurchase
         && AmountCharged is { } charged
-        && Lines.Any(x => x.GrossAmount is not null)
+        && Details.Any(x => x.TotalIncGst is not null)
         && Round(charged) != GrossTotal;
 
-    /// <summary>Any line marked Missing is what unlocks section 5's declaration.</summary>
-    public bool HasMissingEvidence => Lines.Any(x => x.Evidence == EvidenceStatus.Missing);
+    /// <summary>
+    /// True when some purchase is evidenced only by a bank line or a screenshot - nothing from the place
+    /// it was bought. That is what unlocks section 5's declaration.
+    /// </summary>
+    /// <remarks>
+    /// <b>A function of the attachments, so the page has to pass them in.</b> The claimant already said
+    /// what each file is when they attached it, and asking a second time - a "did you have a receipt?"
+    /// tickbox - is how two answers end up disagreeing about the same claim.
+    /// <para>
+    /// A detail with no files at all is not this. It is a form somebody is midway through, and it opens
+    /// nothing; Submit refuses it separately.
+    /// </para>
+    /// </remarks>
+    public bool HasMissingEvidence(IReadOnlyList<ExpenseAttachment> attachments) =>
+        Details.Any(detail =>
+        {
+            List<ExpenseAttachment> files =
+                attachments.Where(x => x.DetailKey == detail.Key).ToList();
+
+            return files.Count > 0 && files.All(x => x.Kind != AttachmentKind.SupplierReceipt);
+        });
 
     /// <summary>
     /// True when re-answering question zero as <paramref name="kind"/> would throw away something the
@@ -193,7 +222,8 @@ public class ExpenseFormModel
     /// somebody edits the wording.
     /// <para>
     /// What stays is everything that means the same thing on both forms: the claimant, the ministry,
-    /// section 2, the lines, the attachments, the missing-receipt declaration and the signature. A
+    /// section 2, every purchase in section 3 and its receipts, the missing-receipt declaration and the
+    /// signature - a purchase is a purchase whichever card paid for it. A
     /// claimant correcting one question should not lose the afternoon's typing.
     /// </para>
     /// <para>
@@ -235,17 +265,33 @@ public class ExpenseFormModel
         Declarations = new bool[5];
     }
 
-    public void AddLine() => Lines.Add(new ExpenseLineModel());
+    /// <summary>
+    /// Starts a new purchase and returns it, so the caller can attach the files that created it.
+    /// </summary>
+    public ExpenseDetailModel AddDetail()
+    {
+        ExpenseDetailModel detail = new();
+
+        Details.Add(detail);
+
+        return detail;
+    }
 
     /// <summary>
-    /// Removes a line, but never the last one. An empty table has no "add" affordance in the row area
-    /// and reads as a broken page rather than an empty one.
+    /// Removes a purchase, all of them if asked - unlike the line table this replaced, which always kept
+    /// one row.
     /// </summary>
-    public void RemoveLine(ExpenseLineModel line)
-    {
-        if (Lines.Count > 1)
-            Lines.Remove(line);
-    }
+    /// <remarks>
+    /// The old rule existed because an empty table has no visible "add" affordance and reads as a broken
+    /// page. It does not apply here: a purchase is created by attaching a receipt, so the dropzone is
+    /// always on screen and an empty section 3 says "no receipts yet", which is the truth.
+    /// <para>
+    /// <b>The files are not removed with it.</b> Detaching a file is its own deliberate act, with a
+    /// server call behind it; <c>Update</c> clears the link instead, and the file stays on the claim
+    /// listed as unfiled. Callers that want the files gone remove them first.
+    /// </para>
+    /// </remarks>
+    public void RemoveDetail(ExpenseDetailModel detail) => Details.Remove(detail);
 
     /// <summary>
     /// Fills a form back in from a saved draft. The inverse of <see cref="ToCreateRequest"/>.
@@ -297,8 +343,6 @@ public class ExpenseFormModel
             ApprovalDate = FromUtc(submission.ApprovalDate),
             PurposeNarrative = submission.PurposeNarrative,
 
-            LessPersonalAmount = submission.LessPersonalAmount,
-
             Compliance =
             [
                 submission.ComplianceQ1, submission.ComplianceQ2, submission.ComplianceQ3,
@@ -316,21 +360,30 @@ public class ExpenseFormModel
             SignatureName = submission.SignatureName,
             IsMockData = submission.IsMockData,
 
-            // A draft with no lines would render a table with no rows, which reads as a broken page
-            // rather than an empty one - the same reason RemoveLine refuses to take the last row.
-            Lines = submission.Lines.Count > 0
-                ? submission.Lines.Select(line => new ExpenseLineModel
+            // No blank-row fallback, unlike the line table this replaced. A draft with no purchases is a
+            // draft where nothing has been attached yet, and the dropzone is what it should show.
+            //
+            // KEY IS COPIED THROUGH, and it is the one field here that cannot be allowed to regenerate:
+            // it is what every uploaded file on this draft is filed against, so a fresh Guid would orphan
+            // all of them the moment somebody reopened the form.
+            Details = submission.Details.Select(detail => new ExpenseDetailModel
+            {
+                Key = detail.Key,
+                Supplier = detail.Supplier,
+                PurchaseDate = FromUtc(detail.PurchaseDate),
+                Purpose = detail.Purpose,
+                ContainsPersonalItems = detail.ContainsPersonalItems,
+                ReceiptIsItemised = detail.ReceiptIsItemised,
+                TotalIncGst = detail.TotalIncGst,
+                GstAmount = detail.GstAmount,
+                NonReimbursedAmount = detail.NonReimbursedAmount,
+                Items = detail.Items.Select(item => new ExpenseDetailItemModel
                 {
-                    ItemDescription = line.ItemDescription,
-                    LineDate = FromUtc(line.LineDate),
-                    Details = line.Details,
-                    Purpose = line.Purpose,
-                    Evidence = line.Evidence,
-                    GrossAmount = line.GrossAmount,
-                    GstAmount = line.GstAmount,
-                    ChurchUsePercent = line.ChurchUsePercent
+                    Description = item.Description,
+                    Amount = item.Amount,
+                    IsChurchUse = item.IsChurchUse
                 }).ToList()
-                : [new ExpenseLineModel()],
+            }).ToList(),
 
             Attendees = submission.Attendees.Select(attendee => new AttendeeModel
             {
@@ -369,7 +422,11 @@ public class ExpenseFormModel
     /// Builds the write request. Only reachable once question zero has been answered - a form with no
     /// kind has no section 1 on screen, nothing to save, and no wording to save it under.
     /// </summary>
-    public CreateExpenseSubmissionRequest ToCreateRequest() => new()
+    /// <summary>
+    /// Builds the write request. <paramref name="attachments"/> decides only whether section 5's
+    /// declaration is sent - the files themselves went up their own endpoint and are not in here.
+    /// </summary>
+    public CreateExpenseSubmissionRequest ToCreateRequest(IReadOnlyList<ExpenseAttachment> attachments) => new()
     {
         Kind = Kind ?? throw new InvalidOperationException(
             "The form has no kind. Question zero has to be answered before a draft can be written, "
@@ -400,7 +457,8 @@ public class ExpenseFormModel
         ApprovalDate = ToUtc(ApprovalDate),
         PurposeNarrative = Trim(PurposeNarrative),
 
-        LessPersonalAmount = LessPersonalAmount,
+        // No LessPersonalAmount: the server sums the details' own non-reimbursed amounts, so sending a
+        // total as well would be sending the same figure twice and inviting the two to disagree.
 
         ComplianceQ1 = Compliance[0],
         ComplianceQ2 = Compliance[1],
@@ -421,7 +479,7 @@ public class ExpenseFormModel
 
         // Only sent when the section is actually open - a submission with no missing evidence must not
         // carry an empty declaration that a reviewer would read as one somebody made.
-        MissingReceipt = HasMissingEvidence
+        MissingReceipt = HasMissingEvidence(attachments)
             ? new MissingReceiptDeclaration
             {
                 SubmissionId = Guid.Empty,
@@ -461,18 +519,32 @@ public class ExpenseFormModel
             }).ToList()
             : [],
 
-        Lines = Lines.Select((line, index) => new ExpenseLine
+        Details = Details.Select((detail, index) => new ExpenseDetail
         {
             SubmissionId = Guid.Empty,
+            // The claimant's key, sent as-is. Everything else the server mints; this one it writes back
+            // untouched, because it is what the uploaded files point at.
+            Key = detail.Key,
             Ordinal = index,
-            ItemDescription = Trim(line.ItemDescription),
-            LineDate = ToUtc(line.LineDate),
-            Details = Trim(line.Details),
-            Purpose = Trim(line.Purpose),
-            Evidence = line.Evidence,
-            GrossAmount = line.GrossAmount ?? 0m,
-            GstAmount = line.GstAmount,
-            ChurchUsePercent = line.ChurchUsePercent ?? 100m
+            Supplier = Trim(detail.Supplier),
+            PurchaseDate = ToUtc(detail.PurchaseDate),
+            Purpose = Trim(detail.Purpose),
+            ContainsPersonalItems = detail.ContainsPersonalItems,
+            ReceiptIsItemised = detail.ReceiptIsItemised,
+            TotalIncGst = detail.TotalIncGst ?? 0m,
+            GstAmount = detail.GstAmount,
+            NonReimbursedAmount = detail.NonReimbursedAmount ?? 0m,
+            Items = detail.Items.Select((item, itemIndex) => new ExpenseDetailItem
+            {
+                DetailId = Guid.Empty,
+                Ordinal = itemIndex,
+                Description = Trim(item.Description),
+                Amount = item.Amount ?? 0m,
+                // Through the model's own reading of it, not the raw flag: in personal-items-only mode
+                // every listed item is personal whatever the flag says, and a stray true there would
+                // drop a line out of the total the non-reimbursed amount is floored on.
+                IsChurchUse = detail.EffectiveChurchUse(item)
+            }).ToList()
         }).ToList()
     };
 
@@ -527,26 +599,163 @@ public class TripModel
     public string? Purpose { get; set; }
 }
 
-/// <summary>One editable row of section 3. Every money field is nullable so an empty cell stays empty.</summary>
-public class ExpenseLineModel
+/// <summary>
+/// One purchase being filled in - a receipt, its two questions, its itemisation and its money.
+/// </summary>
+/// <remarks>
+/// Every money field is nullable so an empty box stays empty rather than showing a 0 somebody has to
+/// select and delete before typing.
+/// </remarks>
+public class ExpenseDetailModel
+{
+    /// <summary>
+    /// Stable for the life of this purchase - across re-renders, across autosaves, and across the
+    /// claimant closing the draft and coming back to it.
+    /// </summary>
+    /// <remarks>
+    /// Doing double duty, and both jobs need the same property. It is Blazor's <c>@key</c>, so a removed
+    /// panel's DOM is not reused for the panel that shifted up; and it is what every uploaded file is
+    /// filed against on the server, because <c>Update</c> gives each detail a new row id on every
+    /// autosave and a file holding one would come unlinked two seconds later.
+    /// <para>
+    /// <b>Settable, unlike the row keys elsewhere in this file</b> - a resumed draft has to come back
+    /// with the keys it was saved under, or every file on it is orphaned the moment the page loads.
+    /// </para>
+    /// </remarks>
+    public Guid Key { get; set; } = Guid.NewGuid();
+
+    /// <summary>Where it was bought. One purchase location per detail.</summary>
+    public string? Supplier { get; set; }
+
+    public DateOnly? PurchaseDate { get; set; }
+
+    /// <summary>What it was for - the church purpose, in the claimant's own words.</summary>
+    public string? Purpose { get; set; }
+
+    /// <summary>Question one. Null until answered, and null is not No.</summary>
+    public bool? ContainsPersonalItems { get; set; }
+
+    /// <summary>Question two. Null until answered.</summary>
+    public bool? ReceiptIsItemised { get; set; }
+
+    public decimal? TotalIncGst { get; set; }
+    public decimal? GstAmount { get; set; }
+
+    /// <summary>
+    /// What the church is not being asked to pay for. Never below <see cref="PersonalItemsTotal"/> -
+    /// see <see cref="ClampNonReimbursed"/> - and free to be above it, which is a gift.
+    /// </summary>
+    public decimal? NonReimbursedAmount { get; set; }
+
+    public List<ExpenseDetailItemModel> Items { get; set; } = [];
+
+    /// <summary>Both questions answered. Nothing below them renders until they are.</summary>
+    public bool Answered => ContainsPersonalItems is not null && ReceiptIsItemised is not null;
+
+    /// <summary>
+    /// What this receipt needs typed out, from its two answers. The same derivation the contract and the
+    /// server use - see <see cref="ExpenseDetail.Itemisation"/>, which is where it is explained.
+    /// </summary>
+    public ItemisationRequirement Itemisation => (ContainsPersonalItems, ReceiptIsItemised) switch
+    {
+        (false, true) => ItemisationRequirement.None,
+        (_, false) => ItemisationRequirement.Everything,
+        (true, true) => ItemisationRequirement.PersonalItemsOnly,
+        _ => ItemisationRequirement.None
+    };
+
+    /// <summary>
+    /// Whether the church-use toggle appears on each item. Only where the claimant is typing out the
+    /// whole receipt AND has said some of it is personal - otherwise every listed item is already known
+    /// to be one or the other, and a control whose answer is fixed is a control that invites a wrong one.
+    /// </summary>
+    public bool ItemsAreMixed =>
+        Itemisation == ItemisationRequirement.Everything && ContainsPersonalItems == true;
+
+    /// <summary>The itemised lines that are not the church's. The floor under the non-reimbursed field.</summary>
+    public decimal PersonalItemsTotal =>
+        Round(Items.Where(x => !EffectiveChurchUse(x)).Sum(x => Round(x.Amount ?? 0m)));
+
+    /// <summary>Everything typed out, church items included. Shown against the receipt total.</summary>
+    public decimal ItemisedTotal => Round(Items.Sum(x => Round(x.Amount ?? 0m)));
+
+    /// <summary>
+    /// True when a full itemisation does not come to what the receipt says. <b>A warning, never a
+    /// block</b> - somebody reading a faded thermal docket is asked for best effort, and a form that
+    /// refuses to submit until the cents reconcile is a form that gets a made-up line added to close the
+    /// gap.
+    /// </summary>
+    public bool ItemisationDiffers =>
+        Itemisation == ItemisationRequirement.Everything
+        && Items.Count > 0
+        && TotalIncGst is { } total
+        && Round(total) != ItemisedTotal;
+
+    /// <summary>
+    /// Whether an item counts as the church's, given the mode. In personal-items-only mode every line
+    /// listed IS a personal item, whatever the flag happens to hold - the toggle is not on screen there.
+    /// </summary>
+    public bool EffectiveChurchUse(ExpenseDetailItemModel item) =>
+        Itemisation != ItemisationRequirement.PersonalItemsOnly && item.IsChurchUse;
+
+    /// <summary>
+    /// Raises the non-reimbursed amount to the personal items total when itemising has pushed it above
+    /// what is currently typed there.
+    /// </summary>
+    /// <remarks>
+    /// <b>Raises, never lowers.</b> A claimant who chose to absorb $50 of a $30-personal receipt is
+    /// making a gift, and deleting a personal line must not quietly take $20 of that gift back. Lowering
+    /// it is something they do by typing, in a field whose <c>min</c> is this floor.
+    /// </remarks>
+    public void ClampNonReimbursed()
+    {
+        decimal floor = Itemisation == ItemisationRequirement.None ? 0m : PersonalItemsTotal;
+
+        if ((NonReimbursedAmount ?? 0m) < floor)
+            NonReimbursedAmount = floor;
+    }
+
+    /// <summary>
+    /// Drops what the questions have made irrelevant, so a stale answer cannot ride along on a claim.
+    /// </summary>
+    /// <remarks>
+    /// Called whenever either question is re-answered. The items go when nothing needs itemising - they
+    /// would otherwise be printed on the PDF as an itemisation nobody was asked for, and worse, they
+    /// would still be flooring the non-reimbursed amount. The <b>church-use flags</b> go when the mode
+    /// stops mixing, for the same reason: an item silently marked "church use" in a list that is meant to
+    /// be entirely personal drops straight out of the floor.
+    /// </remarks>
+    public void ReconcileToAnswers()
+    {
+        if (Itemisation == ItemisationRequirement.None)
+            Items.Clear();
+
+        if (!ItemsAreMixed)
+        {
+            foreach (ExpenseDetailItemModel item in Items)
+                item.IsChurchUse = false;
+        }
+
+        ClampNonReimbursed();
+    }
+
+    private static decimal Round(decimal value) => Math.Round(value, 2, MidpointRounding.ToEven);
+}
+
+/// <summary>One line the claimant is typing out of a receipt.</summary>
+public class ExpenseDetailItemModel
 {
     /// <summary>Stable across re-renders, so Blazor's @key does not reuse a row's DOM for another row.</summary>
     public Guid Key { get; } = Guid.NewGuid();
 
-    /// <summary>Column 1 on the debit card form.</summary>
-    public string? ItemDescription { get; set; }
+    public string? Description { get; set; }
 
-    /// <summary>Column 1 on the reimbursement form.</summary>
-    public DateOnly? LineDate { get; set; }
+    public decimal? Amount { get; set; }
 
-    public string? Details { get; set; }
-    public string? Purpose { get; set; }
-
-    public EvidenceStatus Evidence { get; set; } = EvidenceStatus.Attached;
-
-    public decimal? GrossAmount { get; set; }
-    public decimal? GstAmount { get; set; }
-
-    /// <summary>The paper form pre-prints 100, so 100 is the default rather than a choice someone made.</summary>
-    public decimal? ChurchUsePercent { get; set; } = 100m;
+    /// <summary>
+    /// Church use or not - a yes/no, not the paper form's percentage. Only meaningful where
+    /// <see cref="ExpenseDetailModel.ItemsAreMixed"/>; read it through
+    /// <see cref="ExpenseDetailModel.EffectiveChurchUse"/> rather than directly.
+    /// </summary>
+    public bool IsChurchUse { get; set; }
 }
