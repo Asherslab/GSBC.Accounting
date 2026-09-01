@@ -94,19 +94,35 @@ Two rules specific to this repo, both because it holds financial records:
 - **Nothing hard-deletes a submission or an attachment.** ACNC retention is seven years. Soft-delete
   and filter `!x.Deleted` in every query, including counts.
 
+## This app is not in production yet
+
+**No data in this app's database is worth preserving.** Nothing here is live, nobody has filed a real
+claim against it, and every row is test data somebody typed to see a screen work. So:
+
+- **Wipe the database, rewrite schemas, squash or delete migrations, drop tables.** Prefer the clean
+  model over the additive contortion that preserves rows nobody wants.
+- Destructive migrations do not need proposing first. Write the migration the schema actually wants.
+- Losing a draft, an attachment or an object-store bucket in the process is an acceptable cost, not
+  an incident.
+
+This is a property of *this* app at *this* moment, and it expires the day a real claimant submits a
+real receipt. It says nothing about `GSBC.ImpactKids` or any other database reachable from here —
+those are live, and everything below still applies to them.
+
 ## Migrations and contracts
 
 - **Migrations** — additive is free (new nullable-or-defaulted columns, new tables, widening types,
   new indexes) and you run `dotnet ef` yourself. Name a migration for what it does, not a timestamp.
-  Never suppress `PendingModelChangesWarning` — it is the only signal a model has drifted.
+  Destructive is also free while the section above holds. Never suppress
+  `PendingModelChangesWarning` — it is the only signal a model has drifted.
 - **Contracts** — change freely. Every consumer is in this repo. Both ends must be rebuilt together.
 
 ## When to stop and ask
 
 Only for what cannot be undone by editing code:
 
-- a migration that drops or rewrites existing data. Propose it; do not run it.
-- deleting or overwriting data outside a migration
+- anything touching data outside this app — another repo's database, a shared cluster, the
+  object store's other tenants
 - anything with an out-of-repo prerequisite — a cluster change, the object-store volume ceiling, a
   deploy-order dependency
 - an ambiguity where two readings lead to materially different designs
@@ -115,14 +131,19 @@ Otherwise report at slice boundaries and keep going.
 
 # Git
 
-`master` is the trunk.
+`master` is the trunk, and while this app is pre-production it is also the working branch.
 
-Never:
+**Commit on `master` and push it.** No branch, no PR, no asking first. History here is not evidence
+of anything yet, and a slice that builds belongs on the remote.
 
-- **commit on `master`** unless the user explicitly asks for it *and* you have told them plainly that
-  the current branch is `master`. Both halves — the request and the acknowledgement — every time.
-- **create branches.** The user makes them. When work needs one, say so and wait.
-- **push anything, anywhere.** No `git push`, no `--force`, no branch or tag pushes.
+Still ask first for:
+
+- **`--force`, and any history rewrite on a pushed branch.** Reachable commits are the one thing a
+  wipeable database cannot get back.
+- **branch and tag creation.** The user makes those; say when work needs one.
+
+Commit per slice, message written for somebody reading `git log` a year from now — what changed and
+why, not a restatement of the diff.
 
 Reading is always fine: `git log`, `git diff`, `git merge-base`, `git status`.
 
