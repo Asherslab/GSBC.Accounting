@@ -148,6 +148,57 @@
                 it.
             </p>
         }
+
+        @*
+            CLAIMS THIS BROWSER HAS ALREADY FILED, and the answer to a question the app previously had
+            none for. Once a claim was submitted the claimant's only record was the tab they were
+            looking at: close it, and they had a reference they had not written down and a drafts list
+            that no longer contained the claim.
+
+            Not a second drafts list. Nothing here opens a form - a submitted claim is evidence, and
+            the only things offered for it are its reference and its PDF, which is what a submitted
+            claim is read as. That is also why it sits below the drafts rather than above them: the
+            reason somebody comes to this page is nearly always to carry on with something.
+        *@
+        @if (_submitted.Count > 0)
+        {
+            <h2 class="listhead">Submitted claims</h2>
+
+            @foreach (DraftSummary claim in _submitted)
+            {
+                <section class="card" @key="claim.Id">
+                    <header>
+                        <h3>@Label(claim)</h3>
+                        <span class="hint">
+                            @KindLabel(claim.Kind)
+                            @if (claim.SubmittedAt is { } when)
+                            {
+                                <text> &middot; submitted @when.ToLocalTime().ToString("d MMMM yyyy")</text>
+                            }
+                        </span>
+                    </header>
+                    <div class="body">
+                        <p>
+                            Reference <span class="refcode">@claim.Reference</span>
+                        </p>
+                        <p class="help">
+                            @claim.GrossTotal.ToString("C2")
+                            &middot; @claim.DetailCount purchase@(claim.DetailCount == 1 ? "" : "s")
+                            &middot; @claim.AttachmentCount file@(claim.AttachmentCount == 1 ? "" : "s")
+                        </p>
+                        <p>
+                            <a class="cardlink" href="@PdfUrl(claim)" target="_blank" rel="noopener">
+                                Open the printable form (PDF)
+                            </a>
+                        </p>
+                        <p class="help">
+                            This claim cannot be edited. To correct anything on it, contact Finance and
+                            quote the reference.
+                        </p>
+                    </div>
+                </section>
+            }
+        }
     </main>
 </div>
 
@@ -156,6 +207,10 @@
     [CascadingParameter] private MainLayout Layout { get; set; } = default!;
 
     private readonly List<DraftSummary> _drafts = [];
+
+    /// <summary>Claims this browser has already filed. Read-only; nothing here reopens one.</summary>
+    private readonly List<DraftSummary> _submitted = [];
+
     private bool _loading = true;
     private bool _busy;
     private string? _error;
@@ -190,6 +245,7 @@
             ListDraftsResponse? response = await Session.DraftsAsync(force);
 
             _drafts.Clear();
+            _submitted.Clear();
 
             if (response is null)
             {
@@ -199,6 +255,7 @@
             else if (response.Success)
             {
                 _drafts.AddRange(response.Drafts);
+                _submitted.AddRange(response.Submitted);
             }
             else
             {
@@ -254,6 +311,12 @@
     /// was validated, not by the link that was clicked.
     /// </summary>
     private static string ResumeUrl(DraftSummary draft) => $"/forms/expense/{draft.Id}";
+
+    /// <summary>
+    /// The printable form for a submitted claim. Addressed by the submission id, not by the reference:
+    /// the GUID is what every URL in this app uses, and it is unguessable where the reference is not.
+    /// </summary>
+    private static string PdfUrl(DraftSummary claim) => $"/api/submissions/{claim.Id}/pdf";
 
     /// <summary>
     /// What to call one draft in a list of them.

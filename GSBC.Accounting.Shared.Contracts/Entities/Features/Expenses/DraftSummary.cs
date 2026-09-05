@@ -9,8 +9,10 @@ namespace GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses;
 /// deal of a claimant's personal data across the wire for no reader. The full form arrives only when
 /// somebody actually opens one, through <c>Get</c>.
 /// <para>
-/// There is no status field: this only ever describes a <c>Draft</c>. A submitted claim is evidence and
-/// leaves the list the moment it is submitted, because it is no longer something anyone may resume.
+/// There is still no status field, and that is still deliberate: which list a row is in says what it
+/// is. A submitted claim leaves <c>Drafts</c> the moment it is submitted, because it is no longer
+/// something anyone may resume; it appears in <c>Submitted</c> instead, where the only thing offered
+/// for it is its reference and its PDF. Same shape, because it is the same six facts.
 /// </para>
 /// </remarks>
 [ProtoContract(ImplicitFields = ImplicitFields.AllPublic)]
@@ -19,6 +21,14 @@ public record DraftSummary
     public required Guid Id { get; init; }
 
     public required SubmissionKind Kind { get; init; }
+
+    /// <summary>
+    /// The claim reference, on a submitted row. Null on a draft, which has not been issued one.
+    /// </summary>
+    public string? Reference { get; init; }
+
+    /// <summary>When it was submitted, on a submitted row. Null on a draft.</summary>
+    public DateTime? SubmittedAt { get; init; }
 
     /// <summary>
     /// Whoever section 1 names, which on an early draft is usually nobody. The page says "Unnamed
