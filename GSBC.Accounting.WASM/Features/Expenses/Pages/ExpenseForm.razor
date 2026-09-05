@@ -20,6 +20,9 @@
 @* Only for the current path, which the refusal banner's links have to be written against - see
    PagePath, and SectionRail.Href for the trap they are both avoiding. *@
 @inject NavigationManager Navigation
+@* Section 1's answers from the last claim filed on this browser. Read on a NEW form only - a resumed
+   draft already carries its own. *@
+@inject ClaimantMemory Claimant
 
 <PageTitle>@(Model.Kind is null ? UnchosenTitle : Text.DocumentTitle)</PageTitle>
 
@@ -267,6 +270,16 @@
                     <span class="hint">@Text.Section1Hint</span>
                 </header>
                 <div class="body">
+                    @if (_prefilled)
+                    {
+                        <div class="notice" style="margin-bottom:16px">
+                            <span class="ico">i</span>
+                            <div>
+                                Filled in from the last claim submitted in this browser. Check every
+                                answer below and correct anything that has changed.
+                            </div>
+                        </div>
+                    }
                     <div class="grid">
                         <div class="f c5">
                             <label for="submitter">@Text.SubmitterNameLabel <span class="req">*</span></label>
@@ -702,6 +715,13 @@
     /// </summary>
     private bool _draftUnavailable;
 
+    /// <summary>
+    /// Section 1 arrived filled in from the last claim on this browser. Said on screen rather than done
+    /// quietly: a form that has answers in it that nobody remembers typing is a form somebody submits
+    /// without reading, and the whole of section 1 is a statement about who is making the claim.
+    /// </summary>
+    private bool _prefilled;
+
     private DraftAutosave? _autosave;
 
     /// <summary>
@@ -765,7 +785,28 @@
         _autosave = new DraftAutosave(SaveQuietlyAsync);
 
         if (DraftId is not { } id)
+        {
+            // A NEW form. Section 1 is filled in from the last claim filed on this browser, which takes
+            // a routine claim from about fifteen fields to about six. Only on a new one: a resumed draft
+            // already carries its own answers, and overwriting them with older ones would be the form
+            // undoing somebody's typing.
+            //
+            // Nothing is written to the server by this. The autosave only runs once something is
+            // touched, so a pre-filled form that is then abandoned still leaves no row behind - which
+            // is the whole reason the draft is created lazily.
+            if (await Claimant.ReadAsync() is { } remembered)
+            {
+                Model.SubmitterName = remembered.Name;
+                Model.ContactPhoneEmail = remembered.ContactPhoneEmail;
+                Model.Role = remembered.Role;
+                Model.RoleOther = remembered.RoleOther;
+                Model.MinistryDepartment = remembered.Ministry;
+
+                _prefilled = true;
+            }
+
             return;
+        }
 
         // Resuming. The server decides whether this session may have it - see IExpenseSubmissionService
         // - so nothing here needs to check, and a refusal is indistinguishable from a draft that does
@@ -1173,6 +1214,18 @@
                 // The claim reference, minted by the server in the same call. There is no second way
                 // to fetch it: Read refuses a submitted claim by design.
                 _reference = response.Reference;
+
+                // Section 1's answers, for the next claim filed on this browser. On submit rather than
+                // on every autosave: a draft is a form somebody is still deciding about, and
+                // remembering one would hand the next claim whatever was on screen when they gave up.
+                await Claimant.RememberAsync(new ClaimantMemory.Claimant
+                {
+                    Name = Model.SubmitterName,
+                    ContactPhoneEmail = Model.ContactPhoneEmail,
+                    Role = Model.Role,
+                    RoleOther = Model.RoleOther,
+                    Ministry = Model.MinistryDepartment
+                });
             }
             else if (response.Problems.Count > 0)
             {
