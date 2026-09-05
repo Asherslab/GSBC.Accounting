@@ -248,9 +248,24 @@ a{color:var(--brand)}
   color:var(--ink-2);text-decoration:none;font-size:13.5px;line-height:1.35;
 }
 .rail a:hover{background:var(--surface-sunk);color:var(--ink)}
+/*
+  The section on screen. Set by js/sections.js from outside the render tree - Blazor does not manage
+  this class, which is why SectionRail's anchors carry no class attribute of their own.
+*/
 .rail a.active{background:var(--brand-wash);color:var(--ink);font-weight:600}
 .rail .n{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-3)}
 .rail a.active .n{color:var(--brand)}
+/*
+  A section that is listed but has nowhere to go: 7 and 8, which nobody on this page can complete, and
+  5 until a purchase has no supplier receipt. Listed so the numbering does not jump 4 to 6 - a rail
+  that skips a number reads as a bug - and drawn quieter than the links so it does not look like one
+  that has stopped working.
+*/
+.rail .pending{
+  display:grid;grid-template-columns:20px 1fr;gap:9px;align-items:baseline;
+  padding:7px 8px;border-radius:var(--radius);
+  color:var(--ink-3);font-size:13.5px;line-height:1.35;
+}
 .rail .dot{
   display:inline-block;width:6px;height:6px;border-radius:50%;
   background:var(--line-strong);margin-left:6px;vertical-align:middle;
@@ -805,7 +820,15 @@ button.b.primary:hover{background:var(--brand-2);border-color:var(--brand-2)}
     padding:7px 13px;border:1px solid var(--line);border-radius:99px;
     white-space:nowrap;font-size:13px;
   }
-  .rail a > span:last-child{display:inline-flex;align-items:center;gap:6px}
+  .rail a > span:last-child,.rail .pending > span:last-child{
+    display:inline-flex;align-items:center;gap:6px;
+  }
+  /* the pending entries become pills too, or they read as gaps in the strip rather than as steps */
+  .rail .pending{
+    grid-template-columns:auto auto;gap:7px;align-items:center;
+    padding:7px 13px;border:1px dashed var(--line);border-radius:99px;
+    white-space:nowrap;font-size:13px;
+  }
   .rail .dot{margin-left:0}
 
   /* ----- form column ----- */

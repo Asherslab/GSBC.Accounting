@@ -17,24 +17,43 @@
         @foreach (RailSection item in Sections)
         {
             <li>
-                <a href="@Href(item)" class="@(item.Pending ? "" : "")">
-                    <span class="n">@item.Number</span>
-                    <span>
-                        @item.Title
-                        @if (item.Pending)
-                        {
-                            <span class="dot"></span>
-                        }
-                        else if (item.Complete)
-                        {
-                            <span class="dot done"></span>
-                        }
-                        else
-                        {
-                            <span class="dot err"></span>
-                        }
+                @*
+                    A LINK ONLY WHERE THERE IS SOMETHING TO LINK TO. A pending entry is listed so the
+                    numbering does not jump - the comment above is about exactly that - but its card is
+                    either not on the page at all, as section 5's is until some purchase needs it, or
+                    folded away under 900px, as sections 7 and 8 are. A fragment with no target scrolls
+                    nowhere and reads as a broken link, which is worse than the gap it was fixing.
+
+                    No class attribute on the anchor, and that is load-bearing rather than tidy: the
+                    `active` class marking the section on screen is set by js/sections.js from outside
+                    the render tree, and an attribute Blazor manages is one it would overwrite on the
+                    next keystroke. (It also used to read `class="@@(item.Pending ? "" : "")"`, a ternary
+                    between two empty strings, which is what prompted looking at this at all.)
+                *@
+                @if (item.Pending)
+                {
+                    <span class="pending">
+                        <span class="n">@item.Number</span>
+                        <span>@item.Title<span class="dot"></span></span>
                     </span>
-                </a>
+                }
+                else
+                {
+                    <a href="@Href(item)">
+                        <span class="n">@item.Number</span>
+                        <span>
+                            @item.Title
+                            @if (item.Complete)
+                            {
+                                <span class="dot done"></span>
+                            }
+                            else
+                            {
+                                <span class="dot err"></span>
+                            }
+                        </span>
+                    </a>
+                }
             </li>
         }
     </ol>
@@ -61,6 +80,10 @@
     }
 
     /// <param name="Complete">Ignored when <paramref name="Pending"/> is true.</param>
-    /// <param name="Pending">The section exists on the paper form but is not built yet.</param>
+    /// <param name="Pending">
+    /// The section is on the paper form and on this rail, but there is nothing on the page to go to -
+    /// either because nobody on this page can complete it (7 and 8) or because it does not apply to
+    /// this claim (5, until a purchase has no supplier receipt). Rendered greyed and not as a link.
+    /// </param>
     public record RailSection(string Number, string Title, string Anchor, bool Complete, bool Pending = false);
 }

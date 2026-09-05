@@ -47,6 +47,11 @@
       Every localStorage access is wrapped. It throws outright in some contexts (private windows,
       third-party-cookie blocking), and a theme preference is never worth breaking a page over - the
       same reasoning as DraftStore, for the same reason.
+
+      There is now a second script, js/sections.js, loaded at the end of <body>. The bar it had to clear
+      was this same one - something Blazor genuinely cannot do - and it clears it for a different
+      reason: answering "which section is on screen" means watching the viewport as it scrolls, which
+      from C# is an interop call per scroll event to set one CSS class.
     -->
     <script>
         (function () {
@@ -123,6 +128,14 @@
     the comment on that property's absence in the csproj.
 -->
 <script src="_framework/blazor.webassembly.js"></script>
+
+<!--
+    Marks the section on screen in the rail, and keeps that entry visible in the mobile stepper. Runs
+    entirely outside Blazor's render tree and never calls into it - see the file's own header. After
+    the loader rather than before it, because it observes the DOM the app renders and has nothing to
+    do until there is some.
+-->
+<script src="js/sections.js"></script>
 </body>
 
 </html>
