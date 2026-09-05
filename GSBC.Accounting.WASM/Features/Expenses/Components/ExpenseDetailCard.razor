@@ -271,7 +271,7 @@
                     <div class="money">
                         <input type="number" inputmode="decimal" step="0.01" min="0" id="@($"tot-{Detail.Key}")"
                                aria-invalid="@Bad("tot")"
-                               @bind="Detail.TotalIncGst" @bind:event="oninput" @bind:after="Changed"/>
+                               @bind="Detail.TotalIncGst" @bind:event="oninput" @bind:after="TotalEntered"/>
                     </div>
                     <span class="help">Include every item on the receipt, personal items included.</span>
                 </div>
@@ -279,7 +279,7 @@
                     <label for="@($"gst-{Detail.Key}")">GST shown</label>
                     <div class="money">
                         <input type="number" inputmode="decimal" step="0.01" min="0" id="@($"gst-{Detail.Key}")"
-                               @bind="Detail.GstAmount" @bind:event="oninput" @bind:after="Changed"/>
+                               @bind="Detail.GstAmount" @bind:event="oninput" @bind:after="GstEdited"/>
                     </div>
                     <span class="help">@GstHelp</span>
                 </div>
@@ -398,7 +398,57 @@
         ? "Personal item"
         : "Item";
 
-    private string GstHelp => "Leave blank if the supplier is not registered for GST.";
+    /// <summary>
+    /// True while the GST box holds this component's arithmetic rather than the claimant's reading of
+    /// the receipt. Cleared the moment they touch the field, and never sent anywhere - the stored value
+    /// is a number either way, and what this changes is only what the form says about it.
+    /// </summary>
+    private bool _gstSuggested;
+
+    private string GstHelp => _gstSuggested
+        ? "Calculated as one eleventh of the total. Correct it to match the receipt."
+        : "Leave blank if the supplier is not registered for GST.";
+
+    /// <summary>
+    /// Offers the GST when the receipt total is first entered.
+    /// </summary>
+    /// <remarks>
+    /// Australian GST is one eleventh of a GST-inclusive total in the ordinary case, and "GST shown"
+    /// otherwise asks a volunteer to find a figure on a docket that may print it in three different
+    /// places or not at all.
+    /// <para>
+    /// <b>Offered, not computed, and the difference is the whole design.</b> The value goes in as an
+    /// ordinary editable figure with the hint saying where it came from, because this field is evidence
+    /// of what the receipt says - and GST-free items are common in exactly the grocery shop this form
+    /// will see most, so a silently computed eleventh would be wrong on a great many claims and nobody
+    /// would ever look at it.
+    /// </para>
+    /// <para>
+    /// Only into an EMPTY box, and never over a figure somebody has already put there. A form that
+    /// rewrites a number after it was typed is a form nobody trusts with the rest of them.
+    /// </para>
+    /// </remarks>
+    private async Task TotalEntered()
+    {
+        if (Detail.GstAmount is null && Detail.TotalIncGst is { } total and > 0m)
+        {
+            Detail.GstAmount = decimal.Round(total / 11m, 2, MidpointRounding.AwayFromZero);
+            _gstSuggested = true;
+        }
+
+        await Changed();
+    }
+
+    /// <summary>
+    /// The claimant has typed in the GST box, so whatever is in it is theirs and the hint says so
+    /// again.
+    /// </summary>
+    private async Task GstEdited()
+    {
+        _gstSuggested = false;
+
+        await Changed();
+    }
 
     private string NonReimbursedHelp => Detail.Itemisation switch
     {
