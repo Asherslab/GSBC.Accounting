@@ -48,6 +48,31 @@
         <InputFile id="@_inputId" multiple OnChange="OnFilesChosen" disabled="@_busy"
                    accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.webp" style="display:none"/>
 
+        @*
+            THE CAMERA, beside the picker rather than instead of it.
+
+            The whole form is built around attaching a receipt first, and the claimant it is built for
+            is standing at the counter with a paper docket in one hand and the phone in the other. The
+            control above opens the file picker, which on a phone is a gallery of photographs they have
+            not taken yet.
+
+            capture="environment" asks for the rear camera directly. It is a HINT, not a guarantee -
+            a desktop browser ignores it and opens the ordinary picker, which is why this is a second
+            control and not a replacement for the first. Plenty of receipts arrive as emailed PDFs.
+
+            No `multiple`: a camera capture is one photograph, and the attribute is meaningless on it.
+            A docket long enough to need two photographs is two presses of this button, and each lands
+            in the same purchase only if taken together - so the caption says to use the picker for
+            those. Same route in either case, so it makes a purchase exactly as the dropzone does.
+        *@
+        <label class="drop small camera @(_busy ? "over" : "")" for="@_cameraId">
+            <span class="big">Take a photograph</span>
+            <span class="small">Opens the camera. Use the panel above for a file already on the device.</span>
+        </label>
+
+        <InputFile id="@_cameraId" OnChange="OnFilesChosen" disabled="@_busy"
+                   accept="image/*" capture="environment" style="display:none"/>
+
         <div class="notice" style="margin-top:14px">
             <span class="ico">i</span>
             <div>
@@ -213,6 +238,9 @@
     [Parameter] public EventCallback OnChanged { get; set; }
 
     private readonly string _inputId = $"files-{Guid.NewGuid():N}";
+
+    /// <summary>The camera's own input. A second id, because a label targets exactly one.</summary>
+    private readonly string _cameraId = $"camera-{Guid.NewGuid():N}";
     private readonly List<string> _errors = [];
     private bool _busy;
 

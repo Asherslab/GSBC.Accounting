@@ -483,6 +483,12 @@ td .money input{padding-left:18px;text-align:right}
   at the section's weight it competed with the panel's own fields for attention.
 */
 .drop.small{padding:14px 16px;border-width:1px}
+/*
+  The camera control, directly under section 3's dropzone. Quieter than the zone above it and joined to
+  it - the two are one choice about where the receipt is coming from, not two separate offers - so the
+  top corners are squared off and the border they share is not drawn twice.
+*/
+.drop.camera{margin-top:-1px;border-top-left-radius:0;border-top-right-radius:0}
 .drop.small .big{font-size:13.5px;margin-bottom:2px}
 .drop.small .small{font-size:12px}
 
