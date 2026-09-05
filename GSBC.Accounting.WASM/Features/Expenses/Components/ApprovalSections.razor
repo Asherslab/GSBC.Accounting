@@ -12,7 +12,26 @@
     identity to enforce. A person completes these off-screen for now.
 
     The fields ARE in the aggregate already, so the work that fills them in later is additive.
+
+    FOLDED AWAY ON A PHONE, and open everywhere else. Six inputs nobody filling this form in can
+    complete cost a 390px screen about a screen and a half, and they are the last thing between the
+    claimant and the Submit button. The disclosure below is real markup with real state; app.css
+    hides the toggle and forces the body open above 900px, so the desk layout is unchanged and the
+    decision about which width folds lives with the rest of the breakpoint reasoning.
 *@
+
+<div class="laterwrap">
+    @* aria-expanded and aria-controls rather than a <details>: the open state has to be overridable
+       by the stylesheet at desk width, and a <details> that CSS forces open still reports itself
+       closed to a screen reader. *@
+    <button class="later-toggle" type="button" aria-expanded="@_open" aria-controls="later-sections"
+            @onclick="() => _open = !_open">
+        <span class="num">07&ndash;08</span>
+        <span>Sections 7 and 8 are completed after submission</span>
+        <span class="chev" aria-hidden="true">@(_open ? "−" : "+")</span>
+    </button>
+
+<div class="later-body" id="later-sections" hidden="@(!_open)">
 
 <section class="card locked" id="s7" aria-label="Independent approval, completed after submission">
     <header>
@@ -101,9 +120,19 @@
     </div>
 </section>
 
+</div>
+</div>
+
 @code
 {
     [Parameter, EditorRequired] public required SubmissionKind Kind { get; set; }
+
+    /// <summary>
+    /// Whether the two sections are showing. Starts closed, which is only ever seen under 900px -
+    /// above it the stylesheet hides the toggle and forces the body open, so a desk reader gets both
+    /// cards on the page as before.
+    /// </summary>
+    private bool _open;
 
     /// <summary>`Church expense approved $` / `Approved for $` - one field, two printed labels.</summary>
     private string ApprovedAmountLabel =>

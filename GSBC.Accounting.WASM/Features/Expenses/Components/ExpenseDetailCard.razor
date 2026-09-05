@@ -124,13 +124,16 @@
                     Personal shopping picked up in the same transaction, a family member's meal, anything
                     you would not ask the Church to pay for.
                 </p>
+                @* The amber state comes from .concern on the label, never from the radio's value. Here
+                   the answer that opens more of the form is Yes, so Yes carries the class - and both
+                   radios carry the value they actually mean. *@
                 <div class="yn" style="margin-top:8px">
                     <label>
-                        <input type="radio" name="@($"pers-{Detail.Key}")"
+                        <input type="radio" name="@($"pers-{Detail.Key}")" value="no"
                                checked="@(Detail.ContainsPersonalItems == false)"
                                @onchange="() => SetPersonal(false)"/>No
                     </label>
-                    <label>
+                    <label class="concern">
                         <input type="radio" name="@($"pers-{Detail.Key}")" value="yes"
                                checked="@(Detail.ContainsPersonalItems == true)"
                                @onchange="() => SetPersonal(true)"/>Yes
@@ -144,14 +147,18 @@
                     A supermarket or hardware docket does. A card terminal slip, a handwritten total, or a
                     line on a bank statement does not.
                 </p>
+                @* THE ONE WHERE No IS THE CONCERNING ANSWER, and the reason the styling stopped being
+                   driven by the value. A receipt that does not itemise is the one that costs the
+                   claimant work, so .concern is on No here - where the old markup instead put
+                   value="yes" on the No radio to borrow the colour. *@
                 <div class="yn" style="margin-top:8px">
-                    <label>
-                        <input type="radio" name="@($"item-{Detail.Key}")" value="yes"
+                    <label class="concern">
+                        <input type="radio" name="@($"item-{Detail.Key}")" value="no"
                                checked="@(Detail.ReceiptIsItemised == false)"
                                @onchange="() => SetItemised(false)"/>No
                     </label>
                     <label>
-                        <input type="radio" name="@($"item-{Detail.Key}")"
+                        <input type="radio" name="@($"item-{Detail.Key}")" value="yes"
                                checked="@(Detail.ReceiptIsItemised == true)"
                                @onchange="() => SetItemised(true)"/>Yes
                     </label>
@@ -211,14 +218,18 @@
                                 @if (Detail.ItemsAreMixed)
                                 {
                                     <td data-label="Church use?">
+                                        @* Not Church use is the answer that takes money off the claim,
+                                           so .concern is on No. Same rule as the itemisation pair
+                                           above: the class marks the concerning answer, the value
+                                           states the answer. *@
                                         <div class="yn">
-                                            <label>
-                                                <input type="radio" name="@($"cu-{item.Key}")" value="yes"
+                                            <label class="concern">
+                                                <input type="radio" name="@($"cu-{item.Key}")" value="no"
                                                        checked="@(!item.IsChurchUse)"
                                                        @onchange="() => SetChurchUse(item, false)"/>No
                                             </label>
                                             <label>
-                                                <input type="radio" name="@($"cu-{item.Key}")"
+                                                <input type="radio" name="@($"cu-{item.Key}")" value="yes"
                                                        checked="@item.IsChurchUse"
                                                        @onchange="() => SetChurchUse(item, true)"/>Yes
                                             </label>
