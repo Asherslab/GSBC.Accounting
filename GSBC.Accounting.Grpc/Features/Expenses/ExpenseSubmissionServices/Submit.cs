@@ -2,8 +2,9 @@ using System.Globalization;
 using GSBC.Accounting.Grpc.Data.Models.Expenses;
 using GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses;
 using GSBC.Accounting.Shared.Contracts.Messages.Requests.Features.Expenses;
-using GSBC.Accounting.Shared.Contracts.Messages.Responses.Base;
+using GSBC.Accounting.Shared.Contracts.Messages.Responses.Features.Expenses;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using static GSBC.Accounting.Grpc.Features.Expenses.ErrorConstants;
 
 namespace GSBC.Accounting.Grpc.Features.Expenses.ExpenseSubmissionServices;
@@ -28,14 +29,17 @@ public partial class ExpenseSubmissionService
     /// and nothing in this scope second-guesses it.
     /// </para>
     /// </remarks>
-    public async Task<BasicResponse> Submit(SubmitExpenseSubmissionRequest request, CallContext context = default)
+    public async Task<SubmitExpenseSubmissionResponse> Submit(
+        SubmitExpenseSubmissionRequest request,
+        CallContext context = default
+    )
     {
         CancellationToken token = context.CancellationToken;
 
         // Only the session that filled the form in may submit it. Without this, holding an id was
         // enough to turn somebody else's half-finished draft into a claim standing in their name.
         if (await sessions.CurrentAsync(token) is not { } sessionId)
-            return BasicResponse.WithError(SubmissionNotFound);
+            return SubmitExpenseSubmissionResponse.WithError(SubmissionNotFound);
 
         DbExpenseSubmission? submission = await db.ExpenseSubmissions
             .Include(x => x.Details).ThenInclude(x => x.Items)
@@ -46,12 +50,12 @@ public partial class ExpenseSubmissionService
                 x => x.Id == request.SubmissionId && x.OwnerSessionId == sessionId, token);
 
         if (submission is null)
-            return BasicResponse.WithError(SubmissionNotFound);
+            return SubmitExpenseSubmissionResponse.WithError(SubmissionNotFound);
 
         // Idempotent in the sense that matters: a double-click cannot submit twice, and the second
         // attempt says so rather than silently succeeding.
         if (submission.Status != SubmissionStatus.Draft)
-            return BasicResponse.WithError(AlreadySubmitted);
+            return SubmitExpenseSubmissionResponse.WithError(AlreadySubmitted);
 
         // The totals are recomputed here, not trusted from the row - the row was written by Create from
         // a client's request, and this is the last point before the claim becomes evidence.
@@ -92,7 +96,7 @@ public partial class ExpenseSubmissionService
         List<string> errors = ValidateForSubmit(submission, details, gross);
 
         if (errors.Count > 0)
-            return BasicResponse.WithErrors(errors);
+            return SubmitExpenseSubmissionResponse.WithErrors(errors);
 
         submission.GrossTotal = gross;
         submission.GstTotal = gst;
@@ -111,11 +115,105 @@ public partial class ExpenseSubmissionService
         db.Entry(submission).Property(x => x.Status).IsModified = true;
         db.Entry(submission).Property(x => x.SubmittedAt).IsModified = true;
         db.Entry(submission).Property(x => x.SignedAt).IsModified = true;
+        db.Entry(submission).Property(x => x.Reference).IsModified = true;
 
-        await db.SaveChangesAsync(token);
+        await SaveWithAReferenceAsync(submission, token);
 
-        return new BasicResponse { Success = true };
+        return new SubmitExpenseSubmissionResponse
+        {
+            Success = true,
+            Reference = submission.Reference
+        };
     }
+
+    /// <summary>
+    /// Writes the submitted row, issuing the claim reference and taking the next one if this one has
+    /// been taken in the meantime.
+    /// </summary>
+    /// <remarks>
+    /// <b>The retry is the point, and the unique index is what makes it work.</b> The number is chosen
+    /// by reading the highest one already issued this year, which is a read followed by a write with a
+    /// gap in the middle: two claims submitted in the same second both read 141 and both try to be
+    /// 0142. Without the constraint the second silently duplicates the first, and two claims that share
+    /// a reference is precisely the failure the reference exists to prevent - a reviewer matching a bank
+    /// line would have no way to tell which claim was meant.
+    /// <para>
+    /// A sequence in the database would remove the loop, and was not worth a migration for it: this
+    /// form sees a few dozen claims a year, so the contention is theoretical, and a sequence hands out
+    /// numbers to attempts that then fail validation - leaving permanent holes somebody eventually has
+    /// to explain. The loop only consumes a number when the row is actually written.
+    /// </para>
+    /// </remarks>
+    private async Task SaveWithAReferenceAsync(DbExpenseSubmission submission, CancellationToken token)
+    {
+        int year = (submission.SubmittedAt ?? DateTimeOffset.UtcNow).ToLocalTime().Year;
+
+        for (int attempt = 0; ; attempt++)
+        {
+            submission.Reference = await NextReferenceAsync(submission.Kind, year, token);
+
+            try
+            {
+                await db.SaveChangesAsync(token);
+
+                return;
+            }
+            // Anything other than the reference colliding is a real fault and has to surface. Five
+            // attempts is a ceiling rather than an expectation: a sixth collision means something is
+            // wrong that retrying will not fix.
+            catch (DbUpdateException ex) when (IsReferenceCollision(ex) && attempt < 4)
+            {
+                db.Entry(submission).Property(x => x.Reference).CurrentValue = null;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The next reference for a kind and a year: <c>RE-2026-0142</c>, or <c>DC-2026-0087</c>.
+    /// </summary>
+    /// <remarks>
+    /// Two prefixes rather than one running number, because the two are different documents and a
+    /// finance reviewer holding one knows from the reference alone which form to expect. The year is
+    /// LOCAL rather than UTC - a claim filed on the evening of 31 December in Brisbane belongs to that
+    /// year to everybody who will ever look at it.
+    /// <para>
+    /// <c>IgnoreQueryFilters</c> so a soft-deleted claim's number is not handed out again. Nothing here
+    /// hard-deletes, and a reference that appears twice in seven years of records - once on a voided
+    /// claim and once on a live one - is worse than a gap in the sequence.
+    /// </para>
+    /// </remarks>
+    private async Task<string> NextReferenceAsync(SubmissionKind kind, int year, CancellationToken token)
+    {
+        string prefix = kind == SubmissionKind.DebitCardPurchase ? "DC" : "RE";
+        string stem = $"{prefix}-{year}-";
+
+        List<string> issued = await db.ExpenseSubmissions
+            .IgnoreQueryFilters()
+            .Where(x => x.Reference != null && x.Reference.StartsWith(stem))
+            .Select(x => x.Reference!)
+            .ToListAsync(token);
+
+        int highest = issued
+            .Select(x => int.TryParse(x[stem.Length..], out int number) ? number : 0)
+            .DefaultIfEmpty(0)
+            .Max();
+
+        // Four digits, and it grows rather than wrapping if a year ever needs a five-digit claim. The
+        // column is 16 characters, so there is room.
+        return $"{stem}{highest + 1:0000}";
+    }
+
+    /// <summary>
+    /// Whether a failed write was the reference's unique index rather than anything else.
+    /// </summary>
+    /// <remarks>
+    /// Matched on the constraint name, which EF builds from the table and column and which the
+    /// migration therefore fixes. Matching on the Postgres SQLSTATE alone (23505) would catch the
+    /// attachment content-hash index too, and retrying that one would loop forever.
+    /// </remarks>
+    private static bool IsReferenceCollision(DbUpdateException exception) =>
+        exception.InnerException is PostgresException { SqlState: "23505" } postgres
+        && postgres.ConstraintName?.Contains("Reference", StringComparison.OrdinalIgnoreCase) == true;
 
     /// <summary>
     /// Every completeness rule the form has. <paramref name="details"/> is the stored section 3 read

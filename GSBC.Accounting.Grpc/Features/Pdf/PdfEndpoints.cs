@@ -90,8 +90,10 @@ public static class PdfEndpoints
 
     /// <summary>
     /// Named for what it is and who filed it, because it ends up in somebody's downloads folder next to
-    /// twenty others. The id is truncated to eight characters - enough to tell two apart, and the whole
-    /// one is printed inside the document.
+    /// twenty others. A submitted claim is named by its claim reference, which is the thing anybody
+    /// looking for the file again will be holding; a draft has none, so it falls back to the first
+    /// eight characters of the id - enough to tell two apart, and the whole one is printed inside the
+    /// document either way.
     /// </summary>
     private static string FileName(DbExpenseSubmission submission)
     {
@@ -104,6 +106,10 @@ public static class PdfEndpoints
             .Select(c => char.IsLetterOrDigit(c) ? c : '-')
             .ToArray());
 
-        return $"{kind}-{who}-{submission.Id.ToString()[..8]}.pdf";
+        string tail = submission.Reference is { Length: > 0 } reference
+            ? reference
+            : submission.Id.ToString()[..8];
+
+        return $"{kind}-{who}-{tail}.pdf";
     }
 }

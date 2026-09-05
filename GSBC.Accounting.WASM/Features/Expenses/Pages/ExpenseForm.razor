@@ -8,6 +8,7 @@
 @using GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses
 @using GSBC.Accounting.Shared.Contracts.Messages.Requests.Features.Expenses
 @using GSBC.Accounting.Shared.Contracts.Messages.Responses.Base
+@using GSBC.Accounting.Shared.Contracts.Messages.Responses.Features.Expenses
 @using GSBC.Accounting.Shared.Contracts.Services.Features.Expenses
 @using GSBC.Accounting.WASM.Features.Expenses
 @using GSBC.Accounting.WASM.Features.Expenses.Components
@@ -90,9 +91,16 @@
             <div class="notice" role="status">
                 <span class="ico">OK</span>
                 <div>
-                    <b>Submitted for approval.</b> Reference <span class="mono">@_submissionId</span>.
-                    Keep that reference. An approver who is not you completes section 7, and finance
-                    completes section 8.
+                    @*
+                        The short reference, not the submission id. "Keep that reference" printed above
+                        36 hex characters was asking a volunteer to write down a GUID and read it back
+                        over the phone to the office; nobody does, and nobody can. The GUID is still
+                        what the PDF link below is addressed by - it stays the key, this is the name.
+                    *@
+                    <b>Submitted for approval.</b> Your claim reference is
+                    <span class="refcode">@_reference</span>. Quote it in any correspondence about this
+                    claim. An independent approver completes section 7, and Finance completes
+                    section 8.
                     <div class="help">
                         <a href="@PdfUrl" target="_blank" rel="noopener">Open the printable form (PDF)</a>
                         &mdash; this link works for anyone you send it to, which is how a reviewer reads
@@ -527,6 +535,12 @@
     private readonly List<ExpenseAttachment> _attachments = [];
     private bool _busy;
     private bool _submitted;
+
+    /// <summary>
+    /// The claim reference the server issued at submission - <c>RE-2026-0142</c>. Null until the form
+    /// is submitted, because a draft is not a claim and has no reference.
+    /// </summary>
+    private string? _reference;
 
     /// <summary>
     /// The block every outcome renders into, at the top of the form. Focused after a Save or a Submit
@@ -1022,16 +1036,18 @@
             if (id is null)
                 return;
 
-            BasicResponse response = await Submissions.Submit(new SubmitExpenseSubmissionRequest
-            {
-                SubmissionId = id.Value
-            });
+            SubmitExpenseSubmissionResponse response = await Submissions.Submit(
+                new SubmitExpenseSubmissionRequest { SubmissionId = id.Value });
 
             if (response.Success)
             {
                 // Nothing to clear locally any more. The draft became a Submitted row, which is what
                 // takes it out of ListDrafts - the browser holds no copy of its own to go stale.
                 _submitted = true;
+
+                // The claim reference, minted by the server in the same call. There is no second way
+                // to fetch it: Read refuses a submitted claim by design.
+                _reference = response.Reference;
             }
             else
             {

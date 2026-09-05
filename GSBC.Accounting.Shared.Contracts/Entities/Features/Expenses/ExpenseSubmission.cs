@@ -30,6 +30,13 @@ public record ExpenseSubmission : IIdentifiable
 
     public required SubmissionStatus Status { get; init; }
 
+    /// <summary>
+    /// The short claim reference - <c>RE-2026-0142</c> or <c>DC-2026-0087</c> - issued when the form is
+    /// submitted, and null on every draft. Beside <see cref="Id"/> rather than instead of it: the GUID
+    /// remains the key everything is addressed by, and this is the one a person can read out.
+    /// </summary>
+    public string? Reference { get; init; }
+
     // ---- Section 1, shared ------------------------------------------------------------------------
 
     /// <summary>`Cardholder name` on the debit card form, `Claimant name` on the reimbursement form.</summary>

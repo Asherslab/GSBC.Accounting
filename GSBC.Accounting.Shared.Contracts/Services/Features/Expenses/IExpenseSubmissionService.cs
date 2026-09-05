@@ -39,9 +39,18 @@ public interface IExpenseSubmissionService
     Task<BasicResponse> Update(UpdateExpenseSubmissionRequest request, CallContext context = default);
 
     /// <summary>
-    /// Checks a draft is complete and marks it submitted. Refuses with every problem at once.
+    /// Checks a draft is complete and marks it submitted. Refuses with every problem at once, and
+    /// answers a successful submission with the claim reference it has just issued.
     /// </summary>
-    Task<BasicResponse> Submit(SubmitExpenseSubmissionRequest request, CallContext context = default);
+    /// <remarks>
+    /// The reference comes back from here because there is nowhere else to get it: a submitted claim is
+    /// not readable through <see cref="Read"/>, by design, so the page would otherwise have a claim it
+    /// could not name.
+    /// </remarks>
+    Task<SubmitExpenseSubmissionResponse> Submit(
+        SubmitExpenseSubmissionRequest request,
+        CallContext context = default
+    );
 
     /// <summary>
     /// The caller's own unsubmitted drafts, newest first. Answers with an empty list when the browser
