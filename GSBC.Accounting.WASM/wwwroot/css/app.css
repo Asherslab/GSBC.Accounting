@@ -710,6 +710,14 @@ button.b.primary:hover{background:var(--brand-2);border-color:var(--brand-2)}
   border-top:1px solid var(--line);padding-top:14px;
 }
 
+/*
+  The block at the top of the form that every outcome of a button press renders into. It is focused
+  after a save or a submit so the claimant is taken to the answer - see ExpenseForm - and the outline
+  is suppressed for the same reason the page title's is: a ring around a block nobody clicked reads as
+  a stray selection box. The focus move still happens and is still announced.
+*/
+.result:focus,.result:focus-visible{outline:none}
+
 /* ---------- phones and small tablets ---------- */
 /*
   Not in the mockup, which was drawn at desk width and carries one breakpoint - the .grid collapse at

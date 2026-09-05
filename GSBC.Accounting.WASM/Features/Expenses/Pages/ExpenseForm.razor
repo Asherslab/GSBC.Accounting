@@ -42,6 +42,22 @@
             <p class="lede">@Text.Banner</p>
         }
 
+        @*
+            EVERY OUTCOME OF PRESSING A BUTTON RENDERS INSIDE THIS DIV, and that is the whole reason it
+            exists rather than the notices sitting loose in <main>.
+
+            The action bar is deliberately unpinned on mobile (see app.css), so Submit sits at the
+            bottom of an eight-section form - about eight screens below this - and both outcomes, the
+            refusal list and the confirmation, draw up here. Nothing scrolled, so pressing Submit on a
+            phone produced no visible response at all and the claimant pressed it again.
+
+            tabindex="-1" makes it programmatically focusable and nothing else: it is not in the tab
+            order, and Tab from the last field still goes where it went before. Focus is what moves the
+            claimant here - see FocusAsync in OnAfterRenderAsync - because a focus move both scrolls
+            the element into view and is announced by a screen reader, where a scroll alone is silent.
+        *@
+        <div class="result" tabindex="-1" @ref="_result">
+
         @if (_draftUnavailable)
         {
             @* Said out loud rather than quietly handing back a blank form, which would read as "your
@@ -116,6 +132,8 @@
                 </div>
             </div>
         }
+
+        </div>
 
         <!-- 0 -->
         @*
@@ -511,6 +529,19 @@
     private bool _submitted;
 
     /// <summary>
+    /// The block every outcome renders into, at the top of the form. Focused after a Save or a Submit
+    /// so the claimant is taken to the answer.
+    /// </summary>
+    private ElementReference _result;
+
+    /// <summary>
+    /// Set when a button press has produced something to read, and cleared by the render that acts on
+    /// it. A flag rather than an await inside the handler, because the notice does not exist in the DOM
+    /// until the render that follows the handler - focusing before that focuses the previous state.
+    /// </summary>
+    private bool _showResult;
+
+    /// <summary>
     /// The draft to resume, from the route. Null on the plain <c>/forms/expense</c> route, which starts
     /// a new one.
     /// </summary>
@@ -645,6 +676,31 @@
             _draftUnavailable = true;
             _errors.Add($"Could not reach the server: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Takes the claimant to whatever the last button press produced.
+    /// </summary>
+    /// <remarks>
+    /// <c>FocusAsync</c> rather than a <c>scrollIntoView</c> through a JS file of our own, and it is
+    /// the better tool rather than the cheaper one: moving focus scrolls the element into view <b>and</b>
+    /// is announced, where a scroll on its own leaves somebody using a screen reader exactly where they
+    /// were with no idea anything happened. It also keeps this app's only JavaScript the theme script
+    /// in index.html, which has a reason to be a script that this does not.
+    /// <para>
+    /// The autosave never sets the flag. This fires when somebody has pressed a button and is waiting
+    /// for an answer; a page that jumped to the top on its own two seconds after every keystroke would
+    /// be unusable.
+    /// </para>
+    /// </remarks>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_showResult)
+            return;
+
+        _showResult = false;
+
+        await _result.FocusAsync();
     }
 
     public void Dispose() => _autosave?.Dispose();
@@ -991,6 +1047,10 @@
         finally
         {
             _busy = false;
+
+            // Whichever way it went - the confirmation or the list of refusals - there is now
+            // something at the top of the page that the claimant pressed a button to be told.
+            _showResult = true;
         }
     }
 
@@ -1011,6 +1071,7 @@
         finally
         {
             _busy = false;
+            _showResult = true;
         }
     }
 }
