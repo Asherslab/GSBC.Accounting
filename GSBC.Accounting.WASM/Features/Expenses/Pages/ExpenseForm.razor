@@ -316,10 +316,20 @@
                         {
                             <div class="f c4">
                                 <label for="contact">Phone / email <span class="req">*</span></label>
-                                @* One field taking either, so it stays type=text: type=email would reject
-                                   a phone number and type=tel would put the wrong keyboard up for an
-                                   address. autocomplete="tel" is the more useful of the two on a phone. *@
-                                <input type="text" id="contact" autocomplete="tel"
+                                @*
+                                    One field taking either, so it stays type=text: type=email would
+                                    reject a phone number and type=tel would put the wrong keyboard up
+                                    for an address.
+
+                                    NO autocomplete token, and that is a change. It carried "tel",
+                                    which is a claim about the field rather than a hint - a claimant
+                                    typing an email address was offered a phone number, and accepting
+                                    the offer put the wrong kind of answer in. There is no token for
+                                    "either of these two things", and a wrong one is worse than none.
+                                    ClaimantMemory fills this in from the last claim anyway, which is
+                                    the saved typing the token was there for.
+                                *@
+                                <input type="text" id="contact"
                                        @bind="Model.ContactPhoneEmail" @bind:event="oninput"/>
                             </div>
                         }
