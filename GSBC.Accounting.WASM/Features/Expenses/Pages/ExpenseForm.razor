@@ -143,6 +143,26 @@
 
         </div>
 
+        @*
+            EVERY CONTROL ON THE FORM IS INSIDE THIS FIELDSET, and one attribute on it is what stops a
+            submitted claim being edited.
+
+            It used to be the case that a successful submission left 52 inputs enabled and both action
+            bar buttons live. The server defends itself - ErrorConstants.AlreadySubmitted has been there
+            all along - so a claimant's reward for pressing the still-live Submit button was an error
+            message about a state the page should never have offered.
+
+            A <fieldset disabled> rather than a disabled attribute threaded through fifty-odd fields:
+            the browser disables every descendant control natively, so nothing can be missed and nothing
+            has to be remembered when a field is added. Its own box is turned off - border, padding and
+            the min-width:min-content that would otherwise stop the .grid children shrinking inside it.
+
+            Links are deliberately unaffected: <a> is not a form control, so the PDF stays reachable on
+            a locked page, which is the whole point of the page after submission.
+        *@
+        <fieldset disabled="@_submitted"
+                  style="border:0;padding:0;margin:0;min-width:0;display:block">
+
         <!-- 0 -->
         @*
             The question that decides the form. It is asked in the claimant's terms - whose money left
@@ -451,6 +471,23 @@
 
             <p class="footnote">@Text.Footnote</p>
         }
+
+        </fieldset>
+
+        @*
+            What stands where the action bar used to be. Somebody who has just submitted scrolls to the
+            bottom of the form looking for the button they pressed; finding nothing there at all reads
+            as the page having broken rather than as the claim having been filed.
+        *@
+        @if (_submitted)
+        {
+            <p class="submitted-note">
+                This claim has been submitted and can no longer be edited. Your reference is
+                <span class="refcode">@_reference</span>.
+                <a href="@PdfUrl" target="_blank" rel="noopener">Open the printable form (PDF)</a>.
+                To correct anything on it, contact Finance and quote the reference.
+            </p>
+        }
     </main>
 </div>
 
@@ -458,8 +495,16 @@
     Hidden, not disabled, until question zero is answered. A greyed-out Submit still reads as a control
     somebody is expected to reach; an absent one says the form has not started yet, which is the truth.
     There is also nothing for these buttons to act on - every one of them needs a kind.
+
+    Gone entirely once the claim is submitted, for the same reason rather than a different one. The
+    fieldset above would grey these out, but a greyed Save draft and a greyed Submit for approval on a
+    filed claim invite somebody to work out how to re-enable them. There is nothing left to save and
+    nothing left to submit; the submitted note above says so in words.
+
+    If amendment after submission ever becomes a real requirement it needs a deliberate control of its
+    own - "Request a change" - and not the Submit button being live again.
 *@
-@if (Model.Kind is not null)
+@if (Model.Kind is not null && !_submitted)
 {
 <div class="actionbar">
     <div class="sum">
