@@ -269,8 +269,9 @@ public partial class ExpenseSubmissionService
                 if (charged != gross)
                 {
                     errors.Add(
-                        $"The receipts in section 3 total {Money(gross)} but section 1 says the card was "
-                        + $"charged {Money(charged)}. Attach the missing receipt, or correct the amount charged.");
+                        $"Section 1: the card was charged {Money(charged)}, but the receipts in "
+                        + $"section 3 total {Money(gross)}. Attach the missing receipt, or correct "
+                        + "the amount charged.");
                 }
             }
         }

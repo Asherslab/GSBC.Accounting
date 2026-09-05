@@ -47,19 +47,19 @@
             @* Said out loud rather than quietly handing back a blank form, which would read as "your
                draft is gone" to somebody whose draft is in fact fine and on another device. *@
             <div class="banner" role="alert">
-                <h4>That draft isn't available on this browser</h4>
+                <h4>This draft is not available in this browser</h4>
                 <p>
-                    Drafts are kept for the browser they were written on. This one was either saved
-                    somewhere else, already submitted, or deleted. The form below is a new one.
+                    Drafts are stored in the browser they were written in. This one was saved
+                    elsewhere, already submitted, or deleted. The form below is a new one.
                 </p>
-                <p><a href="/drafts">See the drafts this browser has</a></p>
+                <p><a href="/drafts">See the drafts saved in this browser</a></p>
             </div>
         }
 
         @if (_errors.Count > 0)
         {
             <div class="banner" role="alert">
-                <h4>This form isn't ready to submit</h4>
+                <h4>This form cannot be submitted yet</h4>
                 <ul>
                     @foreach (string error in _errors)
                     {
@@ -91,12 +91,12 @@
             <div class="notice" role="status">
                 <span class="ico">OK</span>
                 <div>
-                    <b>Draft saved.</b> This form saves itself as you type, and you can close the page
-                    and come back to it from <a href="/drafts">your saved drafts</a>. It is not
-                    submitted yet &mdash; nobody is looking at it until you submit it for approval.
+                    <b>Draft saved.</b> Your form is saved automatically and can be reopened from
+                    <a href="/drafts">your saved drafts</a>. It has not been submitted, and no approver
+                    can see it until you submit it.
                     <div class="help">
-                        Your drafts are kept for this browser. Clearing your cookies, or switching to
-                        another device, loses them. A draft nobody edits is deleted after 90 days.
+                        Drafts are stored in this browser. Clearing browsing data or changing device
+                        will remove them. A draft is deleted after 90 days without changes.
                     </div>
                     @*
                         The same endpoint as the submitted link below, and on a DRAFT it answers only to
@@ -108,10 +108,10 @@
                     *@
                     <div class="help">
                         <a href="@PdfUrl" target="_blank" rel="noopener">
-                            See what this prints as (PDF)
+                            Preview the printable form (PDF)
                         </a>
-                        &mdash; a draft, so it is missing whatever you have not filled in yet, and only
-                        this browser can open it.
+                        &mdash; shows the draft as currently completed, and can only be opened from
+                        this browser.
                     </div>
                 </div>
             </div>
@@ -127,7 +127,7 @@
             <header>
                 <span class="num">00</span>
                 <h3>How was this paid for?</h3>
-                <span class="hint">This decides which form you fill in</span>
+                <span class="hint">Determines which form applies</span>
             </header>
             <div class="body">
                 @*
@@ -140,13 +140,13 @@
                         <input type="radio" name="kind"
                                checked="@((_pendingKind ?? Model.Kind) == SubmissionKind.ExpenseReimbursement)"
                                @onchange="() => ChooseKind(SubmissionKind.ExpenseReimbursement)"/>
-                        I paid for it myself
+                        Paid personally
                     </label>
                     <label class="chip">
                         <input type="radio" name="kind"
                                checked="@((_pendingKind ?? Model.Kind) == SubmissionKind.DebitCardPurchase)"
                                @onchange="() => ChooseKind(SubmissionKind.DebitCardPurchase)"/>
-                        I used a church debit card
+                        Paid by Church debit card
                     </label>
                 </div>
 
@@ -176,10 +176,13 @@
                 }
                 else if (Model.Kind is null)
                 {
+                    @* The chips are two words each now, so this line carries the whole distinction -
+                       whose money left whose account. It is the sentence somebody who has just bought
+                       morning tea reads to place themselves, and it stays in the second person. *@
                     <p class="help">
-                        <b>I paid for it myself</b> &mdash; cash, your own card, your own account, and you
-                        want the money back. <b>I used a church debit card</b> &mdash; the money has
-                        already left the church's account and this form records what it bought.
+                        <b>Paid personally</b> &mdash; cash, your own card or your own account, and you
+                        are claiming the money back. <b>Paid by Church debit card</b> &mdash; the money
+                        has already left the Church's account and this form records what it bought.
                     </p>
                 }
             </div>
@@ -452,7 +455,7 @@
     <div class="spacer"></div>
     @if (Model.ChargeMismatch)
     {
-        <span class="badge warn">Receipts don't match the charge</span>
+        <span class="badge warn">Receipts do not match the card charge</span>
     }
 @*
     Development builds only.
@@ -546,8 +549,8 @@
     private SubmissionKind? _pendingKind;
 
     private static string KindNoun(SubmissionKind kind) => kind == SubmissionKind.DebitCardPurchase
-        ? "a church debit card purchase"
-        : "an expense you paid yourself";
+        ? "a Church debit card purchase"
+        : "an expense you paid personally";
 
     private IReadOnlyList<SectionRail.RailSection> Rail
     {
@@ -879,7 +882,7 @@
         // attachments card, whose upload button does not know about section 0.
         if (Model.Kind is null)
         {
-            _errors.Add("Say how this was paid for first — section 0 decides which form this is.");
+            _errors.Add("Section 0: state how this was paid for. It determines which form applies.");
 
             return null;
         }

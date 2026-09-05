@@ -70,10 +70,10 @@
         </ul>
 
         <label class="drop small @(Busy ? "over" : "")" for="@_inputId">
-            <span class="big">@(Busy ? "Uploading…" : "+ Add another file to this receipt")</span>
+            <span class="big">@(Busy ? "Uploading…" : "Add another file to this receipt")</span>
             <span class="small">
-                Only if it is the same receipt or purchase &mdash; a long docket photographed in parts, or
-                the bank line that proves it was paid. A different shop is a different entry.
+                For the same receipt or purchase only &mdash; a long docket photographed in parts, or
+                the bank line recording its payment. A different supplier is a different entry.
             </span>
         </label>
 
@@ -85,9 +85,9 @@
             <div class="notice warn" style="margin-top:12px">
                 <span class="ico">!</span>
                 <div>
-                    <b>Nothing here came from the supplier.</b> A bank line shows that money moved and to
-                    whom, but not what was bought &mdash; so section 5's missing receipt declaration opens
-                    below and has to be completed.
+                    <b>No supplier receipt attached.</b> A bank line records the payment and the payee,
+                    but not what was purchased. The missing receipt declaration in section 5 is
+                    therefore required.
                 </div>
             </div>
         }
@@ -96,7 +96,7 @@
 
         <div class="grid" style="margin-top:16px">
             <div class="f c5">
-                <label for="@($"sup-{Detail.Key}")">Where it was bought <span class="req">*</span></label>
+                <label for="@($"sup-{Detail.Key}")">Supplier <span class="req">*</span></label>
                 <input type="text" id="@($"sup-{Detail.Key}")" placeholder="e.g. Bunnings Springwood"
                        @bind="Detail.Supplier" @bind:event="oninput" @bind:after="Changed"/>
             </div>
@@ -122,10 +122,10 @@
                 name rather than one it silently reads as No.
             *@
             <div class="q">
-                <span class="qlabel">Does this receipt include anything that isn't a Church expense?</span>
+                <span class="qlabel">Does this receipt include any non-Church expense?</span>
                 <p>
-                    Personal shopping picked up in the same transaction, a family member's meal, anything
-                    you would not ask the Church to pay for.
+                    For example personal items bought in the same transaction, or a family member's
+                    meal.
                 </p>
                 @* The amber state comes from .concern on the label, never from the radio's value. Here
                    the answer that opens more of the form is Yes, so Yes carries the class - and both
@@ -145,10 +145,10 @@
             </div>
 
             <div class="q">
-                <span class="qlabel">Does the receipt list what was bought, item by item?</span>
+                <span class="qlabel">Is the receipt itemised?</span>
                 <p>
-                    A supermarket or hardware docket does. A card terminal slip, a handwritten total, or a
-                    line on a bank statement does not.
+                    A supermarket or hardware docket is itemised. A card terminal slip, a handwritten
+                    total or a bank statement line is not.
                 </p>
                 @* THE ONE WHERE No IS THE CONCERNING ANSWER, and the reason the styling stopped being
                    driven by the value. A receipt that does not itemise is the one that costs the
@@ -172,8 +172,8 @@
         @if (!Detail.Answered)
         {
             <p class="help" style="margin-top:12px">
-                Answer both and the rest of this purchase appears. What they come to decides how much of
-                the receipt you need to type out.
+                Answer both questions to continue. Your answers determine what further detail is
+                required.
             </p>
         }
         else
@@ -254,9 +254,9 @@
                 @if (Detail.Itemisation == ItemisationRequirement.Everything)
                 {
                     <p class="help">
-                        Best effort is enough. If the receipt has faded or you genuinely can't recall an
-                        exact price, put down the closest you can and say so in section 2 &mdash; a made-up
-                        line that makes the total come out right is worse than an honest estimate.
+                        Best effort is enough. Where the receipt has faded or an exact price cannot be
+                        recalled, enter the closest figure you can and note it in section 2. An
+                        invented line that makes the total reconcile is worse than an honest estimate.
                     </p>
                 }
             }
@@ -270,7 +270,7 @@
                         <input type="number" inputmode="decimal" step="0.01" min="0" id="@($"tot-{Detail.Key}")"
                                @bind="Detail.TotalIncGst" @bind:event="oninput" @bind:after="Changed"/>
                     </div>
-                    <span class="help">Everything on it, personal items included.</span>
+                    <span class="help">Include every item on the receipt, personal items included.</span>
                 </div>
                 <div class="f c4">
                     <label for="@($"gst-{Detail.Key}")">GST shown</label>
@@ -278,7 +278,7 @@
                         <input type="number" inputmode="decimal" step="0.01" min="0" id="@($"gst-{Detail.Key}")"
                                @bind="Detail.GstAmount" @bind:event="oninput" @bind:after="Changed"/>
                     </div>
-                    <span class="help">Leave blank if the supplier isn't registered for GST.</span>
+                    <span class="help">@GstHelp</span>
                 </div>
                 <div class="f c4">
                     <label for="@($"nr-{Detail.Key}")">Not claimed from the Church</label>
@@ -301,10 +301,10 @@
                 <div class="notice bad" style="margin-top:12px" role="alert">
                     <span class="ico">!</span>
                     <div>
-                        <b>That's less than the personal items you listed.</b> They come to
-                        <span class="mono">@Detail.PersonalItemsTotal.ToString("C2")</span>, so the Church
-                        can't be asked to cover any of it. You can put more here &mdash; that's a gift
-                        &mdash; but not less.
+                        <b>This is less than the personal items listed above.</b> They come to
+                        <span class="mono">@Detail.PersonalItemsTotal.ToString("C2")</span>, and the
+                        Church cannot be asked to cover any of it. A larger amount is accepted &mdash;
+                        that is a gift &mdash; but not a smaller one.
                     </div>
                 </div>
             }
@@ -314,11 +314,11 @@
                 <div class="notice warn" style="margin-top:12px">
                     <span class="ico">&ne;</span>
                     <div>
-                        <b>The items don't add up to the receipt.</b> They come to
-                        <span class="mono">@Detail.ItemisedTotal.ToString("C2")</span> against a total of
-                        <span class="mono">@(Detail.TotalIncGst?.ToString("C2"))</span>. That is allowed
-                        &mdash; best effort on an unitemised receipt is what was asked for &mdash; but
-                        check it before you submit.
+                        <b>The items do not add up to the receipt total.</b> They come to
+                        <span class="mono">@Detail.ItemisedTotal.ToString("C2")</span> against a total
+                        of <span class="mono">@(Detail.TotalIncGst?.ToString("C2"))</span>. This is
+                        permitted &mdash; best effort is what an unitemised receipt asks for &mdash;
+                        but check it before submitting.
                     </div>
                 </div>
             }
@@ -382,13 +382,15 @@
         ? "Personal item"
         : "Item";
 
+    private string GstHelp => "Leave blank if the supplier is not registered for GST.";
+
     private string NonReimbursedHelp => Detail.Itemisation switch
     {
         ItemisationRequirement.None =>
-            "Leave at zero unless you want to cover part of this yourself.",
+            "Enter zero unless part of this purchase is not being claimed.",
         _ when Floor > 0m =>
             $"At least {Floor:C2} — the personal items above. More is a gift to the Church.",
-        _ => "Filled in from the personal items above as you list them."
+        _ => "Taken from the personal items above as you list them."
     };
 
     /// <summary>
@@ -397,26 +399,27 @@
     /// <remarks>
     /// Written out per case rather than assembled from clauses. These four sentences are the entire
     /// explanation of the rule, and a claimant reading one has to be told what to do <b>and why it is
-    /// less work than they feared</b> - "we can see the rest on your receipt" is the sentence that stops
-    /// somebody typing out a forty-line grocery docket nobody wanted.
+    /// less work than they feared</b> - "the receipt itself shows the rest" is the sentence that stops
+    /// somebody typing out a forty-line grocery docket nobody wanted. That argument survives the
+    /// rewrite into plainer register; what went is the narration of what the form is about to do.
     /// </remarks>
     private string ItemisationExplanation => (Detail.ContainsPersonalItems, Detail.ReceiptIsItemised) switch
     {
         (false, true) =>
-            "<b>Nothing to type out.</b> The receipt itemises itself and it is all the Church's, so the "
-            + "total and the GST below are all this needs.",
+            "<b>No itemisation required.</b> Enter the receipt total and the GST shown below.",
 
         (true, true) =>
-            "<b>List the personal items only.</b> The receipt already shows the rest, so there is no need "
-            + "to copy it out. What you list here is what comes off the claim.",
+            "<b>List the personal items only.</b> The receipt itself shows the rest, so it does not "
+            + "need copying out. What you list here is deducted from the claim.",
 
         (true, false) =>
-            "<b>List everything on the receipt.</b> It doesn't itemise, so this is the only record of "
-            + "what the money bought - and mark each line as Church use or not.",
+            "<b>List everything on the receipt.</b> It is not itemised, so this is the only record of "
+            + "what was purchased. Mark each line as Church use or not.",
 
         _ =>
-            "<b>List everything on the receipt.</b> It doesn't itemise, so this is the only record of "
-            + "what the money bought. You have said none of it is personal, so all of it is claimed."
+            "<b>List everything on the receipt.</b> It is not itemised, so this is the only record of "
+            + "what was purchased. You have answered that none of it is personal, so all of it is "
+            + "claimed."
     };
 
     private string Summary
