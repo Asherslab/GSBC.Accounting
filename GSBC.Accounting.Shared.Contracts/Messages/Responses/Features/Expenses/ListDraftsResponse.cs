@@ -25,6 +25,22 @@ public class ListDraftsResponse
 
     public List<DraftSummary> Drafts { get; set; } = [];
 
+    /// <summary>
+    /// Claims this browser has already submitted, newest first.
+    /// </summary>
+    /// <remarks>
+    /// <b>Not resumable, and this is not a second drafts list.</b> Once a claim is submitted the only
+    /// thing this app offers for it is its reference and its PDF - it is evidence, and the form cannot
+    /// edit it. It is here because the claimant's only record was otherwise the browser tab they were
+    /// looking at: close it, and they had a reference they did not write down and a drafts list that no
+    /// longer contained the claim.
+    /// <para>
+    /// Answered in the same call as the drafts because it is the same question - "what has this browser
+    /// got?" - and a second round trip to say "and one more thing" would be a second chance to fail.
+    /// </para>
+    /// </remarks>
+    public List<DraftSummary> Submitted { get; set; } = [];
+
     public static ListDraftsResponse Empty() => new() { Success = true };
 
     public static ListDraftsResponse WithError(string error) => new() { Success = false, Error = error };

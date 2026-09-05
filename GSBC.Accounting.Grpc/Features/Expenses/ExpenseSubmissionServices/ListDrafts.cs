@@ -84,6 +84,55 @@ public partial class ExpenseSubmissionService
             })
             .ToList();
 
-        return new ListDraftsResponse { Success = true, Drafts = drafts };
+        // The claims this browser has already filed. NOT resumable and deliberately a thinner
+        // projection: nothing here offers to open one, so the counts and the section 3 supplier that
+        // help somebody choose which draft to carry on with have no reader. What it answers is "where
+        // did my claim go" - which is the question a claimant has after closing the tab that held their
+        // reference, and which the app previously had no answer to at all.
+        var filed = await db.ExpenseSubmissions
+            .Where(x => x.OwnerSessionId == sessionId && x.Status == SubmissionStatus.Submitted)
+            .OrderByDescending(x => x.SubmittedAt)
+            .Select(x => new
+            {
+                x.Id,
+                x.Kind,
+                x.Reference,
+                x.SubmitterName,
+                x.PurposeActivity,
+                x.GrossTotal,
+                DetailCount = x.Details.Count,
+                AttachmentCount = x.Attachments.Count,
+                FirstSupplier = x.Details
+                    .OrderBy(detail => detail.Ordinal)
+                    .Select(detail => detail.Supplier)
+                    .FirstOrDefault(),
+                x.CreatedAt,
+                x.UpdatedAt,
+                x.SubmittedAt
+            })
+            .ToListAsync(token);
+
+        List<DraftSummary> submitted = filed
+            .Select(x => new DraftSummary
+            {
+                Id = x.Id,
+                Kind = x.Kind,
+                Reference = x.Reference,
+                SubmitterName = x.SubmitterName,
+                PurposeActivity = x.PurposeActivity,
+                FirstSupplier = x.FirstSupplier,
+                GrossTotal = x.GrossTotal,
+                DetailCount = x.DetailCount,
+                AttachmentCount = x.AttachmentCount,
+                CreatedAt = x.CreatedAt.UtcDateTime,
+                UpdatedAt = x.UpdatedAt.UtcDateTime,
+                SubmittedAt = x.SubmittedAt?.UtcDateTime,
+                // A submitted claim is not purged - ACNC retention is seven years - so there is no
+                // expiry to state. UpdatedAt keeps the property honest rather than leaving it default.
+                ExpiresAt = x.UpdatedAt.UtcDateTime
+            })
+            .ToList();
+
+        return new ListDraftsResponse { Success = true, Drafts = drafts, Submitted = submitted };
     }
 }

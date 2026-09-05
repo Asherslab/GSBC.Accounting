@@ -726,6 +726,15 @@ button.b.primary:hover{background:var(--brand-2);border-color:var(--brand-2)}
 .banner li a{text-decoration:underline;text-underline-offset:2px;text-decoration-thickness:1px}
 .banner li a:hover{color:var(--ink)}
 
+/*
+  A heading over a run of cards, on the drafts page, where the submitted claims start. Sized to sit
+  between the page's lede and a card header rather than competing with either.
+*/
+.listhead{
+  margin:30px 0 12px;font-family:"Newsreader",Georgia,serif;
+  font-size:19px;font-weight:600;letter-spacing:-.01em;
+}
+
 .footnote{
   max-width:78ch;margin:26px 0 0;font-size:12.5px;line-height:1.6;color:var(--ink-3);
   border-top:1px solid var(--line);padding-top:14px;
