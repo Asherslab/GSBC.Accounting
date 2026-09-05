@@ -58,4 +58,9 @@ builder.Services.AddScoped<AttachmentClient>();
 // DraftSession asks the server once and every drafts affordance renders off that one answer.
 builder.Services.AddScoped<DraftSession>();
 
+// Who filled the last claim in on this browser, so section 1 starts answered. localStorage rather than
+// the server, and the comment on ClaimantMemory says why that is not a contradiction of the note above
+// about drafts: this is a convenience about the person, not a second copy of a form.
+builder.Services.AddScoped<ClaimantMemory>();
+
 await builder.Build().RunAsync();
