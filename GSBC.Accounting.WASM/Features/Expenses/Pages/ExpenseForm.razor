@@ -569,6 +569,18 @@
         <div><span class="k">@Text.NetTotalLabel</span><span class="v">@Model.NetTotal.ToString("C2")</span></div>
         <div><span class="k">Purchases</span><span class="v">@Model.Details.Count</span></div>
         <div><span class="k">Files</span><span class="v">@_attachments.Count</span></div>
+        @*
+            HOW MUCH OF THE FORM IS DONE, counted off the same rail entries that draw the dots, so the
+            figure and the dots cannot disagree. Sections nobody on this page can complete - 7 and 8,
+            and 5 until it applies - are out of both halves of the fraction: "4 of 8" that can never
+            reach 8 is a progress figure that lies.
+
+            In the summary strip because that strip already scrolls and already has its fade, so it is
+            the natural home on a phone - where the stepper this duplicates is off screen for most of
+            the form. Last of the four, because the two figures that matter are first and this is the
+            one somebody goes looking for rather than glances at.
+        *@
+        <div><span class="k">Sections done</span><span class="v">@SectionsComplete of @SectionsToComplete</span></div>
     </div>
     <div class="spacer"></div>
     @if (Model.ChargeMismatch)
@@ -760,10 +772,18 @@
                 new("4", Text.Section4Caption, "s4", Complete: Model.Compliance.All(x => x is not null))
             ]);
 
-            // Only listed when some purchase has nothing from the shop behind it - the paper form's own
-            // rule is "complete only when evidence is unavailable".
-            if (Model.HasMissingEvidence(_attachments))
-                rail.Add(new SectionRail.RailSection("5", "Missing receipt", "s5", Model.MissingDeclared));
+            // ALWAYS LISTED, and pending until it applies. The card itself still appears only when a
+            // purchase has nothing from the supplier behind it - the paper form's rule is "complete
+            // only when evidence is unavailable" - but leaving the entry out made the rail read
+            // 0, 1, 2, 3, 4, 6, 7, 8, and SectionRail's own comment says a rail that skips a number
+            // reads as a bug. Greyed and unlinked is what that comment describes; the numbers are the
+            // paper form's, and this is what says so on screen.
+            bool missingApplies = Model.HasMissingEvidence(_attachments);
+
+            rail.Add(new SectionRail.RailSection(
+                "5", "Missing receipt", "s5",
+                Complete: missingApplies && Model.MissingDeclared,
+                Pending: !missingApplies));
 
             rail.AddRange(
             [
@@ -777,6 +797,14 @@
             return rail;
         }
     }
+
+    /// <summary>
+    /// How many sections the claimant can complete, and how many they have. Read off <see cref="Rail"/>
+    /// so this figure and the rail's own dots are the same answer to the same question.
+    /// </summary>
+    private int SectionsToComplete => Rail.Count(x => !x.Pending);
+
+    private int SectionsComplete => Rail.Count(x => x is { Pending: false, Complete: true });
 
     protected override async Task OnInitializedAsync()
     {
