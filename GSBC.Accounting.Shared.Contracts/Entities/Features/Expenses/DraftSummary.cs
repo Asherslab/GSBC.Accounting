@@ -29,6 +29,16 @@ public record DraftSummary
     /// <summary>Section 2's purpose, used as the second line so two drafts of a kind are tellable apart.</summary>
     public string? PurposeActivity { get; init; }
 
+    /// <summary>
+    /// The supplier on the first purchase in section 3, which is what the list names a draft by.
+    /// </summary>
+    /// <remarks>
+    /// It is the answer to "which one was this?" that a claimant actually has: on a receipt-first form
+    /// the shop is the first thing they typed and the thing they were standing in. The claimant's own
+    /// name is not - every draft in this list carries the same one, because they are all theirs.
+    /// </remarks>
+    public string? FirstSupplier { get; init; }
+
     public decimal GrossTotal { get; init; }
 
     /// <summary>How many receipts have been entered - one detail per purchase.</summary>
