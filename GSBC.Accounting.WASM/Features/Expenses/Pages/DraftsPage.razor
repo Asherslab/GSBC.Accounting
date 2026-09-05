@@ -61,22 +61,22 @@
         {
             @foreach (DraftSummary draft in _drafts)
             {
+                @*
+                    Named by what is on it, not numbered. The header used to carry a sequence number -
+                    01, 02 - which is internal and means nothing to a claimant, over the heading
+                    "Expense Reimbursement", which every draft in the list may well share. With three
+                    in flight there was no way to tell them apart except by the amount.
+                *@
                 <section class="card" @key="draft.Id">
                     <header>
-                        <span class="num">@(draft.Kind == SubmissionKind.DebitCardPurchase ? "01" : "02")</span>
-                        <h3>@KindLabel(draft.Kind)</h3>
-                        <span class="hint">Last edited @Ago(draft.UpdatedAt)</span>
+                        <h3>@Label(draft)</h3>
+                        <span class="hint">@KindLabel(draft.Kind) &middot; last edited @Ago(draft.UpdatedAt)</span>
                     </header>
                     <div class="body">
-                        <p>
-                            <strong>@(string.IsNullOrWhiteSpace(draft.SubmitterName)
-                                        ? "Unnamed draft"
-                                        : draft.SubmitterName)</strong>
-                            @if (!string.IsNullOrWhiteSpace(draft.PurposeActivity))
-                            {
-                                <span> &middot; @draft.PurposeActivity</span>
-                            }
-                        </p>
+                        @if (!string.IsNullOrWhiteSpace(draft.PurposeActivity))
+                        {
+                            <p>@draft.PurposeActivity</p>
+                        }
 
                         <p class="help">
                             @draft.GrossTotal.ToString("C2")
@@ -256,8 +256,43 @@
     private static string ResumeUrl(DraftSummary draft) => $"/forms/expense/{draft.Id}";
 
     /// <summary>
-    /// Still per kind, and still shown. A saved draft <i>is</i> one of the two forms by the time it is
-    /// on this list, and somebody scanning three of them needs to see which is which.
+    /// What to call one draft in a list of them.
+    /// </summary>
+    /// <remarks>
+    /// The supplier and the amount first, because on a receipt-first form the shop is the first thing
+    /// the claimant typed and the thing they were standing in - "Woolworths Glenroy · $42.10" is the
+    /// answer to "which one was this?" that they actually hold.
+    /// <para>
+    /// The claimant's own name is the FALLBACK and not the label, which is the opposite of what this
+    /// page did. Every draft in this list belongs to the same browser, so on a list of three it is the
+    /// same word three times - it only distinguishes anything when somebody has filled in section 1 and
+    /// not yet attached a receipt, which is the one case it is used for.
+    /// </para>
+    /// <para>
+    /// The date started is the last resort, and it is never "Unnamed draft". A row with no label reads
+    /// as a broken list; a row that says when it was begun is at least true of that draft alone.
+    /// </para>
+    /// </remarks>
+    private static string Label(DraftSummary draft)
+    {
+        if (!string.IsNullOrWhiteSpace(draft.FirstSupplier))
+        {
+            return draft.GrossTotal > 0m
+                ? $"{draft.FirstSupplier} · {draft.GrossTotal:C2}"
+                : draft.FirstSupplier;
+        }
+
+        if (!string.IsNullOrWhiteSpace(draft.SubmitterName))
+            return draft.SubmitterName;
+
+        return $"Started {draft.CreatedAt.ToLocalTime():d MMMM}";
+    }
+
+    /// <summary>
+    /// Still per kind, and still shown - in the hint now rather than as the heading. A saved draft
+    /// <i>is</i> one of the two forms by the time it is on this list, and somebody scanning three of
+    /// them needs to see which is which; what it cannot be is the thing that tells them apart, because
+    /// it is usually the same on all three.
     /// </summary>
     private static string KindLabel(SubmissionKind kind) =>
         kind == SubmissionKind.DebitCardPurchase

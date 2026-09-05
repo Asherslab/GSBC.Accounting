@@ -51,6 +51,13 @@ public partial class ExpenseSubmissionService
                 x.GrossTotal,
                 DetailCount = x.Details.Count,
                 AttachmentCount = x.Attachments.Count,
+                // What the list names the draft by. In the projection rather than fetched with the
+                // details, for the same reason as everything else here: one column, chosen in the
+                // database, instead of a claimant's whole section 3 pulled back to read one string.
+                FirstSupplier = x.Details
+                    .OrderBy(detail => detail.Ordinal)
+                    .Select(detail => detail.Supplier)
+                    .FirstOrDefault(),
                 x.CreatedAt,
                 x.UpdatedAt
             })
@@ -67,6 +74,7 @@ public partial class ExpenseSubmissionService
                 Kind = x.Kind,
                 SubmitterName = x.SubmitterName,
                 PurposeActivity = x.PurposeActivity,
+                FirstSupplier = x.FirstSupplier,
                 GrossTotal = x.GrossTotal,
                 DetailCount = x.DetailCount,
                 AttachmentCount = x.AttachmentCount,
