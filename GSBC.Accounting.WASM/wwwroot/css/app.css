@@ -310,8 +310,31 @@ input[type=text],input[type=date],input[type=time],input[type=number],input[type
   border:1px solid var(--line-strong);border-radius:var(--radius);
 }
 input[type=number],.mono{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+/*
+  The spinners come off every money field, and it is not a tidiness change. A stray scroll over a
+  focused amount, or an arrow key meant for the page, silently changes a currency figure that a
+  receipt is the evidence for - and the claimant has no way of knowing it moved. type=number stays,
+  because it is what gives the field decimal parsing and a min; inputmode="decimal" is already what
+  raises the numeric keypad on a phone, so nothing is lost by hiding the arrows.
+*/
+input[type=number]{appearance:textfield;-moz-appearance:textfield}
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;appearance:none;margin:0}
 textarea{resize:vertical;min-height:78px;line-height:1.5}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--focus);outline-offset:0;border-color:var(--brand-2)}
+/*
+  A field a refusal is actually about. Set from the submit response - see ExpenseForm's Problems - and
+  never from the browser's own :invalid, which fires on every empty required box while somebody is
+  still typing and would paint the form red before they had finished reading it.
+
+  scroll-margin-top on every field is what makes the banner's links land somewhere readable: the
+  fragment target would otherwise sit directly under the sticky topbar on a desk screen and under the
+  sticky section stepper on a phone.
+*/
+input,select,textarea{scroll-margin-top:96px}
+input[aria-invalid="true"],select[aria-invalid="true"],textarea[aria-invalid="true"]{
+  border-color:var(--bad);background:var(--bad-wash);
+}
 input::placeholder,textarea::placeholder{color:var(--ink-3)}
 .money{position:relative}
 .money input{padding-left:22px}
@@ -333,6 +356,17 @@ input::placeholder,textarea::placeholder{color:var(--ink-3)}
 .chip:has(input:focus-visible){outline:2px solid var(--focus);outline-offset:2px}
 
 .yn{display:inline-flex;border:1px solid var(--line-strong);border-radius:99px;overflow:hidden;flex:none}
+/*
+  A No/Yes pair sitting straight in a .f cell rather than in a .q row. .f is a COLUMN flex container,
+  so its cross axis is horizontal and the default align-items:stretch pulls the pill out to the full
+  grid column - a 316px rounded outline around 208px of labels, with the selected block floating in
+  the middle of it. Every other pair on the form is in a .q and already gets align-self:flex-start at
+  mobile widths; "Bank details on file" was the only one that did not, on both widths.
+
+  width:max-content as well as the alignment, so the rule survives the pair being reused somewhere
+  that stretches it by a different mechanism.
+*/
+.f > .yn{align-self:flex-start;width:max-content}
 .yn label{
   padding:4px 14px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--ink-3);
   background:var(--surface);letter-spacing:.02em;
@@ -343,7 +377,15 @@ input::placeholder,textarea::placeholder{color:var(--ink-3)}
 :root[data-theme="dark"] .yn label:has(input:checked),
 :root:not([data-theme="light"]) .yn label:has(input:checked){color:var(--ground)}
 @media (prefers-color-scheme: light){:root:not([data-theme="dark"]) .yn label:has(input:checked){color:#fff}}
-.yn label:has(input[value="yes"]:checked){background:var(--warn);border-color:var(--warn)}
+/*
+  The amber "this answer needs following up" state, driven by a CLASS on the label rather than by the
+  radio's value. It used to read `input[value="yes"]:checked`, which worked only because the markup
+  lied: on the itemisation question the answer that needs following up is No, so the No radio was
+  given value="yes" to pick up the colour. Anything reading that radio's value got the opposite of
+  what the claimant said. The class says which answer is the concerning one and the value says what
+  the answer is, which are two different facts.
+*/
+.yn label.concern:has(input:checked){background:var(--warn);border-color:var(--warn)}
 
 .checkline{
   display:grid;grid-template-columns:18px 1fr;gap:11px;align-items:start;
@@ -392,6 +434,13 @@ td .money input{padding-left:18px;text-align:right}
   font-size:16px;line-height:1;padding:5px 7px;border-radius:var(--radius);
 }
 .rowbtn:hover{background:var(--bad-wash);color:var(--bad)}
+/*
+  The row icons are inline SVGs that inherit currentColor, not emoji - see ExpenseDetailCard, where the
+  eye used to be &#128065; and rendered as a full-colour platform glyph beside a monochrome ×. display
+  is what stops the button's box inheriting the line-height gap under an inline SVG, which left the two
+  buttons in a row visibly different heights.
+*/
+.rowbtn svg{display:block}
 .btn-add{
   margin-top:10px;display:inline-flex;align-items:center;gap:7px;
   border:1px dashed var(--line-strong);background:transparent;color:var(--brand);
@@ -526,7 +575,26 @@ td .money input{padding-left:18px;text-align:right}
   does not push the footer's buttons off the bottom of a phone screen.
 */
 .preview-body{overflow:auto;padding:13px;background:var(--surface-sunk);display:grid;place-items:center}
+/*
+  A button rather than a bare <img>, because tapping it does something: an A4 tax invoice photographed
+  and then fitted to a 390px screen is not readable, and the only way through used to be "Open the
+  file", which leaves the form. Fit is the default; the zoomed state drops the fit and lets the panel
+  body scroll the picture, which it was already set up to do for a tall portrait receipt.
+
+  A button also gets this to the keyboard and announces itself, which a click handler on an image does
+  not.
+*/
+.preview-zoom{
+  border:0;padding:0;background:none;display:block;max-width:100%;
+  cursor:zoom-in;
+}
+.preview-zoom.zoomed{cursor:zoom-out;max-width:none}
 .preview-body img{max-width:100%;height:auto;display:block;border:1px solid var(--line)}
+/*
+  Natural size, so a 3000px-wide photograph of a docket is scrollable at a size the writing on it can
+  be read at. min-width keeps a small image from shrinking below the panel when it is zoomed.
+*/
+.preview-zoom.zoomed img{max-width:none;width:auto;min-width:100%}
 .preview-panel > footer{
   display:flex;gap:9px;justify-content:flex-end;
   padding:11px 13px;border-top:1px solid var(--line);
@@ -557,6 +625,34 @@ td .money input{padding-left:18px;text-align:right}
 
 .locked{opacity:.72}
 .locked .body{pointer-events:none}
+/*
+  Sections 7 and 8, which nobody filling this form in can complete.
+
+  On a desk screen they belong on the page open: seeing that an independent approver and finance both
+  sign afterwards is what tells somebody what they are submitting into. On a phone they are six
+  disabled inputs stacked one per row - about a screen and a half - sitting between the claimant and
+  the Submit button, which is the one thing they are trying to reach.
+
+  So the toggle exists only under 900px and the body is forced open above it. No script and no width
+  test in C#: the disclosure state is real, the CSS decides whether it is honoured.
+*/
+.later-toggle{display:none}
+.laterwrap .later-body[hidden]{display:block !important}
+
+/*
+  The claimant's own copy of the form, once it has been submitted. Everything is disabled and the
+  action bar is gone - see ExpenseForm - so this is what says the page has stopped being a form and
+  become a record of one, rather than leaving somebody to infer it from controls that do nothing.
+*/
+.submitted-note{
+  margin:0 0 18px;padding:13px 15px;border-radius:var(--radius);
+  background:var(--surface-sunk);border:1px solid var(--line);
+  font-size:13px;color:var(--ink-2);
+}
+.refcode{
+  font-family:"IBM Plex Mono",monospace;font-size:19px;font-weight:600;
+  letter-spacing:.06em;color:var(--ink);display:inline-block;
+}
 .sig{
   display:grid;grid-template-columns:1fr 190px;gap:18px;align-items:end;
   padding:16px;border:1px solid var(--line-strong);border-radius:var(--radius);
@@ -600,6 +696,14 @@ button.b.primary:hover{background:var(--brand-2);border-color:var(--brand-2)}
 .banner h4{margin:0 0 6px;font-size:13.5px;color:var(--bad)}
 .banner ul{margin:0;padding-left:18px;font-size:13px;color:var(--ink-2);line-height:1.6}
 .banner a{color:var(--ink-2)}
+/*
+  Every item in the refusal list is a link to the field or the section it is about. Underlined rather
+  than coloured: the banner's ground is already the bad wash, so the brand blue that marks a link
+  everywhere else on this app reads as decoration on it - and eight items nobody can tell are
+  clickable is eight manual hunts through an eight-section form on a phone.
+*/
+.banner li a{text-decoration:underline;text-underline-offset:2px;text-decoration-thickness:1px}
+.banner li a:hover{color:var(--ink)}
 
 .footnote{
   max-width:78ch;margin:26px 0 0;font-size:12.5px;line-height:1.6;color:var(--ink-3);
@@ -661,12 +765,23 @@ button.b.primary:hover{background:var(--brand-2);border-color:var(--brand-2)}
   .layout{grid-template-columns:minmax(0,1fr)}
 
   /* ----- rail becomes a scrolling stepper ----- */
+  /*
+    The same fade the action bar's summary strip gets, and for the same reason. Measured at 390px the
+    stepper is 1732px of scrollWidth - 4.4 screens - with the scrollbar hidden, so a claimant saw
+    step 0 and a clipped step 1 and had no reason to believe seven more existed. A value cut off flat
+    at the edge reads as a clipping bug; a fade reads as more to come.
+
+    SectionRail scrolls the current entry into view as well (see its scrollIntoView interop), which is
+    the other half: the fade says there is more, the scroll says where you are in it.
+  */
   .rail{
     position:sticky;top:0;z-index:35;
     padding:0;max-height:none;
     overflow-x:auto;overflow-y:hidden;
     background:var(--surface);border-bottom:1px solid var(--line);
     -webkit-overflow-scrolling:touch;scrollbar-width:none;
+    -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent);
+    mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent);
   }
   .rail::-webkit-scrollbar{display:none}
   .rail h2{display:none}
@@ -684,6 +799,9 @@ button.b.primary:hover{background:var(--brand-2);border-color:var(--brand-2)}
   main{padding:18px 14px 0}
   .lede{font-size:16px;margin-bottom:20px;max-width:none}
   section.card{margin-bottom:14px;scroll-margin-top:58px}
+  /* The stepper is the only sticky thing at this width, and it is ~46px. A field landed on from the
+     refusal banner has to clear it, and its own label above it. */
+  input,select,textarea{scroll-margin-top:80px}
   .card > header{padding:12px 14px;gap:9px}
   /* flex:1 1 0 lets a long caption wrap its own text beside the number. Without it the h3 is an
      unshrinkable flex item and wraps whole, leaving "04" orphaned on a line of its own. */
@@ -702,6 +820,23 @@ button.b.primary:hover{background:var(--brand-2);border-color:var(--brand-2)}
   .yn label{padding:9px 20px;font-size:14px}
   .checkline{padding:13px;font-size:14px;grid-template-columns:20px 1fr}
   .checkline input{width:20px;height:20px;margin-top:1px}
+
+  /*
+    The three icon buttons that were missed when everything else got its 44px.
+
+    Measured on a phone: the purchase remove was 23x26, the file view 30x26, the file remove 26x30.
+    The crumb link two blocks up already does this - pad out to the tap target, then cancel the
+    padding's effect on the row's height with a negative margin - and these need the same. View and
+    remove sit side by side on a file row, so a mis-tap deletes the receipt somebody meant to look at;
+    the margin-right on view is what puts a gap between the two hit areas rather than only between
+    the two glyphs.
+
+    Deliberately scoped to these two rows rather than to .rowbtn at large: the line table's remove is
+    absolutely positioned in its row card's corner, where a negative margin would move it off the
+    corner, and the preview header's close relies on margin-left:auto a shorthand would overwrite.
+  */
+  .detailhead .rowbtn,.file .rowbtn{padding:12px 13px;margin:-7px -6px;line-height:1}
+  .file .rowbtn.view{margin-right:2px}
 
   /* a question and its No/Yes will not both fit on a line; stacking beats shrinking either */
   .q{flex-direction:column;align-items:stretch;gap:11px;padding:15px 0}
@@ -759,6 +894,23 @@ button.b.primary:hover{background:var(--brand-2);border-color:var(--brand-2)}
 
   .btn-add{padding:10px 16px;font-size:14px}
 
+  /* ----- sections 7 and 8 fold away ----- */
+  /* The counterpart of .later-toggle above: below 900px the disclosure is real, so the toggle appears
+     and a closed body is genuinely closed. Styled as one summary line rather than as a button, because
+     it is standing in for two whole cards and should read like the cards it replaced. */
+  .later-toggle{
+    display:flex;align-items:center;gap:10px;width:100%;
+    margin-bottom:14px;padding:13px 14px;
+    border:1px solid var(--line);border-radius:var(--radius);
+    background:var(--surface);color:var(--ink-2);
+    font:inherit;font-size:13.5px;text-align:left;cursor:pointer;
+  }
+  .later-toggle .num{
+    font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:500;color:var(--brand);flex:none;
+  }
+  .later-toggle .chev{margin-left:auto;color:var(--ink-3);font-size:16px;line-height:1;flex:none}
+  .laterwrap .later-body[hidden]{display:none !important}
+
   /* the totals stop being a right-hand column and become a panel */
   .totals{
     max-width:none;margin-left:0;margin-top:14px;
@@ -788,9 +940,26 @@ button.b.primary:hover{background:var(--brand-2);border-color:var(--brand-2)}
   .file .rowbtn.del{grid-area:del;font-size:20px}
 
   /* ----- section 3 purchase panels ----- */
-  .detailhead{flex-wrap:wrap;row-gap:4px}
-  .detailhead .hint{margin-left:0;width:100%}
-  .detailhead .rowbtn{margin-left:auto}
+  /*
+    A two-row grid rather than a wrapping flex row, and the reason is the remove button.
+
+    As flex with the hint at width:100%, the header wrapped to THREE rows for four items - number and
+    title, then the hint, then the × alone on a line of its own where margin-left:auto parked it at
+    the right edge under a band of empty space. Measured at 390px: children at y = 570, 596 and 618.
+    It reads as a rendering fault, and it is the control that deletes a purchase and its receipts.
+
+    Named areas pin the button to the top-right cell, beside the title, which is where the desk
+    layout already puts it; the hint gets the full second row it needs.
+  */
+  .detailhead{
+    display:grid;grid-template-columns:22px minmax(0,1fr) auto;
+    grid-template-areas:"num title del" "hint hint hint";
+    row-gap:2px;column-gap:10px;align-items:center;
+  }
+  .detailhead .num{grid-area:num}
+  .detailhead h4{grid-area:title}
+  .detailhead .hint{grid-area:hint;margin-left:0;white-space:normal}
+  .detailhead .rowbtn{grid-area:del}
   .detailbody{padding:12px}
 
   /* The preview fills the phone screen rather than floating in the middle of it. */

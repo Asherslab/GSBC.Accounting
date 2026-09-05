@@ -34,10 +34,23 @@
             <div class="preview-body">
                 @if (Renderable)
                 {
-                    @* Same-origin, so the draft session cookie goes with the request and a private
-                       draft's receipt stays private. No JS interop and no blob URL: the browser fetches
-                       it the way it fetches any image. *@
-                    <img src="@AttachmentClient.PreviewUrl(File.SubmissionId, File.Id)" alt="@File.FileName"/>
+                    @*
+                        Same-origin, so the draft session cookie goes with the request and a private
+                        draft's receipt stays private. No JS interop and no blob URL: the browser fetches
+                        it the way it fetches any image.
+
+                        Wrapped in a button because an A4 tax invoice fitted to a 390px screen is not
+                        readable, and the only way through used to be "Open the file", which leaves the
+                        form on a phone. Tap once for the picture at its own size and scroll it inside
+                        the panel; tap again to fit. A button rather than a click handler on the image
+                        so the same thing is reachable from a keyboard and announced as a control.
+                    *@
+                    <button type="button" class="preview-zoom @(_zoomed ? "zoomed" : "")"
+                            aria-pressed="@_zoomed"
+                            title="@(_zoomed ? "Fit the receipt to the screen" : "Show the receipt at full size")"
+                            @onclick="() => _zoomed = !_zoomed">
+                        <img src="@AttachmentClient.PreviewUrl(File.SubmissionId, File.Id)" alt="@File.FileName"/>
+                    </button>
                 }
                 else
                 {
@@ -74,7 +87,19 @@
     /// </summary>
     private bool Renderable => File?.ContentType is "image/jpeg" or "image/png" or "image/webp";
 
-    private Task Close() => OnClose.InvokeAsync();
+    /// <summary>
+    /// Whether the picture is at its own size rather than fitted to the panel. Reset when the modal is
+    /// closed, so opening the next receipt starts fitted - a second receipt that opened already zoomed
+    /// into its top-left corner reads as the preview being broken.
+    /// </summary>
+    private bool _zoomed;
+
+    private Task Close()
+    {
+        _zoomed = false;
+
+        return OnClose.InvokeAsync();
+    }
 
     private static string Format(string contentType) => contentType switch
     {

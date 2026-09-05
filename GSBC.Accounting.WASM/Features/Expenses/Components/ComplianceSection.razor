@@ -42,7 +42,10 @@
                                checked="@(Model.Compliance[index] == false)"
                                @onchange="() => Answer(index, false)"/>No
                     </label>
-                    <label>
+                    @* .concern is what paints the amber state - here it is on Yes, because a Yes to a
+                       compliance question is the answer that opens the follow-up. The class says which
+                       answer needs following up; the value says what the answer is. *@
+                    <label class="concern">
                         <input type="radio" name="@($"q{index}")" value="yes"
                                checked="@(Model.Compliance[index] == true)"
                                @onchange="() => Answer(index, true)"/>Yes
