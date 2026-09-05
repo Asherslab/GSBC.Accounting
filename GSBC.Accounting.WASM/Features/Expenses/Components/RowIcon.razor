@@ -1,0 +1,42 @@
+@*
+    The two glyphs that live inside a .rowbtn, drawn rather than borrowed.
+
+    The eye used to be &#128065;, which every platform renders as a full-colour emoji: on a file row it
+    sat beside a monochrome × as a blue-and-white iOS eye, a different blue-and-white Android eye, or a
+    Windows one shaped nothing like either. Two controls in the same row did not read as a pair, and the
+    icon changed shape depending on whose phone was holding the form.
+
+    Both are inline SVG with stroke="currentColor", so they inherit .rowbtn's colour - including the
+    --bad it turns on hover - and they are the same 1.4 stroke weight as each other, which is the whole
+    point of drawing the × as well rather than only the eye. aria-hidden because the button carries the
+    label; focusable="false" because IE-era SVG is otherwise a tab stop and Edge inherited it.
+*@
+
+@if (Kind == RowIconKind.Eye)
+{
+    <svg viewBox="0 0 16 16" width="15" height="15" fill="none"
+         stroke="currentColor" stroke-width="1.4" stroke-linecap="round"
+         stroke-linejoin="round" aria-hidden="true" focusable="false">
+        <path d="M1 8s2.6-4.4 7-4.4S15 8 15 8s-2.6 4.4-7 4.4S1 8 1 8Z"/>
+        <circle cx="8" cy="8" r="1.9"/>
+    </svg>
+}
+else
+{
+    <svg viewBox="0 0 16 16" width="15" height="15" fill="none"
+         stroke="currentColor" stroke-width="1.4" stroke-linecap="round"
+         stroke-linejoin="round" aria-hidden="true" focusable="false">
+        <path d="M4 4l8 8M12 4l-8 8"/>
+    </svg>
+}
+
+@code
+{
+    public enum RowIconKind
+    {
+        Eye,
+        Cross
+    }
+
+    [Parameter, EditorRequired] public required RowIconKind Kind { get; set; }
+}

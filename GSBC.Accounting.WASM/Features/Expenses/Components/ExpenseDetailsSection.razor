@@ -133,13 +133,13 @@
                             <span class="name">@file.FileName</span>
                             <span class="sz">@Size(file.ByteSize)</span>
                         </span>
-                        <button class="rowbtn view" type="button" title="Look at this file"
-                                aria-label="@($"Look at {file.FileName}")" @onclick="() => ShowPreview(file)">
-                            &#128065;
+                        <button class="rowbtn view" type="button" title="View file"
+                                aria-label="@($"View {file.FileName}")" @onclick="() => ShowPreview(file)">
+                            <RowIcon Kind="RowIcon.RowIconKind.Eye"/>
                         </button>
                         <button class="rowbtn del" type="button" title="Remove this file"
                                 aria-label="@($"Remove {file.FileName}")" @onclick="() => RemoveUnfiled(file)">
-                            &times;
+                            <RowIcon Kind="RowIcon.RowIconKind.Cross"/>
                         </button>
                     </li>
                 }

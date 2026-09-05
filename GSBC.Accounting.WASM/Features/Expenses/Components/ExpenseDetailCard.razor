@@ -22,7 +22,9 @@
         <h4>@(string.IsNullOrWhiteSpace(Detail.Supplier) ? "New purchase" : Detail.Supplier)</h4>
         <span class="hint">@Summary</span>
         <button class="rowbtn" type="button" title="Remove this purchase"
-                aria-label="@($"Remove purchase {Index + 1}")" @onclick="Remove">&times;</button>
+                aria-label="@($"Remove purchase {Index + 1}")" @onclick="Remove">
+            <RowIcon Kind="RowIcon.RowIconKind.Cross"/>
+        </button>
     </header>
 
     <div class="detailbody">
@@ -52,15 +54,16 @@
                     @* view / del rather than two bare .rowbtns: under 900px app.css lays this row out
                        with named grid areas, and two buttons with no way to tell them apart land in the
                        same cell on top of each other. *@
-                    <button class="rowbtn view" type="button" title="Look at this file"
-                            aria-label="@($"Look at {file.FileName}")" @onclick="() => Preview(file)">
-                        @* An eye rather than the word "view": the row is already three controls wide on
-                           a phone. *@
-                        &#128065;
+                    @* An eye rather than the word "view": the row is already three controls wide on a
+                       phone. Drawn as an SVG rather than borrowed from the platform's emoji font - see
+                       RowIcon, which also draws the × so the two share one stroke weight. *@
+                    <button class="rowbtn view" type="button" title="View file"
+                            aria-label="@($"View {file.FileName}")" @onclick="() => Preview(file)">
+                        <RowIcon Kind="RowIcon.RowIconKind.Eye"/>
                     </button>
                     <button class="rowbtn del" type="button" title="Remove this file"
                             aria-label="@($"Remove {file.FileName}")" @onclick="() => Detach(file)">
-                        &times;
+                        <RowIcon Kind="RowIcon.RowIconKind.Cross"/>
                     </button>
                 </li>
             }
