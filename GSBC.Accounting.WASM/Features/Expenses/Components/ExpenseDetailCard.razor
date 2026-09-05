@@ -98,16 +98,18 @@
             <div class="f c5">
                 <label for="@($"sup-{Detail.Key}")">Supplier <span class="req">*</span></label>
                 <input type="text" id="@($"sup-{Detail.Key}")" placeholder="e.g. Bunnings Springwood"
+                       aria-invalid="@Bad("sup")"
                        @bind="Detail.Supplier" @bind:event="oninput" @bind:after="Changed"/>
             </div>
             <div class="f c3">
                 <label for="@($"date-{Detail.Key}")">Date of purchase <span class="req">*</span></label>
-                <input type="date" id="@($"date-{Detail.Key}")"
+                <input type="date" id="@($"date-{Detail.Key}")" aria-invalid="@Bad("date")"
                        @bind="Detail.PurchaseDate" @bind:event="oninput" @bind:after="Changed"/>
             </div>
             <div class="f c4">
                 <label for="@($"purp-{Detail.Key}")">Church purpose <span class="req">*</span></label>
                 <input type="text" id="@($"purp-{Detail.Key}")" placeholder="e.g. Friday night youth"
+                       aria-invalid="@Bad("purp")"
                        @bind="Detail.Purpose" @bind:event="oninput"/>
             </div>
         </div>
@@ -268,6 +270,7 @@
                     <label for="@($"tot-{Detail.Key}")">Total on the receipt, incl. GST <span class="req">*</span></label>
                     <div class="money">
                         <input type="number" inputmode="decimal" step="0.01" min="0" id="@($"tot-{Detail.Key}")"
+                               aria-invalid="@Bad("tot")"
                                @bind="Detail.TotalIncGst" @bind:event="oninput" @bind:after="Changed"/>
                     </div>
                     <span class="help">Include every item on the receipt, personal items included.</span>
@@ -290,6 +293,7 @@
                             somebody discovering the rule at the end of the form.
                         *@
                         <input type="number" inputmode="decimal" step="0.01" min="@Floor" id="@($"nr-{Detail.Key}")"
+                               aria-invalid="@Bad("nr")"
                                @bind="Detail.NonReimbursedAmount" @bind:event="oninput" @bind:after="Changed"/>
                     </div>
                     <span class="help">@NonReimbursedHelp</span>
@@ -366,6 +370,18 @@
 
     /// <summary>True while the page has an upload in flight anywhere, so every card's controls settle.</summary>
     [Parameter] public bool Busy { get; set; }
+
+    /// <summary>
+    /// The field ids the last refusal named, across the whole claim. Each panel picks its own out by
+    /// building the id the same way the server does - the prefix and this detail's key.
+    /// </summary>
+    [Parameter] public IReadOnlySet<string> Invalid { get; set; } = new HashSet<string>();
+
+    /// <summary>
+    /// <c>"true"</c> when this purchase's field of that name is one the last refusal named, else null,
+    /// so Blazor omits the attribute rather than writing <c>aria-invalid="false"</c> on every field.
+    /// </summary>
+    private string? Bad(string field) => Invalid.Contains($"{field}-{Detail.Key}") ? "true" : null;
 
     [Parameter] public EventCallback OnChanged { get; set; }
 

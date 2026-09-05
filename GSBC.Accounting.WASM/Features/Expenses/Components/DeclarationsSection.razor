@@ -84,6 +84,7 @@
                 @* Typed, and not a signature in any legal sense - it is a name somebody typed beside the
                    declarations above. Section 7's independent approval is what carries authority. *@
                 <input type="text" id="signature" class="typed"
+                       aria-invalid="@(Invalid.Contains("signature") ? "true" : null)"
                        @bind="Model.SignatureName" @bind:event="oninput" @bind:after="Changed"/>
             </div>
             <div class="f">
@@ -106,6 +107,13 @@
     /// about anything on the model.
     /// </summary>
     [Parameter, EditorRequired] public required IReadOnlyList<ExpenseAttachment> Attachments { get; set; }
+
+    /// <summary>
+    /// The field ids the last refusal named. Only "signature" is one of this section's, but the whole
+    /// set is passed rather than a bool so the section can mark another field without the page
+    /// changing.
+    /// </summary>
+    [Parameter] public IReadOnlySet<string> Invalid { get; set; } = new HashSet<string>();
 
     [Parameter] public EventCallback OnChanged { get; set; }
 

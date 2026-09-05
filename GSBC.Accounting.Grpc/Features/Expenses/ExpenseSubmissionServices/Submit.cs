@@ -93,10 +93,10 @@ public partial class ExpenseSubmissionService
         (decimal gross, decimal gst, decimal lessPersonal) = ExpenseTotals.SumDetails(details);
         decimal net = ExpenseTotals.Net(gross, lessPersonal);
 
-        List<string> errors = ValidateForSubmit(submission, details, gross);
+        List<SubmissionProblem> problems = ValidateForSubmit(submission, details, gross);
 
-        if (errors.Count > 0)
-            return SubmitExpenseSubmissionResponse.WithErrors(errors);
+        if (problems.Count > 0)
+            return SubmitExpenseSubmissionResponse.WithProblems(problems);
 
         submission.GrossTotal = gross;
         submission.GstTotal = gst;
@@ -220,24 +220,32 @@ public partial class ExpenseSubmissionService
     /// back through the contract, so the itemisation rules are evaluated against the same
     /// <see cref="ExpenseDetail.Itemisation"/> the page used to decide what to ask for.
     /// </summary>
-    private static List<string> ValidateForSubmit(
+    /// <remarks>
+    /// <b>Each refusal carries where it sends the claimant, and the per-purchase ones name the
+    /// purchase.</b> With six receipts attached, "every purchase requires a supplier" does not say
+    /// which one is missing it, and the page cannot work that out from a sentence - so the ordinal is
+    /// in the message and the panel's own field id is on the problem. The ids are the ones
+    /// ExpenseDetailCard builds from the same detail key the server files attachments against, which is
+    /// what keeps the two ends agreeing without a shared constant.
+    /// </remarks>
+    private static List<SubmissionProblem> ValidateForSubmit(
         DbExpenseSubmission submission,
         IReadOnlyList<ExpenseDetail> details,
         decimal gross
     )
     {
-        List<string> errors = [];
+        List<SubmissionProblem> errors = [];
 
         if (string.IsNullOrWhiteSpace(submission.SubmitterName))
-            errors.Add(NeedsASubmitterName);
+            errors.Add(new SubmissionProblem(NeedsASubmitterName, "s1", "submitter"));
 
         if (string.IsNullOrWhiteSpace(submission.PurposeNarrative))
-            errors.Add(NeedsAPurposeNarrative);
+            errors.Add(new SubmissionProblem(NeedsAPurposeNarrative, "s2", "purpose"));
 
         // Section 3 has to say what was bought. A draft is allowed to have no details at all - somebody
         // fills section 1 in first - so this is asked once, here, and never while they are typing.
         if (details.Count == 0)
-            errors.Add(SubmissionNeedsADetail);
+            errors.Add(new SubmissionProblem(SubmissionNeedsADetail, "s3"));
 
         // Section 3 is now the same shape on both forms, which is the one place this rewrite made the
         // app simpler rather than richer. The old table's first column was a DIFFERENT FIELD on each
@@ -245,8 +253,14 @@ public partial class ExpenseSubmissionService
         // a switch on the kind right here. A receipt has a supplier and a date on both.
         bool hasUnreceiptedPurchase = false;
 
-        foreach (ExpenseDetail detail in details)
+        for (int index = 0; index < details.Count; index++)
         {
+            ExpenseDetail detail = details[index];
+
+            // The number the panel shows in its header and the PDF prints in its manifest, so all three
+            // count the same way. details is already ordered by Ordinal.
+            int purchase = index + 1;
+
             List<DbExpenseAttachment> files = submission.Attachments
                 .Where(x => x.DetailKey == detail.Key)
                 .ToList();
@@ -254,35 +268,35 @@ public partial class ExpenseSubmissionService
             // A detail exists because a file was attached to it, so an empty one means the claimant
             // removed the last file and left the panel behind.
             if (files.Count == 0)
-                errors.Add(DetailNeedsAnAttachment);
+                errors.Add(Detail(DetailNeedsAnAttachment(purchase), detail));
             else if (files.All(x => x.Kind != AttachmentKind.SupplierReceipt))
                 hasUnreceiptedPurchase = true;
 
             if (string.IsNullOrWhiteSpace(detail.Supplier))
-                errors.Add(DetailNeedsASupplier);
+                errors.Add(Detail(DetailNeedsASupplier(purchase), detail, "sup"));
 
             if (detail.PurchaseDate is null)
-                errors.Add(DetailNeedsAPurchaseDate);
+                errors.Add(Detail(DetailNeedsAPurchaseDate(purchase), detail, "date"));
 
             if (string.IsNullOrWhiteSpace(detail.Purpose))
-                errors.Add(DetailNeedsAPurpose);
+                errors.Add(Detail(DetailNeedsAPurpose(purchase), detail, "purp"));
 
             if (detail.TotalIncGst <= 0)
-                errors.Add(DetailNeedsATotal);
+                errors.Add(Detail(DetailNeedsATotal(purchase), detail, "tot"));
 
             // Both, and separately from the itemisation rules below: what those rules ARE is decided by
             // these two answers, so an unanswered pair is not a receipt that needs no itemising - it is
             // a receipt nobody has said anything about yet.
             if (detail.ContainsPersonalItems is null || detail.ReceiptIsItemised is null)
-                errors.Add(DetailQuestionsUnanswered);
+                errors.Add(Detail(DetailQuestionsUnanswered(purchase), detail));
 
             if (detail.Itemisation != ItemisationRequirement.None)
             {
                 if (detail.Items.Count == 0)
-                    errors.Add(DetailNeedsItemisation);
+                    errors.Add(Detail(DetailNeedsItemisation(purchase), detail));
 
                 if (detail.Items.Any(x => string.IsNullOrWhiteSpace(x.Description)))
-                    errors.Add(ItemNeedsADescription);
+                    errors.Add(Detail(ItemNeedsADescription(purchase), detail));
 
                 // Only meaningful in the everything-itemised mode, where the church/personal toggle is
                 // on screen. In the personal-items-only mode every stored item is already personal -
@@ -290,7 +304,7 @@ public partial class ExpenseSubmissionService
                 if (detail.ContainsPersonalItems == true && detail.Items.Count > 0
                     && detail.Items.All(x => x.IsChurchUse))
                 {
-                    errors.Add(PersonalItemsNeedListing);
+                    errors.Add(Detail(PersonalItemsNeedListing(purchase), detail));
                 }
             }
 
@@ -301,7 +315,7 @@ public partial class ExpenseSubmissionService
             // Above the floor is deliberately fine. Somebody choosing to carry more of a legitimate cost
             // than they have to is making a gift, and the form has no business refusing one.
             if (ExpenseTotals.Money(detail.NonReimbursedAmount) < ExpenseTotals.PersonalItemsTotal(detail))
-                errors.Add(NonReimbursedBelowPersonalItems);
+                errors.Add(Detail(NonReimbursedBelowPersonalItems(purchase), detail, "nr"));
         }
 
         // NOT "the itemised lines have to add up to the receipt total". Where the evidence does not
@@ -312,7 +326,7 @@ public partial class ExpenseSubmissionService
         // Section 5: a purchase evidenced only by a bank line or a screenshot. That proves the money
         // moved and says nothing about what it bought, which is exactly the gap the declaration covers.
         if (hasUnreceiptedPurchase && submission.MissingReceipt is not { Declared: true })
-            errors.Add(MissingEvidenceNeedsADeclaration);
+            errors.Add(new SubmissionProblem(MissingEvidenceNeedsADeclaration, "s5"));
 
         // null is unanswered, and unanswered is not No.
         bool[] answered =
@@ -322,8 +336,10 @@ public partial class ExpenseSubmissionService
             submission.ComplianceQ5 is not null, submission.ComplianceQ6 is not null
         ];
 
+        // No field id: six questions are unanswered as a group, and pointing at the first of them would
+        // be pointing at a question that may well be answered.
         if (answered.Any(x => !x))
-            errors.Add(ComplianceQuestionsUnanswered);
+            errors.Add(new SubmissionProblem(ComplianceQuestionsUnanswered, "s4"));
 
         bool[] declarations =
         [
@@ -333,26 +349,26 @@ public partial class ExpenseSubmissionService
         ];
 
         if (declarations.Any(x => !x))
-            errors.Add(DeclarationsNotAgreed);
+            errors.Add(new SubmissionProblem(DeclarationsNotAgreed, "s6"));
 
         if (string.IsNullOrWhiteSpace(submission.SignatureName))
-            errors.Add(NeedsASignature);
+            errors.Add(new SubmissionProblem(NeedsASignature, "s6", "signature"));
 
         if (submission.Kind == SubmissionKind.DebitCardPurchase)
         {
             // Draft accepts a half-typed "12"; a submitted claim has to carry all four, or the finance
             // reviewer cannot match it against a bank line.
             if (string.IsNullOrWhiteSpace(submission.CardLastFourDigits))
-                errors.Add(DebitCardNeedsCardLastFour);
+                errors.Add(new SubmissionProblem(DebitCardNeedsCardLastFour, "s1", "card4"));
             else if (submission.CardLastFourDigits.Length != 4
                      || !submission.CardLastFourDigits.All(char.IsAsciiDigit))
             {
-                errors.Add(CardLastFourDigitsMustBeFourDigits);
+                errors.Add(new SubmissionProblem(CardLastFourDigitsMustBeFourDigits, "s1", "card4"));
             }
 
             if (submission.AmountCharged is null)
             {
-                errors.Add(DebitCardNeedsAmountCharged);
+                errors.Add(new SubmissionProblem(DebitCardNeedsAmountCharged, "s1", "charged"));
             }
             else
             {
@@ -366,16 +382,32 @@ public partial class ExpenseSubmissionService
                 // nothing external to reconcile against.
                 if (charged != gross)
                 {
-                    errors.Add(
+                    // Anchored at section 1 and pointing at no field: it is about two figures in two
+                    // different sections, and either of them may be the one that is wrong.
+                    errors.Add(new SubmissionProblem(
                         $"Section 1: the card was charged {Money(charged)}, but the receipts in "
                         + $"section 3 total {Money(gross)}. Attach the missing receipt, or correct "
-                        + "the amount charged.");
+                        + "the amount charged.",
+                        "s1"));
                 }
             }
         }
 
         return errors.Distinct().ToList();
     }
+
+    /// <summary>
+    /// A refusal about one purchase, pointing at the field on that purchase's own panel.
+    /// </summary>
+    /// <remarks>
+    /// The id is built the way <c>ExpenseDetailCard</c> builds it - the prefix and the detail key - and
+    /// the key is the same one the server files this purchase's attachments against, so the two ends
+    /// agree without either holding a list of the other's element ids. A prefix that does not match a
+    /// field on the page degrades to the section link rather than to a dead one, because a fragment
+    /// with no target scrolls nowhere and the anchor is still on the problem.
+    /// </remarks>
+    private static SubmissionProblem Detail(string message, ExpenseDetail detail, string? field = null) =>
+        new(message, "s3", field is null ? null : $"{field}-{detail.Key}");
 
     /// <summary>
     /// en-AU explicitly, not the server's culture. This string is read by a claimant, and a container

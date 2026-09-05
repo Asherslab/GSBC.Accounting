@@ -92,6 +92,7 @@
                                    Detail="detail"
                                    Index="index"
                                    Files="FilesFor(detail)"
+                                   Invalid="Invalid"
                                    Busy="_busy"
                                    Upload="UploadToDetail"
                                    DetachFile="DetachAsync"
@@ -202,6 +203,12 @@
     /// section cannot do it itself - only the page knows the form.
     /// </summary>
     [Parameter, EditorRequired] public required Func<Task<Guid?>> EnsureSubmission { get; set; }
+
+    /// <summary>
+    /// The ids of fields the last refusal named, passed straight through to each purchase panel so it
+    /// can mark its own. Owned by the page, which is where a refusal arrives.
+    /// </summary>
+    [Parameter] public IReadOnlySet<string> Invalid { get; set; } = new HashSet<string>();
 
     [Parameter] public EventCallback OnChanged { get; set; }
 
