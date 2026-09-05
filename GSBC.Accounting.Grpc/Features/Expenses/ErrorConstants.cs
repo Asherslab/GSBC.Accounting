@@ -48,39 +48,47 @@ public static class ErrorConstants
     public const string SubmissionNeedsADetail =
         "Section 3: at least one receipt is required.";
 
-    public const string DetailNeedsAnAttachment =
-        "Section 3: every purchase requires at least one attached file.";
+    // ---- Per purchase, and each one names the purchase it is about. ----
+    //
+    // These were constants reading "every purchase in section 3 needs...", which is a true sentence
+    // that is no use to somebody with six receipts attached: it does not say which of the six. The
+    // ordinal is the same number the panel shows in its header and the same one the PDF prints in its
+    // evidence manifest, so a claimant reading the refusal, a claimant looking at the form and a
+    // reviewer holding a printout are all counting the same way.
 
-    public const string DetailNeedsASupplier =
-        "Section 3: every purchase requires a supplier.";
+    public static string DetailNeedsAnAttachment(int purchase) =>
+        $"Section 3, purchase {purchase}: at least one attached file is required.";
 
-    public const string DetailNeedsAPurchaseDate =
-        "Section 3: every purchase requires a date of purchase.";
+    public static string DetailNeedsASupplier(int purchase) =>
+        $"Section 3, purchase {purchase}: a supplier is required.";
 
-    public const string DetailNeedsAPurpose =
-        "Section 3: every purchase requires a Church purpose.";
+    public static string DetailNeedsAPurchaseDate(int purchase) =>
+        $"Section 3, purchase {purchase}: a date of purchase is required.";
 
-    public const string DetailNeedsATotal =
-        "Section 3: every purchase requires a receipt total.";
+    public static string DetailNeedsAPurpose(int purchase) =>
+        $"Section 3, purchase {purchase}: a Church purpose is required.";
 
-    public const string DetailQuestionsUnanswered =
-        "Section 3: every purchase must state whether it includes personal items and whether the "
+    public static string DetailNeedsATotal(int purchase) =>
+        $"Section 3, purchase {purchase}: a receipt total is required.";
+
+    public static string DetailQuestionsUnanswered(int purchase) =>
+        $"Section 3, purchase {purchase}: state whether it includes personal items and whether the "
         + "receipt is itemised. A blank answer is not recorded as No.";
 
-    public const string DetailNeedsItemisation =
-        "Section 3: a purchase requires itemisation and has no items listed. An itemised receipt needs "
-        + "only its personal lines; evidence that is not itemised needs every item on it.";
+    public static string DetailNeedsItemisation(int purchase) =>
+        $"Section 3, purchase {purchase}: itemisation is required and no items are listed. An itemised "
+        + "receipt needs only its personal lines; evidence that is not itemised needs every item on it.";
 
-    public const string ItemNeedsADescription =
-        "Section 3: every itemised line requires a description.";
+    public static string ItemNeedsADescription(int purchase) =>
+        $"Section 3, purchase {purchase}: every itemised line requires a description.";
 
-    public const string PersonalItemsNeedListing =
-        "Section 3: a purchase states that it includes personal items, but no itemised line is marked "
-        + "as one.";
+    public static string PersonalItemsNeedListing(int purchase) =>
+        $"Section 3, purchase {purchase}: it states that it includes personal items, but no itemised "
+        + "line is marked as one.";
 
-    public const string NonReimbursedBelowPersonalItems =
-        "Section 3: the unclaimed amount is less than the personal items listed on that receipt. A "
-        + "larger amount is accepted - that is a gift to the Church - but not a smaller one.";
+    public static string NonReimbursedBelowPersonalItems(int purchase) =>
+        $"Section 3, purchase {purchase}: the unclaimed amount is less than the personal items listed "
+        + "on it. A larger amount is accepted - that is a gift to the Church - but not a smaller one.";
 
     public const string SubmissionNotFound =
         "That submission could not be found.";

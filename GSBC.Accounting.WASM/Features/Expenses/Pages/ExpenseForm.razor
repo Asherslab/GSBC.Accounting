@@ -17,6 +17,9 @@
    which owns the dropzones. Injected unconditionally rather than behind a directive: Razor has no
    conditional @inject, and an unused scoped client costs nothing. *@
 @inject AttachmentClient Attachments
+@* Only for the current path, which the refusal banner's links have to be written against - see
+   PagePath, and SectionRail.Href for the trap they are both avoiding. *@
+@inject NavigationManager Navigation
 
 <PageTitle>@(Model.Kind is null ? UnchosenTitle : Text.DocumentTitle)</PageTitle>
 
@@ -75,12 +78,32 @@
 
         @if (_errors.Count > 0)
         {
+            @*
+                EVERY ITEM IS A LINK, and where the server named the field it is a link to that field
+                rather than to its section. On a phone this list is the difference between fixing eight
+                things and hunting for eight things through an eight-section form.
+
+                The href is written against the current path for the same reason SectionRail's is: a
+                fragment-only "#s3" resolves against <base href="/"> and navigates to the landing page.
+                A refusal about the request rather than about the form - the server unreachable, no
+                session - carries no anchor and stays a plain item, because there is nowhere on this
+                page that would help.
+            *@
             <div class="banner" role="alert">
                 <h4>This form cannot be submitted yet</h4>
                 <ul>
-                    @foreach (string error in _errors)
+                    @foreach (SubmissionProblem problem in _errors)
                     {
-                        <li>@error</li>
+                        <li>
+                            @if (problem.Anchor.Length > 0)
+                            {
+                                <a href="@($"{PagePath}#{problem.Target}")">@problem.Message</a>
+                            }
+                            else
+                            {
+                                @problem.Message
+                            }
+                        </li>
                     }
                 </ul>
             </div>
@@ -253,7 +276,12 @@
                                be. Nothing on this form carries a card autocomplete token: the only card
                                field here is the last four digits, and cc-number would invite the browser
                                to fill the full number into a form that must never hold one. *@
+                            @* aria-invalid is set from the last refusal, never from the browser's own
+                               :invalid - which fires on every empty required box while somebody is
+                               still typing and would paint the form red before they finished reading
+                               it. app.css draws the bad border off this attribute. *@
                             <input type="text" id="submitter" autocomplete="name"
+                                   aria-invalid="@Invalid("submitter")"
                                    @bind="Model.SubmitterName" @bind:event="oninput"/>
                         </div>
                         <div class="f c3">
@@ -266,7 +294,8 @@
                             <div class="f c4">
                                 <label for="card4">Card last 4 digits <span class="req">*</span></label>
                                 <input type="text" id="card4" class="mono" inputmode="numeric" maxlength="4"
-                                       placeholder="0000" @bind="Model.CardLastFourDigits" @bind:event="oninput"/>
+                                       placeholder="0000" aria-invalid="@Invalid("card4")"
+                                       @bind="Model.CardLastFourDigits" @bind:event="oninput"/>
                                 <span class="help">Never record the full number, PIN or CVV.</span>
                             </div>
                         }
@@ -333,6 +362,7 @@
                                        puts up numbers-and-punctuation for the latter, and a numeric pad
                                        for this. *@
                                     <input type="number" inputmode="decimal" step="0.01" min="0" id="charged"
+                                           aria-invalid="@Invalid("charged")"
                                            @bind="Model.AmountCharged" @bind:event="oninput" @bind:after="Touched"/>
                                 </div>
                             </div>
@@ -444,7 +474,8 @@
                         </div>
                         <div class="f c12">
                             <label for="purpose">@Text.PurposeNarrativePrompt <span class="req">*</span></label>
-                            <textarea id="purpose" rows="4" @bind="Model.PurposeNarrative" @bind:event="oninput"></textarea>
+                            <textarea id="purpose" rows="4" aria-invalid="@Invalid("purpose")"
+                                      @bind="Model.PurposeNarrative" @bind:event="oninput"></textarea>
                             @if (Text.PurposeNarrativeHint is { } hint)
                             {
                                 <span class="help">@hint</span>
@@ -460,12 +491,15 @@
                 a purchase is created BY attaching its receipt, and its questions are asked underneath
                 that receipt. See ExpenseDetailsSection.
             *@
-            <ExpenseDetailsSection Model="Model" Text="Text" Files="_attachments"
+            @* Invalid travels down so the fields a refusal named can be marked wherever they live. The
+               ids are the ones each component builds; the server names them by the same rule. *@
+            <ExpenseDetailsSection Model="Model" Text="Text" Files="_attachments" Invalid="InvalidFields"
                                    EnsureSubmission="EnsureSubmissionAsync" OnChanged="Touched"/>
 
             <ComplianceSection Model="Model" Text="Text" OnChanged="Touched"/>
 
-            <DeclarationsSection Model="Model" Text="Text" Attachments="_attachments" OnChanged="Touched"/>
+            <DeclarationsSection Model="Model" Text="Text" Attachments="_attachments"
+                                 Invalid="InvalidFields" OnChanged="Touched"/>
 
             <ApprovalSections Kind="Model.Kind.Value"/>
 
@@ -576,7 +610,17 @@
         Model.Kind ?? throw new InvalidOperationException(
             "The form's wording was read before question zero was answered."));
 
-    private readonly List<string> _errors = [];
+    /// <summary>
+    /// Everything wrong with the form, as the banner renders it.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="SubmissionProblem"/> rather than strings, because a refusal has to know where it
+    /// sends the claimant. Problems raised on this page - a server that cannot be reached, question
+    /// zero unanswered before an upload - carry an empty anchor and render as plain text: there is no
+    /// field on the form that would help.
+    /// </remarks>
+    private readonly List<SubmissionProblem> _errors = [];
+
     private readonly List<ExpenseAttachment> _attachments = [];
     private bool _busy;
     private bool _submitted;
@@ -621,6 +665,35 @@
     /// cookie rides along and the browser's own PDF viewer opens it.
     /// </remarks>
     private string PdfUrl => $"/api/submissions/{_submissionId}/pdf";
+
+    /// <summary>
+    /// This page's own path, for the refusal banner's links.
+    /// </summary>
+    /// <remarks>
+    /// The same trap <c>SectionRail.Href</c> documents: a fragment-only href resolves against
+    /// <c>&lt;base href="/"&gt;</c>, so "#s3" becomes "https://host/#s3" and every link in the banner
+    /// navigates to the landing page instead of moving down the form. Nothing errors, so it reads as
+    /// "the links just do not work".
+    /// </remarks>
+    private string PagePath => new Uri(Navigation.Uri).GetLeftPart(UriPartial.Path);
+
+    /// <summary>
+    /// The ids of the fields the last refusal named, so each one can be marked <c>aria-invalid</c> and
+    /// drawn with the bad border. Empty whenever the banner is.
+    /// </summary>
+    private HashSet<string> InvalidFields =>
+        _errors.Where(x => !string.IsNullOrEmpty(x.FieldId)).Select(x => x.FieldId!).ToHashSet();
+
+    /// <summary>
+    /// <c>"true"</c> when this field is one the last refusal named, and null otherwise - null so Blazor
+    /// omits the attribute entirely rather than rendering <c>aria-invalid="false"</c> on fifty fields.
+    /// </summary>
+    private string? Invalid(string fieldId) => InvalidFields.Contains(fieldId) ? "true" : null;
+
+    /// <summary>
+    /// A problem raised here rather than by the server. It has no section to send anybody to.
+    /// </summary>
+    private void AddError(string message) => _errors.Add(new SubmissionProblem(message, string.Empty));
 
     /// <summary>
     /// Set when the route named a draft this session does not own, or one that has been submitted. The
@@ -733,7 +806,7 @@
         catch (Exception ex)
         {
             _draftUnavailable = true;
-            _errors.Add($"Could not reach the server: {ex.Message}");
+            AddError($"Could not reach the server: {ex.Message}");
         }
     }
 
@@ -895,7 +968,7 @@
                 if (result is { Success: true, Attachment: not null })
                     _attachments.Add(result.Attachment);
                 else
-                    _errors.Add($"Mock receipt {index + 1}: {result.Error}");
+                    AddError($"Mock receipt {index + 1}: {result.Error}");
             }
 
             // A second save, so the stored submission sees the section 5 declaration that the uploads
@@ -997,7 +1070,8 @@
         // attachments card, whose upload button does not know about section 0.
         if (Model.Kind is null)
         {
-            _errors.Add("Section 0: state how this was paid for. It determines which form applies.");
+            _errors.Add(new SubmissionProblem(
+                "Section 0: state how this was paid for. It determines which form applies.", "s0"));
 
             return null;
         }
@@ -1018,13 +1092,16 @@
                 if (update.Success)
                     return _submissionId;
 
-                _errors.AddRange(update.Errors.Count > 0
-                    ? update.Errors
-                    : [update.Error ?? "The draft could not be saved."]);
+                foreach (string error in update.Errors.Count > 0
+                             ? update.Errors
+                             : [update.Error ?? "The draft could not be saved."])
+                {
+                    AddError(error);
+                }
             }
             catch (Exception ex)
             {
-                _errors.Add($"Could not reach the server: {ex.Message}");
+                AddError($"Could not reach the server: {ex.Message}");
             }
 
             return null;
@@ -1043,13 +1120,16 @@
 
             // Errors is the list; Error is only its first entry. Show all of them - a form that reveals
             // its problems one at a time is the one people give up on.
-            _errors.AddRange(response.Errors.Count > 0
-                ? response.Errors
-                : [response.Error ?? "The submission was refused."]);
+            foreach (string error in response.Errors.Count > 0
+                         ? response.Errors
+                         : [response.Error ?? "The submission was refused."])
+            {
+                AddError(error);
+            }
         }
         catch (Exception ex)
         {
-            _errors.Add($"Could not reach the server: {ex.Message}");
+            AddError($"Could not reach the server: {ex.Message}");
         }
 
         return null;
@@ -1094,16 +1174,22 @@
                 // to fetch it: Read refuses a submitted claim by design.
                 _reference = response.Reference;
             }
+            else if (response.Problems.Count > 0)
+            {
+                // The refusals as the server built them, each carrying its section and, where there is
+                // one, its field - which is what makes the banner a list of links and marks the fields.
+                _errors.AddRange(response.Problems);
+            }
             else
             {
-                _errors.AddRange(response.Errors.Count > 0
-                    ? response.Errors
-                    : [response.Error ?? "The submission was refused."]);
+                // A refusal about the request rather than about the form: no session, no such
+                // submission, already submitted. Nothing on this page to point at.
+                AddError(response.Error ?? "The submission was refused.");
             }
         }
         catch (Exception ex)
         {
-            _errors.Add($"Could not reach the server: {ex.Message}");
+            AddError($"Could not reach the server: {ex.Message}");
         }
         finally
         {
