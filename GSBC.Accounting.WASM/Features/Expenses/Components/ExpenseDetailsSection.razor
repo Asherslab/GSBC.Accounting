@@ -38,8 +38,8 @@
                     : "+ Attach the next receipt")
             </span>
             <span class="small">
-                PDF, JPG, PNG, HEIC or WebP &middot; up to 20&nbsp;MB each &middot; photos of paper
-                receipts are fine
+                PDF, JPG, PNG, HEIC or WebP &middot; up to 20&nbsp;MB each &middot; photographs of
+                paper receipts are accepted
             </span>
         </label>
 
@@ -51,15 +51,13 @@
         <div class="notice" style="margin-top:14px">
             <span class="ico">i</span>
             <div>
-                <b>One entry per receipt, one shop per entry.</b> Everything you pick here at once becomes
-                <b>one</b> purchase &mdash; so choose all the photos of a single long docket together, and
-                come back to this box for the next shop. Each entry then asks its own questions, and the
-                answers only make sense about one receipt.
+                <b>One entry per receipt, one supplier per entry.</b> Files selected together form
+                <b>one</b> purchase. Select every image of a single docket at the same time, then
+                return here for the next supplier. Each purchase is then completed separately.
                 <div class="help" style="margin-top:6px">
-                    <b>No receipt from the shop?</b> Attach a screenshot or statement line from your
-                    banking app instead, showing the amount and who it was paid to, and mark it
-                    &ldquo;Bank / card line&rdquo;. You will be asked to complete the missing receipt
-                    declaration in section 5.
+                    If no supplier receipt is available, attach a bank or card statement line showing
+                    the amount and the payee, and select &ldquo;Bank / card line&rdquo;. The missing
+                    receipt declaration in section 5 will then be required.
                 </div>
             </div>
         </div>
@@ -80,8 +78,7 @@
         @if (Model.Details.Count == 0)
         {
             <p class="help" style="margin-top:14px">
-                Nothing attached yet. Section 3 fills itself in from the receipts &mdash; there is nothing
-                to type here until one is on the form.
+                No receipts attached. Section 3 is completed from the receipts you attach.
             </p>
         }
 
@@ -118,9 +115,9 @@
             <div class="notice warn" style="margin-top:16px">
                 <span class="ico">!</span>
                 <div>
-                    <b>These files aren't against any purchase.</b> They stay on the claim and finance
-                    will see them listed, but nothing says what they are evidence of. Remove them, or
-                    attach them again to the purchase they belong to.
+                    <b>These files are not attached to any purchase.</b> They stay on the claim and
+                    Finance will see them listed, but nothing records what they are evidence of.
+                    Remove them, or attach them again to the purchase they belong to.
                 </div>
             </div>
 
@@ -179,7 +176,7 @@
             <div class="notice warn" style="margin-top:14px">
                 <span class="ico">&ne;</span>
                 <div>
-                    <b>The receipts don't match the card charge.</b> They total
+                    <b>The receipts do not match the card charge.</b> They total
                     <span class="mono">@Model.GrossTotal.ToString("C2")</span> but the amount charged in
                     section 1 is <span class="mono">@(Model.AmountCharged?.ToString("C2"))</span>. Attach
                     the missing receipt or correct the charge before submitting.
@@ -288,8 +285,8 @@
 
             if (submissionId is null)
             {
-                return "The form has to be saved before receipts can be attached. Fix the problems above "
-                       + "and try again.";
+                return "The form must be saved before receipts can be attached. Correct the problems "
+                       + "above and try again.";
             }
 
             if (file.Size > AttachmentClient.MaxBytes)

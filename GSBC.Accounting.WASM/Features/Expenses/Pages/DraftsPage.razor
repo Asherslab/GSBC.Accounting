@@ -26,14 +26,13 @@
 <div class="layout norail">
     <main>
         <p class="lede">
-            Forms you have started on this browser and not yet submitted. Open one to carry on where
-            you left off.
+            Forms started in this browser and not yet submitted.
         </p>
 
         @if (_error is not null)
         {
             <div class="banner" role="alert">
-                <h4>Your drafts couldn't be loaded</h4>
+                <h4>Your drafts could not be loaded</h4>
                 <p>@_error</p>
             </div>
         }
@@ -51,8 +50,8 @@
                 </header>
                 <div class="body">
                     <p class="help">
-                        Nothing started on this browser yet. Both forms save themselves as you type, so
-                        one will appear here as soon as you begin.
+                        Nothing has been started in this browser yet. The form is saved
+                        automatically, so one will appear here as soon as you begin.
                     </p>
                     <p><a class="cardlink" href="/">Back to the forms</a></p>
                 </div>
@@ -91,17 +90,20 @@
                                open it rather than after they have filled the rest in again. *@
                             <div class="notice bad">
                                 <span class="ico">!</span>
-                                <div>No receipt attached yet. This form can't be submitted without one.</div>
+                                <div>
+                                    No receipt attached. At least one receipt is required before this
+                                    form can be submitted.
+                                </div>
                             </div>
                         }
 
                         <p class="help">
-                            Deleted on @draft.ExpiresAt.ToLocalTime().ToString("d MMMM yyyy")
-                            if nobody edits it before then.
+                            Expires @draft.ExpiresAt.ToLocalTime().ToString("d MMMM yyyy") unless
+                            edited.
                         </p>
 
                         <p>
-                            <a class="cardlink" href="@ResumeUrl(draft)">Carry on with this form</a>
+                            <a class="cardlink" href="@ResumeUrl(draft)">Continue this form</a>
                         </p>
 
                         @if (_confirming == draft.Id)
@@ -112,12 +114,12 @@
                             <div class="notice bad" role="alert">
                                 <span class="ico">!</span>
                                 <div>
-                                    <b>Discard this draft?</b> It leaves this list and can't be opened
-                                    again. Anything you typed into it goes with it.
+                                    <b>Discard this draft?</b> It will be removed and cannot be
+                                    recovered, along with everything entered into it.
                                     <p>
                                         <button class="b" type="button" disabled="@_busy"
                                                 @onclick="() => Discard(draft)">
-                                            @(_busy ? "Discarding…" : "Yes, discard it")
+                                            @(_busy ? "Discarding…" : "Discard draft")
                                         </button>
                                         <button class="b" type="button" disabled="@_busy"
                                                 @onclick="() => _confirming = null">
@@ -140,10 +142,10 @@
             }
 
             <p class="footnote">
-                Drafts are kept for this browser and are not shared between devices. Clearing your
-                cookies or browsing data loses them, and so does opening the form in a private window.
-                Nobody else can see a draft &mdash; not an approver, and not finance &mdash; until you
-                submit it.
+                Drafts are stored in this browser and are not shared between devices. Clearing
+                browsing data removes them, and so does opening the form in a private window. Nobody
+                else can see a draft &mdash; not an approver, and not Finance &mdash; until you submit
+                it.
             </p>
         }
     </main>

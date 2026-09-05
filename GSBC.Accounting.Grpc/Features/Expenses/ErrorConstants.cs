@@ -8,6 +8,14 @@ namespace GSBC.Accounting.Grpc.Features.Expenses;
 /// These are written to be read by a volunteer filling in a form, not by a developer. "Refused" here
 /// always means the submission is incomplete or internally inconsistent - never that the app has formed
 /// a view on whether an expense was legitimate.
+/// <para>
+/// <b>Every submit-time message leads with its section, and that is load-bearing rather than a
+/// style.</b> The claimant is reading a list of eight of these on a phone, under a form with eight
+/// sections, and the first thing each item has to answer is "where does this send me". It is also what
+/// the page's links are built from: <c>SubmissionProblem</c> carries the anchor beside the message, so
+/// the two cannot drift, and a message that stated its section only in prose would be a message the
+/// banner could not link.
+/// </para>
 /// </remarks>
 public static class ErrorConstants
 {
@@ -21,10 +29,10 @@ public static class ErrorConstants
         "An itemised amount cannot be negative.";
 
     public const string NonReimbursedCannotBeNegative =
-        "The amount you are not claiming cannot be negative.";
+        "The unclaimed amount cannot be negative.";
 
     public const string NonReimbursedCannotExceedTotal =
-        "The amount you are not claiming cannot be more than the receipt's total.";
+        "The unclaimed amount cannot exceed the receipt total.";
 
     // Half-typed, not wrong: "12" is where "1234" passes through on the way in. The draft rule is only
     // that what is stored cannot BE a card number - digits, and no more than four of them.
@@ -34,43 +42,45 @@ public static class ErrorConstants
     // ---- Submit only. A draft is allowed to be half-finished; a submission is not. ----
 
     public const string CardLastFourDigitsMustBeFourDigits =
-        "Card last 4 digits must be exactly four digits. Never record the full card number.";
+        "Section 1: the card's last 4 digits must be exactly four digits. Never record the full card "
+        + "number.";
 
     public const string SubmissionNeedsADetail =
-        "Attach at least one receipt in section 3 - the form needs to say what was bought.";
+        "Section 3: at least one receipt is required.";
 
     public const string DetailNeedsAnAttachment =
-        "Every purchase in section 3 needs at least one file attached to it.";
+        "Section 3: every purchase requires at least one attached file.";
 
     public const string DetailNeedsASupplier =
-        "Every purchase in section 3 needs the place it was bought.";
+        "Section 3: every purchase requires a supplier.";
 
     public const string DetailNeedsAPurchaseDate =
-        "Every purchase in section 3 needs the date it was made.";
+        "Section 3: every purchase requires a date of purchase.";
 
     public const string DetailNeedsAPurpose =
-        "Every purchase in section 3 needs the Church purpose it was for.";
+        "Section 3: every purchase requires a Church purpose.";
 
     public const string DetailNeedsATotal =
-        "Every purchase in section 3 needs the total on the receipt.";
+        "Section 3: every purchase requires a receipt total.";
 
     public const string DetailQuestionsUnanswered =
-        "Every purchase in section 3 has to say whether it includes personal items and whether the "
-        + "receipt is itemised. Leaving one blank is not the same as answering No.";
+        "Section 3: every purchase must state whether it includes personal items and whether the "
+        + "receipt is itemised. A blank answer is not recorded as No.";
 
     public const string DetailNeedsItemisation =
-        "A purchase in section 3 needs itemising and has no items listed. Personal items on an itemised "
-        + "receipt need only the personal lines; evidence that is not itemised needs everything on it.";
+        "Section 3: a purchase requires itemisation and has no items listed. An itemised receipt needs "
+        + "only its personal lines; evidence that is not itemised needs every item on it.";
 
     public const string ItemNeedsADescription =
-        "Every itemised line in section 3 needs a description of what it was.";
+        "Section 3: every itemised line requires a description.";
 
     public const string PersonalItemsNeedListing =
-        "A purchase says it includes personal items, but none of the itemised lines is marked as one.";
+        "Section 3: a purchase states that it includes personal items, but no itemised line is marked "
+        + "as one.";
 
     public const string NonReimbursedBelowPersonalItems =
-        "The amount you are not claiming is less than the personal items you listed on that receipt. It "
-        + "can be more - that is a gift to the Church - but it cannot be less.";
+        "Section 3: the unclaimed amount is less than the personal items listed on that receipt. A "
+        + "larger amount is accepted - that is a gift to the Church - but not a smaller one.";
 
     public const string SubmissionNotFound =
         "That submission could not be found.";
@@ -79,27 +89,27 @@ public static class ErrorConstants
         "This form has already been submitted.";
 
     public const string NeedsASubmitterName =
-        "Say who is making this claim.";
+        "Section 1: enter the claimant's name.";
 
     public const string NeedsAPurposeNarrative =
-        "Section 2 needs the written explanation of the Church purpose.";
+        "Section 2: an explanation of the Church purpose is required.";
 
     public const string MissingEvidenceNeedsADeclaration =
-        "A purchase in section 3 has no receipt from the place it was bought, so section 5's missing "
-        + "receipt declaration must be completed and agreed.";
+        "Section 5: a purchase has no supplier receipt, so the missing receipt declaration must be "
+        + "completed and agreed.";
 
     public const string ComplianceQuestionsUnanswered =
-        "Every question in section 4 needs a No or a Yes. Leaving one blank is not the same as answering No.";
+        "Section 4: every question must be answered Yes or No. A blank answer is not recorded as No.";
 
     public const string DeclarationsNotAgreed =
-        "All of the declarations in section 6 have to be agreed before the form can be submitted.";
+        "Section 6: all declarations must be agreed before the form can be submitted.";
 
     public const string NeedsASignature =
-        "Type your name against the declarations in section 6.";
+        "Section 6: enter your name as signature.";
 
     public const string DebitCardNeedsCardLastFour =
-        "Section 1 needs the last four digits of the card.";
+        "Section 1: enter the last four digits of the card.";
 
     public const string DebitCardNeedsAmountCharged =
-        "Section 1 needs the amount the card was charged.";
+        "Section 1: enter the amount the card was charged.";
 }
