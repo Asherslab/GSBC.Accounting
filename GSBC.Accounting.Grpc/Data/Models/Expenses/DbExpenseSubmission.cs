@@ -21,6 +21,23 @@ public class DbExpenseSubmission
 
     public required SubmissionStatus Status { get; set; }
 
+    /// <summary>
+    /// The claim reference a person reads out - <c>RE-2026-0142</c> for a reimbursement,
+    /// <c>DC-2026-0087</c> for a card purchase. Null until the form is submitted.
+    /// </summary>
+    /// <remarks>
+    /// <b>This does not replace <see cref="Id"/>; it sits beside it.</b> The GUID stays the key
+    /// everything is addressed by - the PDF URL, the attachment endpoints, the draft route - because it
+    /// is unguessable and this is not. What the GUID cannot do is be written on a note, read back over
+    /// the phone to the office, or matched against a bank line by a finance reviewer, and "keep that
+    /// reference" printed above 36 hex characters was asking a volunteer to do exactly that.
+    /// <para>
+    /// Issued at submit and never before: a draft is not a claim, and a numbered draft that is then
+    /// abandoned leaves a hole in the sequence that somebody eventually has to explain.
+    /// </para>
+    /// </remarks>
+    public string? Reference { get; set; }
+
     // ---- Section 1, shared ----
     public string? SubmitterName { get; set; }
     public DateTimeOffset? FormDate { get; set; }

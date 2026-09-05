@@ -76,12 +76,26 @@ public class SubmissionDocument(DbExpenseSubmission submission) : IDocument
             column.Item().PaddingTop(2).Text(_text.DocumentTitle).FontSize(15).Bold();
             column.Item().Text(_text.DocumentSubtitle).FontSize(8).FontColor(Colors.Grey.Darken2);
 
-            // The reference is the submission id, because it is the only identifier this app has - and
-            // it is what a reviewer types back into a query.
+            // TWO identifiers, and both are here because they answer different questions. The short
+            // reference is what a claimant quotes and what a finance reviewer matches a bank line
+            // against; the submission id is what every URL in this app is addressed by, and what a
+            // reviewer pastes into a query. A draft has no reference yet, so it prints its id alone.
             column.Item().PaddingTop(3).Text(t =>
             {
                 t.DefaultTextStyle(s => s.FontSize(7.5f).FontColor(Colors.Grey.Darken1));
-                t.Span("Reference ");
+
+                if (submission.Reference is { Length: > 0 } reference)
+                {
+                    t.Span("Claim reference ");
+                    t.Span(reference).FontFamily(Fonts.Consolas).Bold().FontSize(9)
+                        .FontColor(Colors.Black);
+                    t.Span("   ·   Submission ");
+                }
+                else
+                {
+                    t.Span("Reference ");
+                }
+
                 t.Span(submission.Id.ToString()).FontFamily(Fonts.Consolas);
                 t.Span($"   ·   Status {submission.Status}");
 

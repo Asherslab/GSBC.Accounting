@@ -101,6 +101,19 @@ public partial class AccountingDbContext
         // keep that true.
         modelBuilder.Entity<DbExpenseSubmission>().Property(x => x.CardLastFourDigits).HasMaxLength(4);
 
+        // The human claim reference: "RE-2026-0142". Bounded at the column, and unique among the rows
+        // that have one - a filtered index, because every draft has none and two nulls are not a
+        // duplicate anywhere except in a naive unique constraint. The uniqueness is what makes the
+        // issue-and-retry loop in Submit correct rather than hopeful: two claims submitted in the same
+        // instant race for the same number, and the loser is told so by the database and takes the
+        // next one.
+        modelBuilder.Entity<DbExpenseSubmission>().Property(x => x.Reference).HasMaxLength(16);
+
+        modelBuilder.Entity<DbExpenseSubmission>()
+            .HasIndex(x => x.Reference)
+            .IsUnique()
+            .HasFilter("\"Reference\" IS NOT NULL");
+
         // Every list of submissions is newest-first and filtered by kind.
         modelBuilder.Entity<DbExpenseSubmission>().HasIndex(x => new { x.Kind, x.CreatedAt });
 
