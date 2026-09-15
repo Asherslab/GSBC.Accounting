@@ -3,11 +3,12 @@ title: How this deploys
 kind: reference
 status: current
 module: infrastructure
-verified: 2026-09-01
+verified: 2026-09-15
 code:
   - .github/workflows
   - Charts/accounting
   - GSBC.Accounting.Grpc/Dockerfile
+  - GSBC.Accounting.Grpc/Program.cs
   - GSBC.Accounting.WASM/nginx.conf
 ---
 
@@ -250,6 +251,41 @@ The check, if this is ever in doubt again:
 curl -sSI https://expenses.baptist.com.au/_framework/dotnet.js | grep -i 'cache-control\|cf-cache-status'
 # must be `private, no-cache` and BYPASS - any max-age above 0 means the edge is rewriting again
 ```
+
+### Two more places the same rule has to hold
+
+**`/` and every client-side route are not `/index.html`.** They reach nginx's `@spa` fallback, which
+has its own `add_header` and does not read the map. Until 2026-09-15 that block sent a bare `no-cache` —
+measured that day, `/` and `/forms/expense-reimbursement` arrived without `private` while `/index.html`
+had it. It was only safe because an extensionless path is not on Cloudflare's static list. It now sends
+`private, no-cache` like everything else with a stable name. Check both paths, not just one:
+
+```bash
+for p in / /index.html; do curl -sSI "https://expenses.baptist.com.au$p" | grep -i cache-control; done
+```
+
+**Everything under `/api/` is `private, no-cache`**, set by a middleware at the top of
+`GSBC.Accounting.Grpc/Program.cs` so it covers errors and rate-limit refusals too. A draft's PDF is
+re-rendered under the same URL after every edit, and receipts are personal documents that a shared cache
+must never keep. Nothing there sends a validator or a lifetime, so nothing reused a copy before this
+either — the header makes that a guarantee instead of an accident of what `Results.File` leaves out.
+gRPC-web calls are `POST` and are never cached.
+
+**No rule may match by extension alone.** The map once carried `~\.woff2?$` as immutable, inherited
+from ImpactKids. This app ships no font files, so it did nothing — but the first stable-named font added
+would have been pinned for a year. It was removed on 2026-09-15.
+
+### What is not a cache problem, and needs only a reload
+
+- **A tab left open across a deploy** still runs the old build. Nothing is stale in any cache; it just
+  has not reloaded. A contract change can make its calls fail until it does.
+- **A page loaded during the few seconds of a rollout** can get a new `dotnet.js` from one pod and a
+  404 for a hashed file from the other. The 404 carries no caching header (the `/_framework/` block has
+  no `always`) and was measured as `BYPASS` on 2026-09-15, so the next load works.
+- **A `__gsbc_anon` cookie left over after a database wipe** names no session. `CurrentAsync` treats it
+  as no cookie, and the next `Create` replaces it. Nobody has to clear cookies.
+- **`localStorage`** holds only the theme and `gsbc.claimant`. Both reads fall back to defaults on any
+  value they do not recognise (`ClaimantMemory.ReadAsync`), so an old stored shape cannot break a page.
 
 ### Bypassing the cache is not the fix, and it is not what saves ImpactKids
 

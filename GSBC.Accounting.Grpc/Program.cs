@@ -92,6 +92,20 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
 });
 
+// Every /api/ response is `private, no-cache`, stated rather than left to the absence of a header. A
+// draft's PDF is re-rendered under the same URL after every edit, and a receipt is a claimant's personal
+// document: neither may be answered from a copy - not by the browser, and never by Cloudflare, which is
+// a shared cache. Today nothing sends a validator or a freshness lifetime, so nothing would reuse one
+// anyway; this makes that a guarantee instead of an accident of what Results.File happens to omit.
+// Set before the rate limiter so a 429, 401 or 404 carries it too.
+app.Use((context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/api"))
+        context.Response.Headers.CacheControl = "private, no-cache";
+
+    return next(context);
+});
+
 app.UseRateLimiter();
 
 app.MapDefaultEndpoints();
