@@ -14,8 +14,8 @@
     A PDF is the common case for a receipt, and it used to be the one this modal could not show. The
     server now serves one inline to the OWNER of the submission - see AttachmentEndpoints'
     OwnerPreviewableInline for why that reader and no other - and this component is only ever mounted on
-    the claimant's own draft, so the owner is who is looking. It goes in an <iframe> rather than an
-    <img>, which cannot render a PDF.
+    the claimant's own draft, so the owner is who is looking. It goes in an <object> rather than an
+    <img>, which cannot render a PDF, and rather than an <iframe>, which Safari will not.
 
     HEIC still gets the link: no browser renders it, so an inline frame would buy a blank panel.
 *@
@@ -62,10 +62,27 @@
                 }
                 else if (RenderablePdf)
                 {
-                    @* No zoom button around this one: the browser's own PDF viewer brings its own
-                       zoom, page controls and scrolling, and wrapping it in ours would fight it. *@
-                    <iframe src="@AttachmentClient.PreviewUrl(File.SubmissionId, File.Id)"
-                            title="@($"Preview of {File.FileName}")"></iframe>
+                    @*
+                        <object>, NOT <iframe>, and Safari is the whole reason. WebKit renders a PDF in
+                        an iframe as a grey panel - it paints the first frame and then gives up, with
+                        nothing in the console once the sandbox stopped complaining. The same URL opened
+                        as a top-level document renders there perfectly, which is what narrowed it to
+                        the framing rather than the response. Chrome is happy either way.
+
+                        No zoom button around it: the browser's own PDF viewer brings its own zoom, page
+                        controls and scrolling, and wrapping it in ours would fight it.
+
+                        The content between the tags is what a browser that cannot render the type shows
+                        instead - so the next browser to refuse gets a sentence and a way out rather
+                        than the grey rectangle this replaced.
+                    *@
+                    <object data="@AttachmentClient.PreviewUrl(File.SubmissionId, File.Id)"
+                            type="application/pdf"
+                            title="@($"Preview of {File.FileName}")">
+                        <p class="help">
+                            This PDF cannot be shown here. Open it to check which receipt it is.
+                        </p>
+                    </object>
                 }
                 else
                 {
@@ -103,7 +120,7 @@
     private bool Renderable => File?.ContentType is "image/jpeg" or "image/png" or "image/webp";
 
     /// <summary>
-    /// A PDF, which renders in a frame rather than an <c>&lt;img&gt;</c>.
+    /// A PDF, which renders in an <c>&lt;object&gt;</c> rather than an <c>&lt;img&gt;</c>.
     /// </summary>
     /// <remarks>
     /// Separate from <see cref="Renderable"/> rather than folded into it because the two are rendered by
