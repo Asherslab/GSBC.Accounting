@@ -9,10 +9,15 @@
     supplier, which date and what was on each - a question the filename cannot answer. Before this, the
     only way to check was to download the file, which on a phone means leaving the form.
 
-    IMAGES RENDER; EVERYTHING ELSE GETS A LINK. The server serves inline only for JPEG, PNG and WebP -
-    see AttachmentEndpoints.PreviewableInline, which explains who that protects and why it is not the
-    person using this modal. A PDF or a HEIC therefore shows the file's details and a download, which is
-    honest, rather than an <img> that silently shows nothing.
+    IMAGES AND PDFs RENDER; EVERYTHING ELSE GETS A LINK.
+
+    A PDF is the common case for a receipt, and it used to be the one this modal could not show. The
+    server now serves one inline to the OWNER of the submission - see AttachmentEndpoints'
+    OwnerPreviewableInline for why that reader and no other - and this component is only ever mounted on
+    the claimant's own draft, so the owner is who is looking. It goes in an <iframe> rather than an
+    <img>, which cannot render a PDF.
+
+    HEIC still gets the link: no browser renders it, so an inline frame would buy a blank panel.
 *@
 
 @if (File is not null)
@@ -52,11 +57,18 @@
                         <img src="@AttachmentClient.PreviewUrl(File.SubmissionId, File.Id)" alt="@File.FileName"/>
                     </button>
                 }
+                else if (RenderablePdf)
+                {
+                    @* No zoom button around this one: the browser's own PDF viewer brings its own
+                       zoom, page controls and scrolling, and wrapping it in ours would fight it. *@
+                    <iframe src="@AttachmentClient.PreviewUrl(File.SubmissionId, File.Id)"
+                            title="@($"Preview of {File.FileName}")"></iframe>
+                }
                 else
                 {
                     <p class="help">
-                        This kind of file cannot be shown here &mdash; only photographs can. Open it
-                        to check which receipt it is.
+                        This kind of file cannot be shown here &mdash; photographs and PDFs can. Open
+                        it to check which receipt it is.
                     </p>
                 }
             </div>
@@ -86,6 +98,18 @@
     /// image icon where a sentence explaining the situation belongs.
     /// </summary>
     private bool Renderable => File?.ContentType is "image/jpeg" or "image/png" or "image/webp";
+
+    /// <summary>
+    /// A PDF, which renders in a frame rather than an <c>&lt;img&gt;</c>.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="Renderable"/> rather than folded into it because the two are rendered by
+    /// different elements, and because the server's rule for this one is narrower: it serves a PDF
+    /// inline only to the owner of the submission. This component is mounted on the claimant's own
+    /// draft, so that holds wherever it is used today - and if it is ever reused on a submitted claim
+    /// somebody else is reading, this is the line that has to be revisited.
+    /// </remarks>
+    private bool RenderablePdf => File?.ContentType is "application/pdf";
 
     /// <summary>
     /// Whether the picture is at its own size rather than fitted to the panel. Reset when the modal is

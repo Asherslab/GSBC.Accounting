@@ -69,9 +69,16 @@ public static class ExpenseFormWording
             new("Expense incurred outside Australia or for an overseas activity?",
                 "specify country and link to the relevant activity/project records."),
             new("Cardholder, supplier or recipient is a Responsible Person, senior manager, close family member, or related entity?",
-                "disclose below and use an independent approver."),
+                "disclose below and use an independent approver.",
+                "A Responsible Person is someone who governs the Church - a board or committee member, "
+                + "elder, deacon or trustee. Answer Yes if that describes you, the business you bought "
+                + "from, whoever received the goods, anyone in their immediate family, or a business any "
+                + "of them own or control."),
             new("Actual, potential or perceived conflict of interest?",
-                "disclose below and record/manage it under the Church conflict-of-interest process.")
+                "disclose below and record/manage it under the Church conflict-of-interest process.",
+                "Yes if someone could reasonably wonder whether you stood to gain personally - for "
+                + "example you bought from a relative, a friend, or a business you or your family have "
+                + "an interest in. Perceived counts: it applies even where nothing improper happened.")
         ],
         ComplianceDetailsCaption = "Conflict / related-party / personal repayment / overseas details (if applicable)",
         DetailTableCaption = "Meals / hospitality / gifts / travel details (if applicable)",
@@ -151,9 +158,15 @@ public static class ExpenseFormWording
             new("Expense incurred outside Australia or for an overseas activity?",
                 "specify country and link to the relevant activity/project records."),
             new("Claimant is a Responsible Person, senior manager, close family member, or related entity?",
-                "declare below and use an independent approver."),
+                "declare below and use an independent approver.",
+                "A Responsible Person is someone who governs the Church - a board or committee member, "
+                + "elder, deacon or trustee. Answer Yes if that describes you, someone in your immediate "
+                + "family, or a business any of you own or control."),
             new("Actual, potential or perceived conflict of interest?",
-                "disclose below and record/manage it under the Church conflict-of-interest process.")
+                "disclose below and record/manage it under the Church conflict-of-interest process.",
+                "Yes if someone could reasonably wonder whether you stood to gain personally - for "
+                + "example you bought from a relative, a friend, or a business you or your family have "
+                + "an interest in. Perceived counts: it applies even where nothing improper happened.")
         ],
         ComplianceDetailsCaption = "Conflict / related-party / overseas details (if applicable)",
         DetailTableCaption = "Motor vehicle trip record (if applicable)",
@@ -280,4 +293,18 @@ public record ExpenseFormText
 /// Split in two because the page renders them differently - the question beside a No/Yes pair, the
 /// instruction inside the panel that a Yes reveals. The paper form prints them as one paragraph.
 /// </remarks>
-public record ComplianceQuestion(string Question, string YesInstruction);
+/// <param name="Question">The question as the paper form prints it.</param>
+/// <param name="YesInstruction">The instruction that follows "Yes", revealed only once Yes is chosen.</param>
+/// <param name="Hint">
+/// Plain-English help shown <b>before</b> the question is answered, or null where the question needs
+/// none. <b>The app's own words, not the paper form's</b> - which is why it is a separate property
+/// rather than folded into <see cref="Question"/>: the question is quoted text and must not be
+/// reworded, but nothing stops the page explaining it alongside.
+/// <para>
+/// Only questions 5 and 6 carry one. They are the two that recite ACNC vocabulary - "Responsible
+/// Person", "related entity", "perceived conflict" - at somebody who has just bought morning tea, and a
+/// question nobody understands is answered No by default, which is the failure mode that matters on a
+/// compliance form.
+/// </para>
+/// </param>
+public record ComplianceQuestion(string Question, string YesInstruction, string? Hint = null);

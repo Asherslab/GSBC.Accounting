@@ -27,6 +27,13 @@
             <div class="q">
                 <p>
                     <span class="qlabel">@(index + 1). @question.Question</span>
+                    @* Before the answer, not behind it. Questions 5 and 6 quote ACNC vocabulary at
+                       somebody who has just bought morning tea, and an unexplained question gets
+                       answered No - which on a compliance form is a recorded answer, not a blank. *@
+                    @if (question.Hint is { } hint)
+                    {
+                        <span class="qhelp">@hint</span>
+                    }
                     @if (Model.Compliance[index] == true)
                     {
                         <span>Yes &mdash; @question.YesInstruction</span>
