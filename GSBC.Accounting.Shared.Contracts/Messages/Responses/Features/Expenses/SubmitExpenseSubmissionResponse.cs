@@ -92,6 +92,11 @@ public record SubmissionProblem(string Message, string Anchor, string? FieldId =
     {
     }
 
-    /// <summary>Where a link to this refusal should point, without the <c>#</c>.</summary>
+    /// <summary>
+    /// Where a link to this refusal should point, without the <c>#</c>. Computed, so it is not on the
+    /// wire: <c>ImplicitFields.AllPublic</c> would otherwise take it for a field and refuse to build a
+    /// serialiser for a property it cannot set.
+    /// </summary>
+    [ProtoIgnore]
     public string Target => string.IsNullOrEmpty(FieldId) ? Anchor : FieldId;
 }
