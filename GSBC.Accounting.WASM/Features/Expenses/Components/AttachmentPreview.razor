@@ -27,7 +27,10 @@
     <div class="preview">
         <button type="button" class="preview-scrim" aria-label="Close the preview" @onclick="Close"></button>
 
-        <div class="preview-panel" role="dialog" aria-modal="true" aria-label="@($"Preview of {File.FileName}")">
+        @* Wide when there is something to actually look at, and the old narrow panel for the fallback,
+           which is one sentence and two buttons and would look abandoned in a full-screen dialog. *@
+        <div class="preview-panel @(Renderable || RenderablePdf ? "wide" : "")"
+             role="dialog" aria-modal="true" aria-label="@($"Preview of {File.FileName}")">
             <header>
                 <div class="meta">
                     <span class="name">@File.FileName</span>
