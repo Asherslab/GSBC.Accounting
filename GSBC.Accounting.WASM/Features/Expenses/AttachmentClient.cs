@@ -36,9 +36,10 @@ public class AttachmentClient(HttpClient http)
     /// </summary>
     /// <remarks>
     /// <b>Same-origin, so the draft session cookie rides along on the image request</b> - which is what
-    /// makes a private draft's receipt visible to the person who uploaded it and to nobody else. The
-    /// <c>inline=1</c> is honoured by the server only for image types; anything else still comes back as
-    /// a download, so the preview modal offers a link rather than a broken picture for those.
+    /// makes a private draft's receipt visible to the person who uploaded it and to nobody else. That
+    /// same cookie is what earns the PDF case: <c>inline=1</c> is honoured for images always and for a
+    /// PDF only when the request carries the owning session, so a preview on somebody's own draft
+    /// renders and the same URL off a submitted claim still comes back as a download.
     /// </remarks>
     public static string PreviewUrl(Guid submissionId, Guid attachmentId) =>
         $"api/submissions/{submissionId}/attachments/{attachmentId}?inline=1";

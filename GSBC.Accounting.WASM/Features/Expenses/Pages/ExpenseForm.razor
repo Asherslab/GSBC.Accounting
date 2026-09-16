@@ -397,13 +397,19 @@
                         }
                         else
                         {
+                            @* One reimbursement claim can gather up weeks of receipts, so the period is
+                               the span the receipts cover rather than a single transaction date - which
+                               is the thing the label alone never managed to say. The debit card form has
+                               no equivalent: it is one purchase on one day. *@
                             <div class="f c4">
                                 <label for="periodfrom">Expense period &mdash; from <span class="req">*</span></label>
                                 <input type="date" id="periodfrom" @bind="Model.ExpensePeriodFrom" @bind:event="oninput"/>
+                                <span class="help">Date of your earliest receipt.</span>
                             </div>
                             <div class="f c4">
                                 <label for="periodto">Expense period &mdash; to <span class="req">*</span></label>
                                 <input type="date" id="periodto" @bind="Model.ExpensePeriodTo" @bind:event="oninput"/>
+                                <span class="help">Date of your latest. For a single receipt, use its date in both.</span>
                             </div>
 
                             <div class="f c4">

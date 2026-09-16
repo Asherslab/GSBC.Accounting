@@ -339,7 +339,8 @@ public static class AttachmentEndpoints
     /// Serves one attachment's bytes - as a download by default, or inline for the preview.
     /// </summary>
     /// <remarks>
-    /// <b><c>?inline=1</c> is honoured for images and for nothing else.</b> The preview exists because
+    /// <b><c>?inline=1</c> is honoured for images, and for a PDF only when the reader owns the
+    /// submission.</b> The preview exists because
     /// details are per-receipt now and somebody with four photos of dockets has to be able to tell which
     /// is which without downloading all four - so the page shows the image in a modal, and an
     /// <c>&lt;img&gt;</c> cannot render a response marked <c>Content-Disposition: attachment</c>.
@@ -376,11 +377,16 @@ public static class AttachmentEndpoints
         // THE OWNER, OR ANYONE HOLDING THE ID OF A SUBMITTED CLAIM. The second half is what keeps the
         // only review path this scope has working: somebody is handed a submission id and reads the
         // claim and its evidence. A draft has no reviewer yet, so its receipts are the claimant's alone.
-        bool readable = await db.ExpenseSubmissions.AnyAsync(
-            x => x.Id == submissionId
-                 && (x.Status == SubmissionStatus.Submitted
-                     || (sessionId != null && x.OwnerSessionId == sessionId)),
-            token);
+        // The two halves are kept apart rather than collapsed into one bool, because WHICH of them
+        // granted access decides what may be rendered in place further down. Reading somebody's own
+        // upload back to them and handing it to a reviewer are different acts.
+        var access = await db.ExpenseSubmissions
+            .Where(x => x.Id == submissionId)
+            .Select(x => new { x.Status, x.OwnerSessionId })
+            .FirstOrDefaultAsync(token);
+
+        bool owner = access is not null && sessionId is not null && access.OwnerSessionId == sessionId;
+        bool readable = access is not null && (access.Status == SubmissionStatus.Submitted || owner);
 
         if (!readable)
             return Results.NotFound();
@@ -429,7 +435,20 @@ public static class AttachmentEndpoints
         // browser from deciding an image/png is really something executable.
         response.Headers.XContentTypeOptions = "nosniff";
 
-        bool inline = request.Query["inline"] == "1" && PreviewableInline.Contains(attachment.ContentType);
+        bool inline = request.Query["inline"] == "1"
+                      && (PreviewableInline.Contains(attachment.ContentType)
+                          || (owner && OwnerPreviewableInline.Contains(attachment.ContentType)));
+
+        if (inline)
+        {
+            // Belt and braces over the allowlists above, and the thing that makes the owner-only PDF
+            // case defensible rather than merely narrow. A bare `sandbox` is the most restrictive form
+            // there is: the response is dropped into a unique opaque origin with scripting off, so a
+            // PDF's embedded JavaScript cannot run and could not reach this origin's cookies if it did.
+            // The browser's own PDF viewer is a browser feature rather than page script, so it still
+            // renders.
+            response.Headers.ContentSecurityPolicy = "sandbox";
+        }
 
         response.Headers.ContentDisposition = inline
             ? $"inline; filename=\"{SanitiseHeader(attachment.FileName)}\""
@@ -442,15 +461,39 @@ public static class AttachmentEndpoints
     /// The only content types <c>?inline=1</c> will serve inline. <b>An allowlist, and a short one.</b>
     /// </summary>
     /// <remarks>
-    /// Raster image types that no browser will execute, under <c>nosniff</c>. Not <c>application/pdf</c>
-    /// - a PDF is a scripting host, and one rendered same-origin in a <i>reviewer's</i> browser off a
-    /// submitted claim is a stored XSS. Not <c>image/svg+xml</c> either, which is not accepted at upload
-    /// but is worth naming here so nobody adds it to both lists at once. HEIC is left out because it is
-    /// not a type browsers render anyway, so allowing it would buy a blank preview and one more type on
-    /// this list.
+    /// Raster image types that no browser will execute, under <c>nosniff</c>. Not <c>image/svg+xml</c>,
+    /// which is not accepted at upload but is worth naming here so nobody adds it to both lists at once.
+    /// HEIC is left out because it is not a type browsers render anyway, so allowing it would buy a
+    /// blank preview and one more type on this list.
+    /// <para>
+    /// <c>application/pdf</c> is <b>not</b> here. It is in <see cref="OwnerPreviewableInline"/> instead,
+    /// which is the same list narrowed to the one reader it is safe for.
+    /// </para>
     /// </remarks>
     private static readonly HashSet<string> PreviewableInline =
         new(StringComparer.OrdinalIgnoreCase) { "image/jpeg", "image/png", "image/webp" };
+
+    /// <summary>
+    /// Additionally servable inline <b>to the owner of the submission only</b>.
+    /// </summary>
+    /// <remarks>
+    /// <b>The split follows the two halves of this endpoint's access rule exactly.</b> A PDF is a
+    /// scripting host, so one rendered same-origin off a <i>submitted</i> claim runs in a reviewer's
+    /// browser against a file somebody else uploaded - a stored XSS, and the reason the allowlist above
+    /// is as short as it is. The owner's own draft is the case the rest of this file already calls "no
+    /// exposure at all": the bytes came from that same session minutes earlier, so rendering them back
+    /// is showing somebody their own receipt.
+    /// <para>
+    /// Most receipts are PDFs, and a preview that could not show one was refusing the common case - the
+    /// modal exists so a claimant can tell four dockets apart without downloading all four.
+    /// </para>
+    /// <para>
+    /// The inline response also carries <c>Content-Security-Policy: sandbox</c>, so even here the PDF's
+    /// own scripting is off rather than merely aimed at a file its reader supplied.
+    /// </para>
+    /// </remarks>
+    private static readonly HashSet<string> OwnerPreviewableInline =
+        new(StringComparer.OrdinalIgnoreCase) { "application/pdf" };
 
     private static IResult TooLarge(AttachmentStoreConfig config) =>
         Results.Json(

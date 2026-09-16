@@ -421,6 +421,9 @@ input::placeholder,textarea::placeholder{color:var(--ink-3)}
 .q:first-child{border-top:0;padding-top:0}
 .q p{margin:0;font-size:13.5px;line-height:1.5;color:var(--ink-2);max-width:66ch}
 .q .qlabel{font-weight:600;color:var(--ink);display:block;font-size:14px;margin-bottom:2px}
+/* Plain-English help under a question. Block, so the Yes instruction that may follow it starts on its
+   own line rather than running on from the end of a sentence explaining the question. */
+.q .qhelp{display:block;font-size:12px;color:var(--ink-3);line-height:1.45;margin:3px 0 1px}
 .reveal{
   margin:2px 0 4px;padding:14px;border-left:2px solid var(--warn);
   background:var(--warn-wash);border-radius:0 var(--radius) var(--radius) 0;
@@ -611,6 +614,16 @@ td .money input{padding-left:18px;text-align:right}
 }
 .preview-zoom.zoomed{cursor:zoom-out;max-width:none}
 .preview-body img{max-width:100%;height:auto;display:block;border:1px solid var(--line)}
+/*
+  A PDF gets the whole panel, and two things are in the way of that. The body is a place-items:center
+  grid, so the frame has to be told to stretch or it sits as a small box in the middle. And the panel is
+  a column flex capped at max-height rather than given one, so there is no definite height for a
+  height:100% to resolve against - hence flex:1 to claim what the header and footer leave, min-height:0
+  so it may shrink below the frame's own size, and a viewport floor for the case where the panel is
+  sized by its content instead.
+*/
+.preview-body:has(iframe){place-items:stretch;padding:0;flex:1 1 auto;min-height:0}
+.preview-body iframe{width:100%;height:100%;min-height:min(60vh,520px);border:0;display:block;background:var(--surface)}
 /*
   Natural size, so a 3000px-wide photograph of a docket is scrollable at a size the writing on it can
   be read at. min-width keeps a small image from shrinking below the panel when it is zoomed.
