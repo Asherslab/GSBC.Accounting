@@ -441,13 +441,23 @@ public static class AttachmentEndpoints
 
         if (inline)
         {
-            // Belt and braces over the allowlists above, and the thing that makes the owner-only PDF
-            // case defensible rather than merely narrow. A bare `sandbox` is the most restrictive form
-            // there is: the response is dropped into a unique opaque origin with scripting off, so a
-            // PDF's embedded JavaScript cannot run and could not reach this origin's cookies if it did.
-            // The browser's own PDF viewer is a browser feature rather than page script, so it still
-            // renders.
-            response.Headers.ContentSecurityPolicy = "sandbox";
+            // ALLOW-SCRIPTS IS LOAD-BEARING, and it is not the weakening it reads as.
+            //
+            // A bare `sandbox` renders in Chrome and fails in Safari, where the PDF viewer is itself
+            // script running in the frame: it is blocked, and the frame shows the document for a split
+            // second and then goes grey. Observed 2026-09-16, with thirteen "Blocked script execution
+            // ... the document's frame is sandboxed" errors behind it.
+            //
+            // What protects this origin is the OPAQUE ORIGIN, not the scripting switch. A sandboxed
+            // response is dropped into a unique origin, so whatever runs inside it cannot reach this
+            // app's cookies, storage or DOM - which is the whole of the stored-XSS worry that keeps
+            // application/pdf off the allowlist above and owner-only on the one below.
+            //
+            // NEVER ADD allow-same-origin. With allow-scripts alongside it, the frame gets its origin
+            // back and a script inside can lift the sandbox off itself; the two together are worth no
+            // more than sending no sandbox at all. Nothing else is granted either - no allow-popups,
+            // no allow-top-navigation, no allow-forms.
+            response.Headers.ContentSecurityPolicy = "sandbox allow-scripts";
         }
 
         response.Headers.ContentDisposition = inline
@@ -488,8 +498,8 @@ public static class AttachmentEndpoints
     /// modal exists so a claimant can tell four dockets apart without downloading all four.
     /// </para>
     /// <para>
-    /// The inline response also carries <c>Content-Security-Policy: sandbox</c>, so even here the PDF's
-    /// own scripting is off rather than merely aimed at a file its reader supplied.
+    /// The inline response also carries <c>Content-Security-Policy: sandbox allow-scripts</c>, which
+    /// puts it in an opaque origin - so even here a PDF cannot reach this app's cookies or storage.
     /// </para>
     /// </remarks>
     private static readonly HashSet<string> OwnerPreviewableInline =
