@@ -43,37 +43,20 @@ public class ExpenseFormModel
     // ---- Section 1, shared ----
     public string? SubmitterName { get; set; }
     public DateOnly? FormDate { get; set; } = DateOnly.FromDateTime(DateTime.Now);
-    public ClaimantRole? Role { get; set; }
-    public string? RoleOther { get; set; }
-    public string? MinistryDepartment { get; set; }
 
     // ---- Section 1, debit card only ----
     public string? CardLastFourDigits { get; set; }
-    public DateOnly? TransactionDate { get; set; }
-    /// <summary>
-    /// A TimeOnly here so the page can use &lt;input type="time"&gt;, which binds TimeOnly and refuses a
-    /// string. The contract keeps it as text because the paper form prints a bare `Time: ________` rule
-    /// rather than a picker, and a claimant may well write "about 4pm".
-    /// </summary>
-    public TimeOnly? TransactionTime { get; set; }
-    public string? SupplierMerchant { get; set; }
-    public decimal? AmountCharged { get; set; }
-    public string? BankReference { get; set; }
 
     // ---- Section 1, reimbursement only ----
     public string? ContactPhoneEmail { get; set; }
-    public DateOnly? ExpensePeriodFrom { get; set; }
-    public DateOnly? ExpensePeriodTo { get; set; }
+    public string? MinistryDepartment { get; set; }
     public PaymentMethod? PaymentMethod { get; set; }
     public string? PaymentMethodOther { get; set; }
     public bool? BankDetailsOnFile { get; set; }
 
-    // ---- Section 2 ----
-    public string? PurposeActivity { get; set; }
-    public string? EventProject { get; set; }
+    // ---- Section 2, authorisation. Optional on both forms. ----
+    public bool? PriorApprovalGiven { get; set; }
     public string? PriorApprovalBy { get; set; }
-    public DateOnly? ApprovalDate { get; set; }
-    public string? PurposeNarrative { get; set; }
 
     // ---- Section 3 ----
 
@@ -87,8 +70,9 @@ public class ExpenseFormModel
     // ---- Section 4 ----
 
     /// <summary>
-    /// The six answers, indexed 0..5. null is UNANSWERED and stays null until somebody chooses - it is a
-    /// different fact from "No", and the one a reviewer needs to see.
+    /// The six stored answers, indexed by <see cref="ComplianceQuestion.Slot"/>. null is UNANSWERED and
+    /// stays null until somebody chooses - it is a different fact from "No", and the one a reviewer needs
+    /// to see. Slot 0 is only ever asked on the debit card form.
     /// </summary>
     public bool?[] Compliance { get; set; } = new bool?[6];
 
@@ -97,21 +81,13 @@ public class ExpenseFormModel
     /// <summary>Rows of the detail table a Yes on question 1 or 2 opens. Debit card form.</summary>
     public List<AttendeeModel> Attendees { get; set; } = [];
 
-    /// <summary>Rows of the trip record a Yes on question 1 opens. Reimbursement form.</summary>
-    public List<TripModel> Trips { get; set; } = [];
-
     /// <summary>
-    /// True when the form's own detail table should be shown. The debit card form opens it on question
-    /// 1 (travel) or 2 (meals); the reimbursement form only on question 1 (motor vehicle), because its
-    /// question 2 asks for attendees in the free-text block instead.
+    /// True when the attendee table should be shown: on the debit card form, a Yes to question 1
+    /// (travel) or 2 (meals). The reimbursement form has no table - its trip record went with its
+    /// question 1, and its question 2 asks for attendees in the free-text block.
     /// </summary>
-    public bool DetailTableOpen => Kind switch
-    {
-        SubmissionKind.DebitCardPurchase => Compliance[0] == true || Compliance[1] == true,
-        SubmissionKind.ExpenseReimbursement => Compliance[0] == true,
-        // Unanswered. Section 4 is not on screen yet, so neither is its table.
-        _ => false
-    };
+    public bool DetailTableOpen =>
+        Kind == SubmissionKind.DebitCardPurchase && (Compliance[0] == true || Compliance[1] == true);
 
     /// <summary>Any Yes opens the shared free-text block.</summary>
     public bool ComplianceDetailsOpen => Compliance.Any(x => x == true);
@@ -148,21 +124,6 @@ public class ExpenseFormModel
     public decimal NetTotal => Round(GrossTotal - LessPersonalAmount);
 
     /// <summary>
-    /// True when the debit card form's receipts do not add up to what the card was charged. The
-    /// reimbursement form has no equivalent, because nothing external states its total.
-    /// </summary>
-    /// <remarks>
-    /// Shown as a warning while typing rather than a block - a half-entered form is nearly always
-    /// mismatched, and a page that shouts at every keystroke is a page people stop reading. The server
-    /// refuses the mismatch at submit; this is only the early warning.
-    /// </remarks>
-    public bool ChargeMismatch =>
-        Kind == SubmissionKind.DebitCardPurchase
-        && AmountCharged is { } charged
-        && Details.Any(x => x.TotalIncGst is not null)
-        && Round(charged) != GrossTotal;
-
-    /// <summary>
     /// True when some purchase is evidenced only by a bank line or a screenshot - nothing from the place
     /// it was bought. That is what unlocks section 5's declaration.
     /// </summary>
@@ -197,16 +158,14 @@ public class ExpenseFormModel
         if (Compliance.Any(x => x is not null) || Declarations.Any(x => x))
             return true;
 
-        if (!string.IsNullOrWhiteSpace(ComplianceDetails) || Attendees.Count > 0 || Trips.Count > 0)
+        if (!string.IsNullOrWhiteSpace(ComplianceDetails) || Attendees.Count > 0)
             return true;
 
         return Kind == SubmissionKind.DebitCardPurchase
-            ? !string.IsNullOrWhiteSpace(CardLastFourDigits) || TransactionDate is not null
-              || TransactionTime is not null || !string.IsNullOrWhiteSpace(SupplierMerchant)
-              || AmountCharged is not null || !string.IsNullOrWhiteSpace(BankReference)
-            : !string.IsNullOrWhiteSpace(ContactPhoneEmail) || ExpensePeriodFrom is not null
-              || ExpensePeriodTo is not null || PaymentMethod is not null
-              || !string.IsNullOrWhiteSpace(PaymentMethodOther) || BankDetailsOnFile is not null;
+            ? !string.IsNullOrWhiteSpace(CardLastFourDigits)
+            : !string.IsNullOrWhiteSpace(ContactPhoneEmail) || !string.IsNullOrWhiteSpace(MinistryDepartment)
+              || PaymentMethod is not null || !string.IsNullOrWhiteSpace(PaymentMethodOther)
+              || BankDetailsOnFile is not null;
     }
 
     /// <summary>
@@ -221,10 +180,10 @@ public class ExpenseFormModel
     /// stated in one line to the person it happens to, and cannot be got subtly wrong later when
     /// somebody edits the wording.
     /// <para>
-    /// What stays is everything that means the same thing on both forms: the claimant, the ministry,
-    /// section 2, every purchase in section 3 and its receipts, the missing-receipt declaration and the
-    /// signature - a purchase is a purchase whichever card paid for it. A
-    /// claimant correcting one question should not lose the afternoon's typing.
+    /// What stays is everything that means the same thing on both forms: the claimant's name, section 2,
+    /// every purchase in section 3 and its receipts, the missing-receipt declaration and the signature -
+    /// a purchase is a purchase whichever card paid for it. A claimant correcting one question should
+    /// not lose the afternoon's typing.
     /// </para>
     /// <para>
     /// The server does the same clearing for the header fields when it sees the kind change, because a
@@ -241,8 +200,7 @@ public class ExpenseFormModel
         if (kind == SubmissionKind.DebitCardPurchase)
         {
             ContactPhoneEmail = null;
-            ExpensePeriodFrom = null;
-            ExpensePeriodTo = null;
+            MinistryDepartment = null;
             PaymentMethod = null;
             PaymentMethodOther = null;
             BankDetailsOnFile = null;
@@ -250,15 +208,9 @@ public class ExpenseFormModel
         else
         {
             CardLastFourDigits = null;
-            TransactionDate = null;
-            TransactionTime = null;
-            SupplierMerchant = null;
-            AmountCharged = null;
-            BankReference = null;
         }
 
         Attendees.Clear();
-        Trips.Clear();
 
         Compliance = new bool?[6];
         ComplianceDetails = null;
@@ -316,32 +268,17 @@ public class ExpenseFormModel
 
             SubmitterName = submission.SubmitterName,
             FormDate = FromUtc(submission.FormDate),
-            Role = submission.Role,
-            RoleOther = submission.RoleOther,
-            MinistryDepartment = submission.MinistryDepartment,
 
             CardLastFourDigits = submission.CardLastFourDigits,
-            TransactionDate = FromUtc(submission.TransactionDate),
-            // Stored as free text because the paper form prints a bare rule and a claimant may well
-            // have written "about 4pm". Anything the time picker cannot represent is dropped rather
-            // than guessed at - a picker showing 00:00 would be a claim nobody made.
-            TransactionTime = TimeOnly.TryParse(submission.TransactionTime, out TimeOnly time) ? time : null,
-            SupplierMerchant = submission.SupplierMerchant,
-            AmountCharged = submission.AmountCharged,
-            BankReference = submission.BankReference,
 
             ContactPhoneEmail = submission.ContactPhoneEmail,
-            ExpensePeriodFrom = FromUtc(submission.ExpensePeriodFrom),
-            ExpensePeriodTo = FromUtc(submission.ExpensePeriodTo),
+            MinistryDepartment = submission.MinistryDepartment,
             PaymentMethod = submission.PaymentMethod,
             PaymentMethodOther = submission.PaymentMethodOther,
             BankDetailsOnFile = submission.BankDetailsOnFile,
 
-            PurposeActivity = submission.PurposeActivity,
-            EventProject = submission.EventProject,
+            PriorApprovalGiven = submission.PriorApprovalGiven,
             PriorApprovalBy = submission.PriorApprovalBy,
-            ApprovalDate = FromUtc(submission.ApprovalDate),
-            PurposeNarrative = submission.PurposeNarrative,
 
             Compliance =
             [
@@ -393,16 +330,6 @@ public class ExpenseFormModel
                 Amount = attendee.Amount,
                 PrivateShare = attendee.PrivateShare,
                 Reason = attendee.Reason
-            }).ToList(),
-
-            Trips = submission.Trips.Select(trip => new TripModel
-            {
-                Date = FromUtc(trip.Date),
-                From = trip.From,
-                To = trip.To,
-                BusinessKm = trip.BusinessKm,
-                ApprovedRate = trip.ApprovedRate,
-                Purpose = trip.Purpose
             }).ToList()
         };
 
@@ -433,29 +360,17 @@ public class ExpenseFormModel
             + "because the kind decides what every stored field means."),
         SubmitterName = Trim(SubmitterName),
         FormDate = ToUtc(FormDate),
-        Role = Role,
-        RoleOther = Trim(RoleOther),
-        MinistryDepartment = Trim(MinistryDepartment),
 
         CardLastFourDigits = Trim(CardLastFourDigits),
-        TransactionDate = ToUtc(TransactionDate),
-        TransactionTime = TransactionTime?.ToString("HH:mm"),
-        SupplierMerchant = Trim(SupplierMerchant),
-        AmountCharged = AmountCharged,
-        BankReference = Trim(BankReference),
 
         ContactPhoneEmail = Trim(ContactPhoneEmail),
-        ExpensePeriodFrom = ToUtc(ExpensePeriodFrom),
-        ExpensePeriodTo = ToUtc(ExpensePeriodTo),
+        MinistryDepartment = Trim(MinistryDepartment),
         PaymentMethod = PaymentMethod,
         PaymentMethodOther = Trim(PaymentMethodOther),
         BankDetailsOnFile = BankDetailsOnFile,
 
-        PurposeActivity = Trim(PurposeActivity),
-        EventProject = Trim(EventProject),
-        PriorApprovalBy = Trim(PriorApprovalBy),
-        ApprovalDate = ToUtc(ApprovalDate),
-        PurposeNarrative = Trim(PurposeNarrative),
+        PriorApprovalGiven = PriorApprovalGiven,
+        PriorApprovalBy = PriorApprovalGiven == true ? Trim(PriorApprovalBy) : null,
 
         // No LessPersonalAmount: the server sums the details' own non-reimbursed amounts, so sending a
         // total as well would be sending the same figure twice and inviting the two to disagree.
@@ -502,20 +417,6 @@ public class ExpenseFormModel
                 Amount = a.Amount,
                 PrivateShare = a.PrivateShare,
                 Reason = Trim(a.Reason)
-            }).ToList()
-            : [],
-
-        Trips = Kind == SubmissionKind.ExpenseReimbursement && DetailTableOpen
-            ? Trips.Select((t, i) => new ExpenseTrip
-            {
-                SubmissionId = Guid.Empty,
-                Ordinal = i,
-                Date = ToUtc(t.Date),
-                From = Trim(t.From),
-                To = Trim(t.To),
-                BusinessKm = t.BusinessKm,
-                ApprovedRate = t.ApprovedRate,
-                Purpose = Trim(t.Purpose)
             }).ToList()
             : [],
 
@@ -587,18 +488,6 @@ public class AttendeeModel
     public string? Reason { get; set; }
 }
 
-/// <summary>One editable row of the reimbursement form's trip record.</summary>
-public class TripModel
-{
-    public Guid Key { get; } = Guid.NewGuid();
-    public DateOnly? Date { get; set; }
-    public string? From { get; set; }
-    public string? To { get; set; }
-    public decimal? BusinessKm { get; set; }
-    public decimal? ApprovedRate { get; set; }
-    public string? Purpose { get; set; }
-}
-
 /// <summary>
 /// One purchase being filled in - a receipt, its two questions, its itemisation and its money.
 /// </summary>
@@ -629,7 +518,7 @@ public class ExpenseDetailModel
 
     public DateOnly? PurchaseDate { get; set; }
 
-    /// <summary>What it was for - the church purpose, in the claimant's own words.</summary>
+    /// <summary>How the expenditure furthered the Church's purposes, in the claimant's own words.</summary>
     public string? Purpose { get; set; }
 
     /// <summary>Question one. Null until answered, and null is not No.</summary>

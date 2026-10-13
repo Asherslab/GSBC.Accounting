@@ -23,10 +23,12 @@ Present tense, kept current, no dates.
 
 - **expenses**
   - [The expense submission model](modules/expenses/submission-model.md) — why the two paper forms are
-    one aggregate and one page, what that does *not* let you share, what happens when a claimant
-    changes their answer to the form's first question, and the money and retention rules.
-  - [What the two paper forms actually say](modules/expenses/paper-form-fields.md) — the ground truth
-    for every string the app prints, read out of the `.docx` files.
+    one aggregate and one page, what that does *not* let you share, **where the app deliberately departs
+    from the paper forms** (the accounts team's 2026-10-13 review), what happens when a claimant changes
+    their answer to the form's first question, and the money and retention rules.
+  - [What the two paper forms actually say](modules/expenses/paper-form-fields.md) — what the `.docx`
+    files print, word for word. The source of every question and declaration the app still asks; not
+    every field on it is still on the form.
   - [The attachment store](modules/expenses/attachments.md) — the SeaweedFS chunk-encoding trap that
     silently stores the wrong bytes, the magic-byte checks, and why the anonymous upload needs ceilings.
   - [Drafts and the draft session cookie](modules/expenses/drafts.md) — who owns an unsubmitted form,

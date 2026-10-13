@@ -49,7 +49,8 @@ public static class MockData
 
     private static void FillDebitCard(ExpenseFormModel model)
     {
-        (string submitter, string ministry, string supplier, string narrative, (string item, string details, decimal gross)[] lines) =
+        // The scenario's ministry goes unused: the debit card form no longer asks for one.
+        (string submitter, _, string supplier, string narrative, (string item, string details, decimal gross)[] lines) =
             Pick(DebitCardScenarios);
 
         DateOnly today = DateOnly.FromDateTime(DateTime.Now);
@@ -57,24 +58,19 @@ public static class MockData
 
         model.SubmitterName = submitter;
         model.FormDate = today;
-        model.Role = Pick(new[] { ClaimantRole.Volunteer, ClaimantRole.Employee, ClaimantRole.Pastor });
-        model.MinistryDepartment = ministry;
         model.CardLastFourDigits = Rng.Next(1000, 10000).ToString();
-        model.TransactionDate = transaction;
-        model.TransactionTime = new TimeOnly(Rng.Next(8, 19), Rng.Next(0, 4) * 15);
-        model.SupplierMerchant = supplier;
-        model.BankReference = Reference("EFTPOS");
-        model.PurposeActivity = ministry;
-        model.EventProject = ministry + " — " + Pick(new[] { "term planning", "working bee", "camp prep", "weekly programme" });
-        model.PriorApprovalBy = Pick(new[] { "Pr. Daniel Okafor", "Ruth Vasquez", "Pr. Helen Marsh" });
-        model.ApprovalDate = transaction.AddDays(-Rng.Next(1, 10));
-        model.PurposeNarrative = narrative;
+
+        // Section 2 is optional, so half the presses leave it unanswered - an approver named on every
+        // mock would hide what an unanswered optional section looks like on the PDF.
+        if (Rng.Next(2) == 0)
+        {
+            model.PriorApprovalGiven = true;
+            model.PriorApprovalBy = Pick(new[] { "Pr. Daniel Okafor", "Ruth Vasquez", "Pr. Helen Marsh" });
+        }
 
         model.Details = lines
-            .Select((l, index) => Detail(l, ministry, supplier, transaction.AddDays(-index), index))
+            .Select((l, index) => Detail(l, narrative, supplier, transaction.AddDays(-index), index))
             .ToList();
-
-        decimal gross = model.Details.Sum(x => x.TotalIncGst ?? 0m);
 
         // Every third scenario is an awkward one, and the awkward paths are the whole reason this exists:
         // a Yes unlocks a reveal, and section 5 opens. A generator that only ever produces tidy data
@@ -121,11 +117,6 @@ public static class MockData
         for (int i = 0; i < model.Compliance.Length; i++)
             model.Compliance[i] ??= false;
 
-        // The reconciliation the debit card form exists for. Set to the receipts' total so a mock
-        // submission passes it - the mismatch path is worth seeing, but it is one keystroke away in the
-        // amount-charged box and does not need a generator to reach.
-        model.AmountCharged = Round(gross);
-
         for (int i = 0; i < model.Declarations.Length; i++)
             model.Declarations[i] = true;
 
@@ -143,43 +134,30 @@ public static class MockData
 
         model.SubmitterName = submitter;
         model.FormDate = today;
-        model.Role = Pick(new[] { ClaimantRole.Volunteer, ClaimantRole.Employee, ClaimantRole.ResponsiblePerson });
         model.MinistryDepartment = ministry;
         model.ContactPhoneEmail = $"04{Rng.Next(10, 100)} {Rng.Next(100, 1000)} {Rng.Next(100, 1000)}";
-        model.ExpensePeriodFrom = from;
-        model.ExpensePeriodTo = today;
         model.PaymentMethod = PaymentMethod.Eft;
-        model.BankDetailsOnFile = true;
-        model.PurposeActivity = narrative.Split('.')[0];
-        model.EventProject = ministry;
-        model.PriorApprovalBy = Pick(new[] { "Pr. Daniel Okafor", "Ruth Vasquez" });
-        model.ApprovalDate = from;
-        model.PurposeNarrative = narrative;
+        model.BankDetailsOnFile = Rng.Next(2) == 0;
+
+        if (Rng.Next(2) == 0)
+        {
+            model.PriorApprovalGiven = true;
+            model.PriorApprovalBy = Pick(new[] { "Pr. Daniel Okafor", "Ruth Vasquez" });
+        }
 
         model.Details = lines
-            .Select((l, index) => Detail(l, ministry, supplier, from.AddDays(index * 3), index))
+            .Select((l, index) => Detail(l, narrative, supplier, from.AddDays(index * 3), index))
             .ToList();
 
         bool awkward = Rng.Next(3) == 0;
 
         if (awkward)
         {
-            // Question 1 on this form is the motor vehicle one, which opens the trip record - a
-            // genuinely different table from the debit card form's.
-            model.Compliance[0] = true;
-            model.Trips =
-            [
-                new TripModel
-                {
-                    Date = from.AddDays(2),
-                    From = "Church office",
-                    To = Pick(new[] { "Mount Tamborine camp site", "Springwood distribution centre", "Logan hospital" }),
-                    BusinessKm = Rng.Next(24, 140),
-                    ApprovedRate = 0.880m,
-                    Purpose = ministry + " visit"
-                }
-            ];
-            model.ComplianceDetails = "Return trip in my own vehicle. Fuel is not claimed separately.";
+            // Question 2 - meals and hospitality - which on this form asks for attendees in the
+            // free-text block rather than a table. (Question 1 here was the motor vehicle one, and the
+            // form no longer asks it.)
+            model.Compliance[1] = true;
+            model.ComplianceDetails = "Meal for the visiting family and two volunteers. No family of mine attended.";
 
             // Section 5 opens off the evidence - the page marks the last purchase's file as a bank line
             // when this is set. See the debit card branch, where the same thing is explained at length.
@@ -192,7 +170,9 @@ public static class MockData
             model.MissingDeclared = true;
         }
 
-        for (int i = 0; i < model.Compliance.Length; i++)
+        // Slot 0 stays null: the reimbursement form does not ask question 1, and the server clears an
+        // answer to it anyway.
+        for (int i = 1; i < model.Compliance.Length; i++)
             model.Compliance[i] ??= false;
 
         for (int i = 0; i < model.Declarations.Length; i++)
@@ -225,7 +205,7 @@ public static class MockData
     /// </remarks>
     private static ExpenseDetailModel Detail(
         (string Item, string Details, decimal Gross) line,
-        string ministry,
+        string purpose,
         string scenarioSupplier,
         DateOnly date,
         int index
@@ -245,7 +225,7 @@ public static class MockData
                 ? SupplierOf(line.Details)
                 : scenarioSupplier,
             PurchaseDate = date,
-            Purpose = ministry,
+            Purpose = purpose,
             TotalIncGst = line.Gross,
             // Australian GST is one eleventh of a GST-inclusive price.
             GstAmount = Round(line.Gross / 11m),

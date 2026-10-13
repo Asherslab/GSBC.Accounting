@@ -19,8 +19,8 @@ namespace GSBC.Accounting.Grpc.Features.Sessions;
 /// credential anyone chose.
 /// <para>
 /// So: no approval, no finance step, no audit trail naming somebody and nothing else that needs to know
-/// who a person is may be hung off this. Sections 7 and 8 of both paper forms are completed by a human
-/// who is not the claimant, and that stays true. When real sign-in arrives it gets its own scheme and
+/// who a person is may be hung off this. Approval and payment are done by the accounts team, who
+/// are not the claimant, and that stays true. When real sign-in arrives it gets its own scheme and
 /// its own policy beside this one rather than extending this.
 /// </para>
 /// <para>

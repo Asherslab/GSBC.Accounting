@@ -38,7 +38,6 @@ public partial class ExpenseSubmissionService
             .Include(x => x.Details).ThenInclude(x => x.Items)
             .Include(x => x.Attachments)
             .Include(x => x.Attendees)
-            .Include(x => x.Trips)
             .Include(x => x.MissingReceipt)
             .AsSplitQuery()
             .FirstOrDefaultAsync(
@@ -80,9 +79,6 @@ public partial class ExpenseSubmissionService
 
         foreach (DbExpenseAttendee attendee in submission.Attendees)
             attendee.Deleted = true;
-
-        foreach (DbExpenseTrip trip in submission.Trips)
-            trip.Deleted = true;
 
         if (submission.MissingReceipt is { } missing)
             missing.Deleted = true;

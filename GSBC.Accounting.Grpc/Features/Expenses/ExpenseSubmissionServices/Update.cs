@@ -45,7 +45,6 @@ public partial class ExpenseSubmissionService
             .Include(x => x.Details).ThenInclude(x => x.Items)
             .Include(x => x.Attachments)
             .Include(x => x.Attendees)
-            .Include(x => x.Trips)
             .Include(x => x.MissingReceipt)
             .AsSplitQuery()
             .FirstOrDefaultAsync(
@@ -64,40 +63,27 @@ public partial class ExpenseSubmissionService
         // was fixed at creation; it is now the form's first question, and somebody who mis-answers it
         // has to be able to correct it without retyping the claim.
         //
-        // What must not survive the change is the other form's content. A kind flip is handled below by
-        // ClearFieldsForOtherKind, and the detail tables fall out of the soft-delete-then-re-add further
-        // down, which re-adds only the table belonging to the kind now stored.
-        bool kindChanged = submission.Kind != form.Kind;
-
+        // What must not survive the change is the other form's content. ClearFieldsForOtherKind below
+        // drops its section 1 fields, and the attendee table falls out of the soft-delete-then-re-add
+        // further down, which re-adds it only on the kind that has one.
         submission.Kind = form.Kind;
 
         (decimal gross, decimal gst, decimal lessPersonal) = ExpenseTotals.SumDetails(form.Details);
 
         submission.SubmitterName = form.SubmitterName;
         submission.FormDate = ToOffset(form.FormDate);
-        submission.Role = form.Role;
-        submission.RoleOther = form.RoleOther;
-        submission.MinistryDepartment = form.MinistryDepartment;
 
         submission.CardLastFourDigits = form.CardLastFourDigits;
-        submission.TransactionDate = ToOffset(form.TransactionDate);
-        submission.TransactionTime = form.TransactionTime;
-        submission.SupplierMerchant = form.SupplierMerchant;
-        submission.AmountCharged = form.AmountCharged is { } charged ? ExpenseTotals.Money(charged) : null;
-        submission.BankReference = form.BankReference;
 
         submission.ContactPhoneEmail = form.ContactPhoneEmail;
-        submission.ExpensePeriodFrom = ToOffset(form.ExpensePeriodFrom);
-        submission.ExpensePeriodTo = ToOffset(form.ExpensePeriodTo);
+        submission.MinistryDepartment = form.MinistryDepartment;
         submission.PaymentMethod = form.PaymentMethod;
         submission.PaymentMethodOther = form.PaymentMethodOther;
         submission.BankDetailsOnFile = form.BankDetailsOnFile;
 
-        submission.PurposeActivity = form.PurposeActivity;
-        submission.EventProject = form.EventProject;
-        submission.PriorApprovalBy = form.PriorApprovalBy;
-        submission.ApprovalDate = ToOffset(form.ApprovalDate);
-        submission.PurposeNarrative = form.PurposeNarrative;
+        // A name with no Yes in front of it is an approval nobody said happened.
+        submission.PriorApprovalGiven = form.PriorApprovalGiven;
+        submission.PriorApprovalBy = form.PriorApprovalGiven == true ? form.PriorApprovalBy : null;
 
         submission.GrossTotal = gross;
         submission.GstTotal = gst;
@@ -121,10 +107,10 @@ public partial class ExpenseSubmissionService
         submission.SignatureName = form.SignatureName;
 
         // Everything above wrote what the client sent, both kinds' columns alike. This is the one place
-        // that decides what a submission of THIS kind is allowed to hold, and it runs last so a client
-        // cannot leave the other form's answers behind by sending them anyway.
-        if (kindChanged)
-            ClearFieldsForOtherKind(submission);
+        // that decides what a submission of THIS kind is allowed to hold, and it runs last - on every
+        // write, not only on a kind change - so a client cannot leave the other form's answers behind by
+        // sending them anyway.
+        ClearFieldsForOtherKind(submission);
 
         // What the abandoned-draft purge counts from. A claimant who edits a form every few weeks
         // keeps it indefinitely; one who never comes back loses it ninety days after their last edit,
@@ -142,9 +128,6 @@ public partial class ExpenseSubmissionService
         foreach (DbExpenseAttendee attendee in submission.Attendees)
             attendee.Deleted = true;
 
-        foreach (DbExpenseTrip trip in submission.Trips)
-            trip.Deleted = true;
-
         WriteDetails(submission, form.Details);
 
         // A file whose detail the claimant has just deleted is now pointing at nothing. It stays on the
@@ -160,45 +143,7 @@ public partial class ExpenseSubmissionService
         }
 
         if (submission.Kind == SubmissionKind.DebitCardPurchase)
-        {
-            int attendeeOrdinal = 0;
-
-            foreach (ExpenseAttendee attendee in form.Attendees)
-            {
-                submission.Attendees.Add(new DbExpenseAttendee
-                {
-                    Id = Guid.Empty,
-                    SubmissionId = submission.Id,
-                    Ordinal = attendeeOrdinal++,
-                    Date = ToOffset(attendee.Date),
-                    Person = attendee.Person,
-                    Relationship = attendee.Relationship,
-                    Amount = attendee.Amount is { } a ? ExpenseTotals.Money(a) : null,
-                    PrivateShare = attendee.PrivateShare is { } p ? ExpenseTotals.Money(p) : null,
-                    Reason = attendee.Reason
-                });
-            }
-        }
-        else
-        {
-            int tripOrdinal = 0;
-
-            foreach (ExpenseTrip trip in form.Trips)
-            {
-                submission.Trips.Add(new DbExpenseTrip
-                {
-                    Id = Guid.Empty,
-                    SubmissionId = submission.Id,
-                    Ordinal = tripOrdinal++,
-                    Date = ToOffset(trip.Date),
-                    From = trip.From,
-                    To = trip.To,
-                    BusinessKm = trip.BusinessKm,
-                    ApprovedRate = trip.ApprovedRate,
-                    Purpose = trip.Purpose
-                });
-            }
-        }
+            WriteAttendees(submission, form.Attendees);
 
         // Section 5's trigger, evaluated against the STORED attachments and the form's details: a
         // purchase with files against it, none of which came from the place it was bought. A detail with
@@ -243,14 +188,17 @@ public partial class ExpenseSubmissionService
     }
 
     /// <summary>
-    /// Nulls the header fields belonging to the kind this submission is no longer, after question zero
-    /// has been re-answered.
+    /// Nulls the fields belonging to the kind this submission is not. Run on every write, by both
+    /// <c>Create</c> and <c>Update</c>.
     /// </summary>
     /// <remarks>
-    /// <b>Only the nineteen kind-specific columns.</b> Everything else on the form means the same thing
-    /// on both documents - the claimant, the ministry, the lines, the receipts, the purpose narrative,
-    /// the missing-receipt declaration - and a claimant who corrects one question should not lose the
-    /// afternoon's typing.
+    /// <b>Only the kind-specific columns.</b> Everything else on the form means the same thing on both
+    /// documents - the claimant, the authorisation, the receipts, the missing-receipt declaration - and a
+    /// claimant who corrects one question should not lose the afternoon's typing.
+    /// <para>
+    /// Compliance question 1 is one of them: only the debit card form still asks it, so a reimbursement
+    /// holding an answer to it would be holding an answer to a question nobody was shown.
+    /// </para>
     /// <para>
     /// The compliance answers and the declarations are <b>not</b> cleared here, because by the time this
     /// runs the client has already sent them cleared: four of the six questions and four of the five
@@ -261,8 +209,8 @@ public partial class ExpenseSubmissionService
     /// </para>
     /// <para>
     /// Section 3 is not touched here either, and that is the point of it: a receipt is a receipt on both
-    /// forms. The section 4 detail tables are not touched either - every attendee and trip row was
-    /// already soft-deleted above, and only the table belonging to the stored kind is re-added.
+    /// forms. The attendee table is not touched either - every row was already soft-deleted by
+    /// <c>Update</c>, and it is re-added only on the debit card form.
     /// </para>
     /// </remarks>
     private static void ClearFieldsForOtherKind(DbExpenseSubmission submission)
@@ -270,8 +218,7 @@ public partial class ExpenseSubmissionService
         if (submission.Kind == SubmissionKind.DebitCardPurchase)
         {
             submission.ContactPhoneEmail = null;
-            submission.ExpensePeriodFrom = null;
-            submission.ExpensePeriodTo = null;
+            submission.MinistryDepartment = null;
             submission.PaymentMethod = null;
             submission.PaymentMethodOther = null;
             submission.BankDetailsOnFile = null;
@@ -279,11 +226,7 @@ public partial class ExpenseSubmissionService
         else
         {
             submission.CardLastFourDigits = null;
-            submission.TransactionDate = null;
-            submission.TransactionTime = null;
-            submission.SupplierMerchant = null;
-            submission.AmountCharged = null;
-            submission.BankReference = null;
+            submission.ComplianceQ1 = null;
         }
     }
 }

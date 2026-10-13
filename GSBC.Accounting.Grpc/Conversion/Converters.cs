@@ -45,17 +45,6 @@ public partial class ExpenseAttendeeConverter(
 }
 
 [Mapper]
-public partial class ExpenseTripConverter(
-    IConverter<DateTimeOffset, DateTime> dateTimeConverter
-) : IConverter<DbExpenseTrip, ExpenseTrip>
-{
-    [UseMapper]
-    private readonly IConverter<DateTimeOffset, DateTime> _dateTimeConverter = dateTimeConverter;
-
-    public partial ExpenseTrip Convert(DbExpenseTrip trip);
-}
-
-[Mapper]
 public partial class MissingReceiptDeclarationConverter(
     IConverter<DateTimeOffset, DateTime> dateTimeConverter
 ) : IConverter<DbMissingReceiptDeclaration, MissingReceiptDeclaration>

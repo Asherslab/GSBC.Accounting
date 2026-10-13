@@ -2,11 +2,12 @@
 @using GSBC.Accounting.WASM.Features.Expenses
 
 @*
-    Section 4, for both forms. Six questions, each a No/Yes pair with a reveal behind Yes.
+    Section 4, for both forms. Each question is a No/Yes pair with a reveal behind Yes.
 
-    Every question's text comes from ExpenseFormWording, keyed by kind - only questions 4 and 6 are
-    word-for-word identical between the two documents, and question 1 asks a genuinely different thing on
-    each. The ANSWERS are the same six columns either way.
+    Every question's text comes from ExpenseFormWording, keyed by kind - the debit card form asks six,
+    the reimbursement form five, and only two are word-for-word identical between them. The ANSWERS are
+    the same six columns either way; each question names its own slot, so the number on screen and the
+    column it writes can differ.
 
     Nothing here enforces the rules the questions recite. The form's job is to ask them and record what
     was said, so a human reviewer sees it.
@@ -16,46 +17,48 @@
     <header>
         <span class="num">04</span>
         <h3>@Text.Section4Caption</h3>
-        <span class="hint">@Answered of 6 answered</span>
+        <span class="hint">@Answered of @Text.ComplianceQuestions.Count answered</span>
     </header>
     <div class="body">
         @for (int i = 0; i < Text.ComplianceQuestions.Count; i++)
         {
-            int index = i;
-            ComplianceQuestion question = Text.ComplianceQuestions[index];
+            int number = i + 1;
+            ComplianceQuestion question = Text.ComplianceQuestions[i];
+            int slot = question.Slot;
 
             <div class="q">
                 <p>
-                    <span class="qlabel">@(index + 1). @question.Question</span>
-                    @* Before the answer, not behind it. Questions 5 and 6 quote ACNC vocabulary at
-                       somebody who has just bought morning tea, and an unexplained question gets
-                       answered No - which on a compliance form is a recorded answer, not a blank. *@
+                    <span class="qlabel">@number. @question.Question</span>
+                    @* Before the answer, not behind it. The Responsible Person and conflict questions
+                       quote ACNC vocabulary at somebody who has just bought morning tea, and an
+                       unexplained question gets answered No - which on a compliance form is a recorded
+                       answer, not a blank. *@
                     @if (question.Hint is { } hint)
                     {
                         <span class="qhelp">@hint</span>
                     }
-                    @if (Model.Compliance[index] == true)
+                    @if (Model.Compliance[slot] == true)
                     {
                         <span>Yes &mdash; @question.YesInstruction</span>
                     }
                 </p>
 
                 @* A pair of radios, not a checkbox: "No" is an answer somebody gave, and unticked would
-                   be indistinguishable from unanswered. Model.Compliance[i] stays null until one is
+                   be indistinguishable from unanswered. Model.Compliance[slot] stays null until one is
                    chosen, and null is what a reviewer needs to be able to see. *@
                 <div class="yn">
                     <label>
-                        <input type="radio" name="@($"q{index}")" value="no"
-                               checked="@(Model.Compliance[index] == false)"
-                               @onchange="() => Answer(index, false)"/>No
+                        <input type="radio" name="@($"q{slot}")" value="no"
+                               checked="@(Model.Compliance[slot] == false)"
+                               @onchange="() => Answer(slot, false)"/>No
                     </label>
                     @* .concern is what paints the amber state - here it is on Yes, because a Yes to a
                        compliance question is the answer that opens the follow-up. The class says which
                        answer needs following up; the value says what the answer is. *@
                     <label class="concern">
-                        <input type="radio" name="@($"q{index}")" value="yes"
-                               checked="@(Model.Compliance[index] == true)"
-                               @onchange="() => Answer(index, true)"/>Yes
+                        <input type="radio" name="@($"q{slot}")" value="yes"
+                               checked="@(Model.Compliance[slot] == true)"
+                               @onchange="() => Answer(slot, true)"/>Yes
                     </label>
                 </div>
             </div>
@@ -75,81 +78,42 @@
             <div style="margin-top:18px">
                 <span class="lbl">@Text.DetailTableCaption</span>
 
-                @if (Model.Kind == SubmissionKind.DebitCardPurchase)
-                {
-                    <div class="tablewrap" style="margin-top:8px">
-                        <table>
-                            <thead>
-                            <tr>
-                                <th style="min-width:130px">Date</th>
-                                <th style="min-width:160px">Person / recipient</th>
-                                <th style="min-width:150px">Relationship / role</th>
-                                <th class="num" style="width:110px">Amount</th>
-                                <th class="num" style="width:120px">Private share</th>
-                                <th style="min-width:200px">Reason and Church purpose</th>
-                                <th style="width:38px"><span class="sr-only">Remove</span></th>
+                <div class="tablewrap" style="margin-top:8px">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th style="min-width:130px">Date</th>
+                            <th style="min-width:160px">Person / recipient</th>
+                            <th style="min-width:150px">Relationship / role</th>
+                            <th class="num" style="width:110px">Amount</th>
+                            <th class="num" style="width:120px">Private share</th>
+                            <th style="min-width:200px">Reason and Church purpose</th>
+                            <th style="width:38px"><span class="sr-only">Remove</span></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (AttendeeModel row in Model.Attendees)
+                        {
+                            @* data-label on every cell, and rowdel on the last: under 900px app.css
+                               hides the <thead> and rebuilds each row as a card of labelled
+                               fields. See the same note in LineTable. *@
+                            <tr @key="row.Key">
+                                <td data-label="Date"><input type="date" aria-label="Date" @bind="row.Date" @bind:event="oninput"/></td>
+                                <td data-label="Person / recipient"><input type="text" aria-label="Person or recipient" @bind="row.Person" @bind:event="oninput"/></td>
+                                <td data-label="Relationship / role"><input type="text" aria-label="Relationship or role" @bind="row.Relationship" @bind:event="oninput"/></td>
+                                <td class="num" data-label="Amount"><div class="money"><input type="number" inputmode="decimal" step="0.01" min="0" aria-label="Amount" @bind="row.Amount" @bind:event="oninput"/></div></td>
+                                <td class="num" data-label="Private share"><div class="money"><input type="number" inputmode="decimal" step="0.01" min="0" aria-label="Private share" @bind="row.PrivateShare" @bind:event="oninput"/></div></td>
+                                <td data-label="Reason and Church purpose"><input type="text" aria-label="Reason and Church purpose" @bind="row.Reason" @bind:event="oninput"/></td>
+                                <td class="rowdel">
+                                    <button class="rowbtn" type="button" aria-label="Remove row"
+                                            @onclick="() => RemoveAttendee(row)">&times;</button>
+                                </td>
                             </tr>
-                            </thead>
-                            <tbody>
-                            @foreach (AttendeeModel row in Model.Attendees)
-                            {
-                                @* data-label on every cell, and rowdel on the last: under 900px app.css
-                                   hides the <thead> and rebuilds each row as a card of labelled
-                                   fields. See the same note in LineTable. *@
-                                <tr @key="row.Key">
-                                    <td data-label="Date"><input type="date" aria-label="Date" @bind="row.Date" @bind:event="oninput"/></td>
-                                    <td data-label="Person / recipient"><input type="text" aria-label="Person or recipient" @bind="row.Person" @bind:event="oninput"/></td>
-                                    <td data-label="Relationship / role"><input type="text" aria-label="Relationship or role" @bind="row.Relationship" @bind:event="oninput"/></td>
-                                    <td class="num" data-label="Amount"><div class="money"><input type="number" inputmode="decimal" step="0.01" min="0" aria-label="Amount" @bind="row.Amount" @bind:event="oninput"/></div></td>
-                                    <td class="num" data-label="Private share"><div class="money"><input type="number" inputmode="decimal" step="0.01" min="0" aria-label="Private share" @bind="row.PrivateShare" @bind:event="oninput"/></div></td>
-                                    <td data-label="Reason and Church purpose"><input type="text" aria-label="Reason and Church purpose" @bind="row.Reason" @bind:event="oninput"/></td>
-                                    <td class="rowdel">
-                                        <button class="rowbtn" type="button" aria-label="Remove row"
-                                                @onclick="() => RemoveAttendee(row)">&times;</button>
-                                    </td>
-                                </tr>
-                            }
-                            </tbody>
-                        </table>
-                    </div>
-                    <button class="btn-add" type="button" @onclick="AddAttendee">+ Add row</button>
-                }
-                else
-                {
-                    <div class="tablewrap" style="margin-top:8px">
-                        <table>
-                            <thead>
-                            <tr>
-                                <th style="min-width:130px">Date</th>
-                                <th style="min-width:160px">From</th>
-                                <th style="min-width:160px">To</th>
-                                <th class="num" style="width:110px">Business km</th>
-                                <th class="num" style="width:120px">Approved rate</th>
-                                <th style="min-width:200px">Church purpose</th>
-                                <th style="width:38px"><span class="sr-only">Remove</span></th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            @foreach (TripModel row in Model.Trips)
-                            {
-                                <tr @key="row.Key">
-                                    <td data-label="Date"><input type="date" aria-label="Date" @bind="row.Date" @bind:event="oninput"/></td>
-                                    <td data-label="From"><input type="text" aria-label="From" @bind="row.From" @bind:event="oninput"/></td>
-                                    <td data-label="To"><input type="text" aria-label="To" @bind="row.To" @bind:event="oninput"/></td>
-                                    <td class="num" data-label="Business km"><input type="number" inputmode="decimal" step="0.1" min="0" class="mono" aria-label="Business kilometres" @bind="row.BusinessKm" @bind:event="oninput"/></td>
-                                    <td class="num" data-label="Approved rate"><div class="money"><input type="number" inputmode="decimal" step="0.001" min="0" aria-label="Approved rate per kilometre" @bind="row.ApprovedRate" @bind:event="oninput"/></div></td>
-                                    <td data-label="Church purpose"><input type="text" aria-label="Church purpose" @bind="row.Purpose" @bind:event="oninput"/></td>
-                                    <td class="rowdel">
-                                        <button class="rowbtn" type="button" aria-label="Remove row"
-                                                @onclick="() => RemoveTrip(row)">&times;</button>
-                                    </td>
-                                </tr>
-                            }
-                            </tbody>
-                        </table>
-                    </div>
-                    <button class="btn-add" type="button" @onclick="AddTrip">+ Add trip</button>
-                }
+                        }
+                        </tbody>
+                    </table>
+                </div>
+                <button class="btn-add" type="button" @onclick="AddAttendee">+ Add row</button>
             </div>
         }
     </div>
@@ -163,22 +127,17 @@
 
     [Parameter] public EventCallback OnChanged { get; set; }
 
-    private int Answered => Model.Compliance.Count(x => x is not null);
+    /// <summary>Counted over the questions this form asks, not over all six stored answers.</summary>
+    private int Answered => Text.ComplianceQuestions.Count(x => Model.Compliance[x.Slot] is not null);
 
-    private async Task Answer(int index, bool value)
+    private async Task Answer(int slot, bool value)
     {
-        Model.Compliance[index] = value;
+        Model.Compliance[slot] = value;
 
         // Opening a table with no rows shows a header and nothing else, which reads as broken. One row
         // is the smallest thing that looks like a table waiting to be filled in.
-        if (Model.DetailTableOpen)
-        {
-            if (Model.Kind == SubmissionKind.DebitCardPurchase && Model.Attendees.Count == 0)
-                Model.Attendees.Add(new AttendeeModel());
-
-            if (Model.Kind == SubmissionKind.ExpenseReimbursement && Model.Trips.Count == 0)
-                Model.Trips.Add(new TripModel());
-        }
+        if (Model.DetailTableOpen && Model.Attendees.Count == 0)
+            Model.Attendees.Add(new AttendeeModel());
 
         await OnChanged.InvokeAsync();
     }
@@ -192,18 +151,6 @@
     private async Task RemoveAttendee(AttendeeModel row)
     {
         Model.Attendees.Remove(row);
-        await OnChanged.InvokeAsync();
-    }
-
-    private async Task AddTrip()
-    {
-        Model.Trips.Add(new TripModel());
-        await OnChanged.InvokeAsync();
-    }
-
-    private async Task RemoveTrip(TripModel row)
-    {
-        Model.Trips.Remove(row);
         await OnChanged.InvokeAsync();
     }
 }

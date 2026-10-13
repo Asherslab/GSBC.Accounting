@@ -10,8 +10,8 @@ namespace GSBC.Accounting.Grpc.Features.Sessions;
 /// can present. Being authenticated under this scheme therefore says nothing about who somebody is.
 /// <para>
 /// <b>Nothing that needs to know who a person is may be hung off this scheme.</b> Not an approval, not
-/// a finance step, not an audit trail naming somebody. Sections 7 and 8 of both paper forms are
-/// completed by a human who is not the claimant, and that stays true. When real sign-in arrives it gets
+/// a finance step, not an audit trail naming somebody. Approval and payment are done by the
+/// accounts team, who are not the claimant, and that stays true. When real sign-in arrives it gets
 /// its own scheme and its own policy alongside this one, and the two are told apart by
 /// <see cref="AuthenticationScheme"/> rather than by inspecting claims.
 /// </para>

@@ -38,7 +38,6 @@ public partial class ExpenseSubmissionService
             .ThenInclude(x => x.Items.OrderBy(item => item.Ordinal))
             .Include(x => x.Attachments)
             .Include(x => x.Attendees.OrderBy(attendee => attendee.Ordinal))
-            .Include(x => x.Trips.OrderBy(trip => trip.Ordinal))
             .Include(x => x.MissingReceipt)
             .AsSplitQuery()
             .FirstOrDefaultAsync(

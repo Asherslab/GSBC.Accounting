@@ -12,11 +12,11 @@ namespace GSBC.Accounting.Grpc.Features.Pdf;
 /// </summary>
 /// <remarks>
 /// <b>Rendered from the aggregate, not from the HTML page.</b> The screen layout and the printed layout
-/// are different problems and are allowed to diverge - the screen has reveals, running totals and a
-/// disabled approval section, and the paper needs ruled blocks somebody signs with a pen.
+/// are different problems and are allowed to diverge - the screen has reveals and running totals, and
+/// the paper needs ruled blocks.
 /// <para>
-/// Sections 7 and 8 render as <b>empty ruled blocks</b>, matching the paper form, because an approver
-/// and finance complete them by hand.
+/// <b>It ends at section 6.</b> The paper forms' independent approval and finance-use sections are not
+/// printed: the accounts team handles approval and payment outside this app, by email.
 /// </para>
 /// <para>
 /// QuestPDF rather than filling the original <c>.docx</c> via OpenXML: OpenXML cannot render, so that
@@ -130,8 +130,6 @@ public class SubmissionDocument(DbExpenseSubmission submission) : IDocument
                 column.Item().Element(Section5);
 
             column.Item().Element(Section6);
-            column.Item().Element(Section7);
-            column.Item().Element(Section8);
             column.Item().Element(EvidenceManifest);
         });
 
@@ -148,19 +146,6 @@ public class SubmissionDocument(DbExpenseSubmission submission) : IDocument
                     Field(row, _text.FormDateLabel, Date(submission.FormDate), 2);
                     Field(row, "Card last 4 digits", submission.CardLastFourDigits, 2);
                 });
-                column.Item().Row(row =>
-                {
-                    Field(row, "Role / relationship", Role(), 2);
-                    Field(row, "Ministry / department", submission.MinistryDepartment, 2);
-                    Field(row, "Transaction date", Date(submission.TransactionDate), 2);
-                    Field(row, "Time", submission.TransactionTime, 1);
-                });
-                column.Item().Row(row =>
-                {
-                    Field(row, "Supplier / merchant", submission.SupplierMerchant, 3);
-                    Field(row, "Amount charged", Money(submission.AmountCharged), 2);
-                    Field(row, "Bank reference", submission.BankReference, 2);
-                });
             }
             else
             {
@@ -168,23 +153,16 @@ public class SubmissionDocument(DbExpenseSubmission submission) : IDocument
                 {
                     Field(row, _text.SubmitterNameLabel, submission.SubmitterName, 3);
                     Field(row, _text.FormDateLabel, Date(submission.FormDate), 2);
-                    Field(row, "Role / relationship", Role(), 2);
-                });
-                column.Item().Row(row =>
-                {
                     Field(row, "Phone / email", submission.ContactPhoneEmail, 3);
-                    Field(row, "Ministry / department", submission.MinistryDepartment, 2);
-                    Field(row, "Expense period",
-                        $"{Date(submission.ExpensePeriodFrom)} to {Date(submission.ExpensePeriodTo)}", 2);
                 });
                 column.Item().Row(row =>
                 {
+                    Field(row, "Ministry / department", submission.MinistryDepartment, 3);
                     Field(row, "Payment method",
                         submission.PaymentMethod is null ? null
                         : submission.PaymentMethod == PaymentMethod.Eft ? "EFT"
                         : $"Other: {submission.PaymentMethodOther}", 2);
-                    Field(row, "Bank details on file", Tick(submission.BankDetailsOnFile), 2);
-                    row.RelativeItem(3);
+                    Field(row, "Bank details on file", Tick(submission.BankDetailsOnFile), 3);
                 });
             }
 
@@ -206,16 +184,9 @@ public class SubmissionDocument(DbExpenseSubmission submission) : IDocument
 
             column.Item().Row(row =>
             {
-                Field(row, _text.PurposeActivityLabel, submission.PurposeActivity, 2);
-                Field(row, "Event / project", submission.EventProject, 2);
-                Field(row, "Prior approval by", submission.PriorApprovalBy, 2);
-                Field(row, "Approval date", Date(submission.ApprovalDate), 1);
+                Field(row, "Has this expense been approved?", YesNo(submission.PriorApprovalGiven), 2);
+                Field(row, "Who approved it?", submission.PriorApprovalBy, 4);
             });
-
-            column.Item().PaddingTop(3).Text(_text.PurposeNarrativePrompt)
-                .FontSize(7.5f).FontColor(Colors.Grey.Darken2);
-            column.Item().PaddingTop(1).MinHeight(30).Border(0.5f).BorderColor(Colors.Grey.Medium)
-                .Padding(4).Text(submission.PurposeNarrative ?? "").FontSize(8.5f);
         }));
 
     /// <summary>
@@ -253,8 +224,11 @@ public class SubmissionDocument(DbExpenseSubmission submission) : IDocument
                     {
                         Field(row, $"Purchase {number} — supplier", detail.Supplier, 3);
                         Field(row, "Date", Date(detail.PurchaseDate), 2);
-                        Field(row, "Church purpose", detail.Purpose, 4);
                     });
+
+                    block.Item().Text(_text.PurposePrompt).FontSize(6.5f).FontColor(Colors.Grey.Darken2);
+                    block.Item().MinHeight(18).Border(0.4f).BorderColor(Colors.Grey.Medium).Padding(3)
+                        .Text(detail.Purpose ?? "").FontSize(8.5f);
 
                     block.Item().Row(row =>
                     {
@@ -381,25 +355,29 @@ public class SubmissionDocument(DbExpenseSubmission submission) : IDocument
                 submission.ComplianceQ4, submission.ComplianceQ5, submission.ComplianceQ6
             ];
 
+            // Numbered by position, read by slot: the reimbursement form asks five of the six, so its
+            // question 1 is stored answer 2.
             for (int i = 0; i < _text.ComplianceQuestions.Count; i++)
             {
-                int index = i;
+                PdfQuestion question = _text.ComplianceQuestions[i];
+                bool? answer = answers[question.Slot];
+                int number = i + 1;
 
                 column.Item().Row(row =>
                 {
-                    row.RelativeItem().Text($"{index + 1}. {_text.ComplianceQuestions[index]}").FontSize(8);
-                    row.ConstantItem(74).AlignRight().Text(Tick(answers[index]))
+                    row.RelativeItem().Text($"{number}. {question.Text}").FontSize(8);
+                    row.ConstantItem(74).AlignRight().Text(Tick(answer))
                         .FontSize(8).Bold()
                         // Unanswered is printed as "Not answered", never as a blank. A blank on paper is
                         // indistinguishable from a No, and the two are different facts.
-                        .FontColor(answers[index] is null ? Colors.Red.Darken2
-                            : answers[index] == true ? Colors.Orange.Darken3 : Colors.Black);
+                        .FontColor(answer is null ? Colors.Red.Darken2
+                            : answer == true ? Colors.Orange.Darken3 : Colors.Black);
                 });
             }
 
-            if (submission.Attendees.Count > 0)
+            if (submission.Attendees.Count > 0 && _text.DetailTableCaption is { } caption)
             {
-                column.Item().PaddingTop(5).Text(_text.DetailTableCaption).FontSize(7.5f).Bold();
+                column.Item().PaddingTop(5).Text(caption).FontSize(7.5f).Bold();
                 column.Item().Table(table =>
                 {
                     table.ColumnsDefinition(c =>
@@ -416,31 +394,6 @@ public class SubmissionDocument(DbExpenseSubmission submission) : IDocument
                     {
                         Td(table, Date(a.Date)); Td(table, a.Person); Td(table, a.Relationship);
                         Td(table, Money(a.Amount), true); Td(table, Money(a.PrivateShare), true); Td(table, a.Reason);
-                    }
-                });
-            }
-
-            if (submission.Trips.Count > 0)
-            {
-                column.Item().PaddingTop(5).Text(_text.DetailTableCaption).FontSize(7.5f).Bold();
-                column.Item().Table(table =>
-                {
-                    table.ColumnsDefinition(c =>
-                    {
-                        c.RelativeColumn(1.4f); c.RelativeColumn(2); c.RelativeColumn(2);
-                        c.RelativeColumn(1.2f); c.RelativeColumn(1.3f); c.RelativeColumn(3);
-                    });
-                    table.Header(h =>
-                    {
-                        Th(h, "Date"); Th(h, "From"); Th(h, "To");
-                        Th(h, "Business km", true); Th(h, "Approved rate", true); Th(h, "Church purpose");
-                    });
-                    foreach (DbExpenseTrip t in submission.Trips.OrderBy(x => x.Ordinal))
-                    {
-                        Td(table, Date(t.Date)); Td(table, t.From); Td(table, t.To);
-                        Td(table, t.BusinessKm?.ToString("0.#"), true);
-                        Td(table, t.ApprovedRate?.ToString("0.000"), true);
-                        Td(table, t.Purpose);
                     }
                 });
             }
@@ -509,41 +462,6 @@ public class SubmissionDocument(DbExpenseSubmission submission) : IDocument
                     c.Item().PaddingTop(1).BorderBottom(0.75f).BorderColor(Colors.Black);
                     c.Item().PaddingTop(2).Text("Date").FontSize(7).FontColor(Colors.Grey.Darken2);
                 });
-            });
-        }));
-
-    /// <summary>
-    /// Empty ruled blocks, matching the paper form. An approver who is <b>not the claimant</b> completes
-    /// this with a pen; nothing in this scope can fill it in, because nothing here knows who anybody is.
-    /// </summary>
-    private void Section7(IContainer container) =>
-        Card(container, "7. INDEPENDENT APPROVAL", inner => inner.Column(column =>
-        {
-            column.Item().Text("To be completed by an approver who is not the claimant.")
-                .FontSize(7.5f).Italic().FontColor(Colors.Grey.Darken2);
-
-            column.Item().PaddingTop(6).Row(row =>
-            {
-                Rule(row, "Approved by", 3);
-                Rule(row, "Approval date", 2);
-                Rule(row, _text.ApprovedAmountLabel, 2);
-            });
-
-            column.Item().PaddingTop(8).Text(
-                    $"Decision:    {Box(false)} Approved      {Box(false)} Declined      "
-                    + $"{Box(false)} {_text.ThirdDecisionLabel}")
-                .FontSize(8);
-
-            column.Item().PaddingTop(8).Row(row => Rule(row, "Approver signature", 1));
-        }));
-
-    private void Section8(IContainer container) =>
-        Card(container, _text.Section8Caption, inner => inner.Column(column =>
-        {
-            column.Item().PaddingTop(4).Row(row =>
-            {
-                foreach (string field in _text.FinanceFields)
-                    Rule(row, field, 1);
             });
         }));
 
@@ -657,15 +575,6 @@ public class SubmissionDocument(DbExpenseSubmission submission) : IDocument
             column.Item().PaddingTop(1).BorderBottom(0.4f).BorderColor(Colors.Grey.Medium);
         });
 
-    /// <summary>An empty ruled block for somebody to write on.</summary>
-    private static void Rule(RowDescriptor row, string label, uint size) =>
-        row.RelativeItem(size).PaddingRight(8).Column(column =>
-        {
-            column.Item().Height(14);
-            column.Item().BorderBottom(0.75f).BorderColor(Colors.Black);
-            column.Item().PaddingTop(2).Text(label).FontSize(7).FontColor(Colors.Grey.Darken2);
-        });
-
     private static void Th(TableCellDescriptor header, string text, bool right = false) =>
         header.Cell().Background(Colors.Grey.Lighten3).Border(0.4f).BorderColor(Colors.Grey.Medium)
             .Padding(3).Alignment(right)
@@ -690,14 +599,6 @@ public class SubmissionDocument(DbExpenseSubmission submission) : IDocument
             labelSpan.Bold();
             valueSpan.Bold();
         });
-
-    private string? Role() => submission.Role switch
-    {
-        null => null,
-        ClaimantRole.ResponsiblePerson => "Responsible Person",
-        ClaimantRole.Other => $"Other: {submission.RoleOther}",
-        _ => submission.Role.ToString()
-    };
 
     /// <summary>Unanswered prints as words, never as a blank - a blank cannot be told apart from a No.</summary>
     private static string Tick(bool? value) => value switch

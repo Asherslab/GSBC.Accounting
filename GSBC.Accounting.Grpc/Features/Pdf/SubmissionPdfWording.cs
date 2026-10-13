@@ -11,8 +11,14 @@ namespace GSBC.Accounting.Grpc.Features.Pdf;
 /// document are allowed to diverge, and a shared string means a change made for the page silently
 /// rewrites what a claimant signed in a document already filed for seven years.
 /// <para>
-/// Both are quoted from the same <c>.docx</c> files, so they should agree today. If they ever disagree,
-/// check both against the source documents rather than making one defer to the other.
+/// The two should agree today. If they ever disagree, check both against
+/// <c>docs/modules/expenses/paper-form-fields.md</c> and the departures from it listed in
+/// <c>submission-model.md</c>, rather than making one defer to the other.
+/// </para>
+/// <para>
+/// The section captions are the same on both forms - unified at the accounts team's request on
+/// 2026-10-13 - except section 1, which names the person. The same literal still appears twice, so a
+/// later change to one form's caption cannot reach the other's by accident.
 /// </para>
 /// </remarks>
 public static class SubmissionPdfWording
@@ -23,26 +29,24 @@ public static class SubmissionPdfWording
     {
         DocumentTitle = "CHURCH DEBIT CARD PURCHASE FORM",
         DocumentSubtitle = "For recording and substantiating every purchase made using a Church debit card",
-        Section1Caption = "1. CARDHOLDER AND TRANSACTION DETAILS",
+        Section1Caption = "1. CARDHOLDER DETAILS",
         SubmitterNameLabel = "Cardholder name",
         FormDateLabel = "Form date",
-        Section2Caption = "2. CHURCH PURPOSE AND AUTHORISATION",
-        PurposeActivityLabel = "Ministry / department",
-        PurposeNarrativePrompt = "What was purchased, who used or benefited from it, and how did it further "
-                                 + "the Church's charitable/religious purposes?",
-        Section3Caption = "3. PURCHASE AND EVIDENCE DETAILS",
+        Section2Caption = "2. AUTHORISATION",
+        Section3Caption = "3. EXPENSE DETAILS",
+        PurposePrompt = "How did the expenditure further the Church’s charitable/religious purposes?",
         GrossTotalLabel = "Total card transaction",
         LessPersonalLabel = "Less personal portion to be repaid immediately",
         NetTotalLabel = "NET AUTHORISED CHURCH EXPENSE",
-        Section4Caption = "4. SPECIAL PURCHASE DETAILS AND COMPLIANCE CHECKS",
+        Section4Caption = "4. COMPLIANCE QUESTIONS",
         ComplianceQuestions =
         [
-            "Parking, toll, fuel, taxi or other travel?",
-            "Meal, restaurant, catering, gift or hospitality?",
-            "Did a spouse, child, family member or private companion attend, travel, dine or benefit?",
-            "Expense incurred outside Australia or for an overseas activity?",
-            "Cardholder, supplier or recipient is a Responsible Person, senior manager, close family member, or related entity?",
-            "Actual, potential or perceived conflict of interest?"
+            new(0, "Parking, toll, fuel, taxi or other travel?"),
+            new(1, "Meal, restaurant, catering, gift or hospitality?"),
+            new(2, "Did a spouse, child, family member or private companion attend, travel, dine or benefit?"),
+            new(3, "Expense incurred outside Australia or for an overseas activity?"),
+            new(4, "Cardholder, supplier or recipient is a Responsible Person, senior manager, close family member, or related entity?"),
+            new(5, "Actual, potential or perceived conflict of interest?")
         ],
         DetailTableCaption = "Meals / hospitality / gifts / travel details",
         ComplianceDetailsCaption = "Conflict / related-party / personal repayment / overseas details",
@@ -50,7 +54,7 @@ public static class SubmissionPdfWording
             "I declare that the card charge was made for the stated Church purpose, the details are accurate, "
             + "and I have supplied all available evidence. I understand GST must not be claimed unless the "
             + "Church holds the evidence required by law.",
-        Section6Caption = "6. CARDHOLDER DECLARATION",
+        Section6Caption = "6. DECLARATIONS",
         Declarations =
         [
             "STRICTLY CHURCH EXPENSE: Every amount treated as a Church expense was incurred solely for an "
@@ -67,11 +71,7 @@ public static class SubmissionPdfWording
             "I have identified meal attendees, gift recipients and beneficiaries where applicable, and "
             + "disclosed any conflict of interest or related-party connection."
         ],
-        SignatureLabel = "Cardholder signature (confirming all declarations on page 2)",
-        Section8Caption = "8. FINANCE USE ONLY",
-        FinanceFields = ["Transaction reference", "Statement date", "Personal repayment"],
-        ApprovedAmountLabel = "Church expense approved",
-        ThirdDecisionLabel = "Repayment required",
+        SignatureLabel = "Cardholder signature (confirming all declarations above)",
         Footer = "Debit Card Purchase Form  |  Version 1.0 - August 2026  |  "
                  + "Retain with supporting records for at least 7 years"
     };
@@ -80,33 +80,34 @@ public static class SubmissionPdfWording
     {
         DocumentTitle = "EXPENSE REIMBURSEMENT FORM",
         DocumentSubtitle = "For expenses personally paid on behalf of Good Shepherd Baptist Church",
-        Section1Caption = "1. CLAIMANT AND PAYMENT DETAILS",
+        Section1Caption = "1. CLAIMANT DETAILS",
         SubmitterNameLabel = "Claimant name",
         FormDateLabel = "Claim date",
-        Section2Caption = "2. BUSINESS PURPOSE AND AUTHORISATION",
-        PurposeActivityLabel = "Purpose / activity",
-        PurposeNarrativePrompt = "How did the expenditure further the Church’s charitable/religious purposes?",
+        Section2Caption = "2. AUTHORISATION",
         Section3Caption = "3. EXPENSE DETAILS",
+        PurposePrompt = "How did the expenditure further the Church’s charitable/religious purposes?",
         GrossTotalLabel = "Subtotal of receipts",
         LessPersonalLabel = "Less personal / non-reimbursable portion",
         NetTotalLabel = "TOTAL REIMBURSEMENT CLAIMED",
-        Section4Caption = "4. SPECIAL CATEGORIES AND COMPLIANCE CHECKS",
+        Section4Caption = "4. COMPLIANCE QUESTIONS",
+        // Five, not six: the paper form's question 1 (motor vehicle travel) was removed at the accounts
+        // team's request. Numbered 1 to 5 as printed; the slots are the stored columns Q2 to Q6.
         ComplianceQuestions =
         [
-            "Motor vehicle travel claimed?",
-            "Entertainment, meals, gifts or hospitality?",
-            "Did a spouse, child, family member or other private companion benefit from or accompany the claimant?",
-            "Expense incurred outside Australia or for an overseas activity?",
-            "Claimant is a Responsible Person, senior manager, close family member, or related entity?",
-            "Actual, potential or perceived conflict of interest?"
+            new(1, "Entertainment, meals, gifts or hospitality?"),
+            new(2, "Did a spouse, child, family member or other private companion benefit from or accompany the claimant?"),
+            new(3, "Expense incurred outside Australia or for an overseas activity?"),
+            new(4, "Claimant is a Responsible Person, senior manager, close family member, or related entity?"),
+            new(5, "Actual, potential or perceived conflict of interest?")
         ],
-        DetailTableCaption = "Motor vehicle trip record",
+        // No detail table: the trip record it used to caption went with question 1.
+        DetailTableCaption = null,
         ComplianceDetailsCaption = "Conflict / related-party / overseas details",
         MissingReceiptDeclaration =
             "I declare that I paid this amount for the stated Church purpose, have not been and will not be "
             + "reimbursed from another source, and have supplied all available evidence. I understand GST "
             + "must not be claimed unless the Church holds the evidence required by law.",
-        Section6Caption = "6. CLAIMANT DECLARATION",
+        Section6Caption = "6. DECLARATIONS",
         Declarations =
         [
             "STRICTLY CHURCH EXPENSE: Every amount claimed was incurred and paid by me solely for an "
@@ -121,11 +122,7 @@ public static class SubmissionPdfWording
             "I have disclosed any actual, potential or perceived conflict of interest and any related-party "
             + "connection relevant to this claim."
         ],
-        SignatureLabel = "Claimant signature (confirming all declarations on page 2)",
-        Section8Caption = "8. FINANCE USE ONLY",
-        FinanceFields = ["Claim reference", "Payment date", "Payment reference"],
-        ApprovedAmountLabel = "Approved for",
-        ThirdDecisionLabel = "Returned for information",
+        SignatureLabel = "Claimant signature (confirming all declarations above)",
         Footer = "Expense Reimbursement Form  |  Version 1.0 - August 2026  |  "
                  + "Retain with supporting records for at least 7 years"
     };
@@ -139,27 +136,30 @@ public record PdfText
     public required string SubmitterNameLabel { get; init; }
     public required string FormDateLabel { get; init; }
     public required string Section2Caption { get; init; }
-    public required string PurposeActivityLabel { get; init; }
-    public required string PurposeNarrativePrompt { get; init; }
     public required string Section3Caption { get; init; }
 
-    // The three line-column headers that used to sit here are gone with the table they headed. Section 3
-    // is now one block per receipt, identically shaped on both forms - a receipt has a supplier and a
-    // date whichever way it was paid for - so there is nothing left in it to word per kind.
+    /// <summary>The question asked of every receipt, printed above each one's answer.</summary>
+    public required string PurposePrompt { get; init; }
+
     public required string GrossTotalLabel { get; init; }
     public required string LessPersonalLabel { get; init; }
     public required string NetTotalLabel { get; init; }
     public required string Section4Caption { get; init; }
-    public required IReadOnlyList<string> ComplianceQuestions { get; init; }
-    public required string DetailTableCaption { get; init; }
+
+    /// <summary>The questions this kind asks, in order, each naming the stored answer column it reads.</summary>
+    public required IReadOnlyList<PdfQuestion> ComplianceQuestions { get; init; }
+
+    /// <summary>Caption of section 4's attendee table, or null on the form that has none.</summary>
+    public required string? DetailTableCaption { get; init; }
+
     public required string ComplianceDetailsCaption { get; init; }
     public required string MissingReceiptDeclaration { get; init; }
     public required string Section6Caption { get; init; }
     public required IReadOnlyList<string> Declarations { get; init; }
     public required string SignatureLabel { get; init; }
-    public required string Section8Caption { get; init; }
-    public required IReadOnlyList<string> FinanceFields { get; init; }
-    public required string ApprovedAmountLabel { get; init; }
-    public required string ThirdDecisionLabel { get; init; }
     public required string Footer { get; init; }
 }
+
+/// <param name="Slot">Which stored answer this is, 0 to 5 for <c>ComplianceQ1</c> to <c>ComplianceQ6</c>.</param>
+/// <param name="Text">The question as printed.</param>
+public record PdfQuestion(int Slot, string Text);

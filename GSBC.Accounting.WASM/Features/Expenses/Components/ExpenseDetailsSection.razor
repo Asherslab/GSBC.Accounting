@@ -115,6 +115,7 @@
                    and a half-typed amount lands on the wrong purchase. *@
                 <ExpenseDetailCard @key="detail.Key"
                                    Detail="detail"
+                                   Text="Text"
                                    Index="index"
                                    Files="FilesFor(detail)"
                                    Invalid="Invalid"
@@ -196,19 +197,6 @@
             its own; if they ever disagree the server is right and this is the bug. They exist because a
             total that only updates after a round trip makes a form feel broken.
         *@
-
-        @if (Model.ChargeMismatch)
-        {
-            <div class="notice warn" style="margin-top:14px">
-                <span class="ico">&ne;</span>
-                <div>
-                    <b>The receipts do not match the card charge.</b> They total
-                    <span class="mono">@Model.GrossTotal.ToString("C2")</span> but the amount charged in
-                    section 1 is <span class="mono">@(Model.AmountCharged?.ToString("C2"))</span>. Attach
-                    the missing receipt or correct the charge before submitting.
-                </div>
-            </div>
-        }
     </div>
 </section>
 

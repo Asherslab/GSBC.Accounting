@@ -88,7 +88,6 @@ public class DraftPurgeService(
                 .Include(x => x.Details).ThenInclude(x => x.Items)
                 .Include(x => x.Attachments)
                 .Include(x => x.Attendees)
-                .Include(x => x.Trips)
                 .Include(x => x.MissingReceipt)
                 .AsSplitQuery()
                 // BOTH conditions matter. Status is what keeps submitted evidence out of this, and

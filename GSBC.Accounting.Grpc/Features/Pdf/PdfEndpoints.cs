@@ -56,7 +56,6 @@ public static class PdfEndpoints
                 .Include(x => x.Details).ThenInclude(x => x.Items)
                 .Include(x => x.Attachments)
                 .Include(x => x.Attendees)
-                .Include(x => x.Trips)
                 .Include(x => x.MissingReceipt)
                 .AsSplitQuery()
                 .FirstOrDefaultAsync(

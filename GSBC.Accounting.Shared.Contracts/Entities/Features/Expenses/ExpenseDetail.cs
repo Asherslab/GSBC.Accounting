@@ -49,7 +49,10 @@ public record ExpenseDetail : IIdentifiable
 
     public DateTime? PurchaseDate { get; init; }
 
-    /// <summary>What this purchase was for - the church purpose, in the claimant's words.</summary>
+    /// <summary>
+    /// The answer to "How did the expenditure further the Church’s charitable/religious purposes?",
+    /// asked of each receipt rather than once for the whole claim.
+    /// </summary>
     public string? Purpose { get; init; }
 
     /// <summary>

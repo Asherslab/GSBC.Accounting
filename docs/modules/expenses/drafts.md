@@ -32,8 +32,8 @@ cookie is its owner.
 
 So the old rule stands unchanged and matters more now that `HttpContext.User` is populated: **no
 approval step, no finance step, no audit trail naming somebody, and nothing else that needs to know who
-a person is may ever be hung off it** — sections 7 and 8 of both paper forms are completed by a human
-who is not the claimant, and that stays true. When real sign-in arrives it gets its own scheme and its
+a person is may ever be hung off it** — approval and payment are done by the accounts team, who are not
+the claimant, and that stays true. When real sign-in arrives it gets its own scheme and its
 own policy beside this one; it does not extend this one.
 
 The pages remain anonymous in the sense that matters: nobody signs in, anybody can start a form, and

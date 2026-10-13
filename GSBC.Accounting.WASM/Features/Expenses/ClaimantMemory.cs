@@ -1,5 +1,4 @@
 using System.Text.Json;
-using GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses;
 using Microsoft.JSInterop;
 
 namespace GSBC.Accounting.WASM.Features.Expenses;
@@ -8,9 +7,8 @@ namespace GSBC.Accounting.WASM.Features.Expenses;
 /// Who filled the last claim in on this browser, so a new form starts with section 1 already answered.
 /// </summary>
 /// <remarks>
-/// The same twenty or thirty people use this form repeatedly. Name, contact, role and ministry are
-/// identical every time and are four of the six required fields in section 1, so a routine morning-tea
-/// claim was fifteen fields where it could be six.
+/// The same twenty or thirty people use this form repeatedly. Name, contact and ministry are identical
+/// every time, so there is no reason to make anybody type them twice.
 /// <para>
 /// <b>In <c>localStorage</c>, deliberately, and it is the one thing in this app that belongs there.</b>
 /// The draft itself lives on the server owned by the session cookie - the comment in Program.cs about
@@ -48,10 +46,7 @@ public sealed class ClaimantMemory(IJSRuntime js)
         /// <summary>Only on the reimbursement form. The card form asks for card digits instead.</summary>
         public string? ContactPhoneEmail { get; init; }
 
-        public ClaimantRole? Role { get; init; }
-
-        public string? RoleOther { get; init; }
-
+        /// <summary>Only on the reimbursement form.</summary>
         public string? Ministry { get; init; }
 
         /// <summary>

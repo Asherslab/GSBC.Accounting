@@ -14,6 +14,10 @@
     The three fields between - supplier, date, purpose - are asked once per receipt rather than once per
     item, which is the whole reason a "detail" is a receipt and not a line: they are facts about the
     purchase, and there is exactly one purchase here.
+
+    The purpose is the question the paper forms asked once, in section 2, for the whole claim: "How did
+    the expenditure further the Church's charitable/religious purposes?". The accounts team asked for it
+    per receipt, because a claim gathering six receipts from six ministries has six different answers.
 *@
 
 <article class="detail">
@@ -95,22 +99,23 @@
         @* ---- 2. What and where ----------------------------------------------------------------- *@
 
         <div class="grid" style="margin-top:16px">
-            <div class="f c5">
+            <div class="f c8">
                 <label for="@($"sup-{Detail.Key}")">Supplier <span class="req">*</span></label>
                 <input type="text" id="@($"sup-{Detail.Key}")" placeholder="e.g. Bunnings Springwood"
                        aria-invalid="@Bad("sup")"
                        @bind="Detail.Supplier" @bind:event="oninput" @bind:after="Changed"/>
             </div>
-            <div class="f c3">
+            <div class="f c4">
                 <label for="@($"date-{Detail.Key}")">Date of purchase <span class="req">*</span></label>
                 <input type="date" id="@($"date-{Detail.Key}")" aria-invalid="@Bad("date")"
                        @bind="Detail.PurchaseDate" @bind:event="oninput" @bind:after="Changed"/>
             </div>
-            <div class="f c4">
-                <label for="@($"purp-{Detail.Key}")">Church purpose <span class="req">*</span></label>
-                <input type="text" id="@($"purp-{Detail.Key}")" placeholder="e.g. Friday night youth"
-                       aria-invalid="@Bad("purp")"
-                       @bind="Detail.Purpose" @bind:event="oninput"/>
+            <div class="f c12">
+                <label for="@($"purp-{Detail.Key}")">@Text.PurposePrompt <span class="req">*</span></label>
+                <textarea id="@($"purp-{Detail.Key}")" rows="2" aria-invalid="@Bad("purp")"
+                          placeholder="e.g. Snacks for Friday night youth group"
+                          @bind="Detail.Purpose" @bind:event="oninput"></textarea>
+                <span class="help">@Text.PurposeHint</span>
             </div>
         </div>
 
@@ -257,7 +262,7 @@
                 {
                     <p class="help">
                         Best effort is enough. Where the receipt has faded or an exact price cannot be
-                        recalled, enter the closest figure you can and note it in section 2. An
+                        recalled, enter the closest figure you can and say so in the answer above. An
                         invented line that makes the total reconcile is worse than an honest estimate.
                     </p>
                 }
@@ -346,6 +351,9 @@
 @code
 {
     [Parameter, EditorRequired] public required ExpenseDetailModel Detail { get; set; }
+
+    /// <summary>The chosen form's wording. Only the purpose question is read from it.</summary>
+    [Parameter, EditorRequired] public required ExpenseFormText Text { get; set; }
 
     /// <summary>Position in section 3, zero-based. Shown as the purchase number, which the PDF matches.</summary>
     [Parameter, EditorRequired] public required int Index { get; set; }

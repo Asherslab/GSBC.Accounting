@@ -87,8 +87,9 @@ instructions: clearing cookies, switching to a phone or using a private window l
 unedited draft is deleted after 90 days.
 
 **No approval queue and no finance screen.** A claimant can read their own unsubmitted drafts back, and
-nothing else can be read back. Sections 7 and 8 are captured in the model and rendered locked, so the
-work that fills them in is additive. A reviewer still needs `psql` or the PDF link, and somebody still
+nothing else can be read back. Approval and payment are the accounts team's, by email, and since
+2026-10-13 the form no longer carries the paper forms' sections 7 and 8 at all. A reviewer still needs
+`psql` or the PDF link, and somebody still
 has to hand them the submission id — that link deliberately keeps working for a **submitted** claim
 without a cookie, because it is the only review path there is.
 

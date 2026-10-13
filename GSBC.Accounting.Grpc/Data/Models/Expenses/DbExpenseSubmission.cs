@@ -41,9 +41,6 @@ public class DbExpenseSubmission
     // ---- Section 1, shared ----
     public string? SubmitterName { get; set; }
     public DateTimeOffset? FormDate { get; set; }
-    public ClaimantRole? Role { get; set; }
-    public string? RoleOther { get; set; }
-    public string? MinistryDepartment { get; set; }
 
     // ---- Section 1, debit card only ----
 
@@ -53,31 +50,22 @@ public class DbExpenseSubmission
     /// </summary>
     public string? CardLastFourDigits { get; set; }
 
-    public DateTimeOffset? TransactionDate { get; set; }
-    public string? TransactionTime { get; set; }
-    public string? SupplierMerchant { get; set; }
-    public decimal? AmountCharged { get; set; }
-    public string? BankReference { get; set; }
-
     // ---- Section 1, reimbursement only ----
     public string? ContactPhoneEmail { get; set; }
-    public DateTimeOffset? ExpensePeriodFrom { get; set; }
-    public DateTimeOffset? ExpensePeriodTo { get; set; }
+    public string? MinistryDepartment { get; set; }
     public PaymentMethod? PaymentMethod { get; set; }
     public string? PaymentMethodOther { get; set; }
 
     /// <summary>
-    /// The entire banking data model. No BSB, no account number - the paper form collects neither, and
-    /// adding one would be a new class of data at rest rather than an implementation detail.
+    /// The entire banking data model. No BSB, no account number - a claimant whose details are not on
+    /// file emails them to the accounts team, and adding a column for them would be a new class of data
+    /// at rest rather than an implementation detail.
     /// </summary>
     public bool? BankDetailsOnFile { get; set; }
 
-    // ---- Section 2 ----
-    public string? PurposeActivity { get; set; }
-    public string? EventProject { get; set; }
+    // ---- Section 2: authorisation ----
+    public bool? PriorApprovalGiven { get; set; }
     public string? PriorApprovalBy { get; set; }
-    public DateTimeOffset? ApprovalDate { get; set; }
-    public string? PurposeNarrative { get; set; }
 
     // ---- Section 3 totals, every one of them server-computed ----
     //
@@ -166,8 +154,6 @@ public class DbExpenseSubmission
     public List<DbExpenseAttachment> Attachments { get; set; } = [];
 
     public List<DbExpenseAttendee> Attendees { get; set; } = [];
-
-    public List<DbExpenseTrip> Trips { get; set; } = [];
 
     /// <summary>Section 5. At most one, enforced by a unique index on SubmissionId.</summary>
     public DbMissingReceiptDeclaration? MissingReceipt { get; set; }

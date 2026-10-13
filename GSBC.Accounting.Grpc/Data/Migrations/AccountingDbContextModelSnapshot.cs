@@ -211,18 +211,8 @@ namespace GSBC.Accounting.Grpc.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<decimal?>("AmountCharged")
-                        .HasPrecision(12, 2)
-                        .HasColumnType("numeric(12,2)");
-
-                    b.Property<DateTimeOffset?>("ApprovalDate")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<bool?>("BankDetailsOnFile")
                         .HasColumnType("boolean");
-
-                    b.Property<string>("BankReference")
-                        .HasColumnType("text");
 
                     b.Property<string>("CardLastFourDigits")
                         .HasMaxLength(4)
@@ -273,15 +263,6 @@ namespace GSBC.Accounting.Grpc.Data.Migrations
                     b.Property<bool>("Deleted")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("EventProject")
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset?>("ExpensePeriodFrom")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset?>("ExpensePeriodTo")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<DateTimeOffset?>("FormDate")
                         .HasColumnType("timestamp with time zone");
 
@@ -323,21 +304,12 @@ namespace GSBC.Accounting.Grpc.Data.Migrations
                     b.Property<string>("PriorApprovalBy")
                         .HasColumnType("text");
 
-                    b.Property<string>("PurposeActivity")
-                        .HasColumnType("text");
-
-                    b.Property<string>("PurposeNarrative")
-                        .HasColumnType("text");
+                    b.Property<bool?>("PriorApprovalGiven")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Reference")
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)");
-
-                    b.Property<string>("Role")
-                        .HasColumnType("text");
-
-                    b.Property<string>("RoleOther")
-                        .HasColumnType("text");
 
                     b.Property<string>("SignatureName")
                         .HasColumnType("text");
@@ -355,15 +327,6 @@ namespace GSBC.Accounting.Grpc.Data.Migrations
                     b.Property<string>("SubmitterName")
                         .HasColumnType("text");
 
-                    b.Property<string>("SupplierMerchant")
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset?>("TransactionDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("TransactionTime")
-                        .HasColumnType("text");
-
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -378,48 +341,6 @@ namespace GSBC.Accounting.Grpc.Data.Migrations
                     b.HasIndex("OwnerSessionId", "UpdatedAt");
 
                     b.ToTable("ExpenseSubmissions");
-                });
-
-            modelBuilder.Entity("GSBC.Accounting.Grpc.Data.Models.Expenses.DbExpenseTrip", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal?>("ApprovedRate")
-                        .HasPrecision(6, 3)
-                        .HasColumnType("numeric(6,3)");
-
-                    b.Property<decimal?>("BusinessKm")
-                        .HasPrecision(8, 1)
-                        .HasColumnType("numeric(8,1)");
-
-                    b.Property<DateTimeOffset?>("Date")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("Deleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("From")
-                        .HasColumnType("text");
-
-                    b.Property<int>("Ordinal")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Purpose")
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("SubmissionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("To")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SubmissionId", "Ordinal");
-
-                    b.ToTable("ExpenseTrips");
                 });
 
             modelBuilder.Entity("GSBC.Accounting.Grpc.Data.Models.Expenses.DbMissingReceiptDeclaration", b =>
@@ -535,17 +456,6 @@ namespace GSBC.Accounting.Grpc.Data.Migrations
                     b.Navigation("Detail");
                 });
 
-            modelBuilder.Entity("GSBC.Accounting.Grpc.Data.Models.Expenses.DbExpenseTrip", b =>
-                {
-                    b.HasOne("GSBC.Accounting.Grpc.Data.Models.Expenses.DbExpenseSubmission", "Submission")
-                        .WithMany("Trips")
-                        .HasForeignKey("SubmissionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Submission");
-                });
-
             modelBuilder.Entity("GSBC.Accounting.Grpc.Data.Models.Expenses.DbMissingReceiptDeclaration", b =>
                 {
                     b.HasOne("GSBC.Accounting.Grpc.Data.Models.Expenses.DbExpenseSubmission", "Submission")
@@ -571,8 +481,6 @@ namespace GSBC.Accounting.Grpc.Data.Migrations
                     b.Navigation("Details");
 
                     b.Navigation("MissingReceipt");
-
-                    b.Navigation("Trips");
                 });
 #pragma warning restore 612, 618
         }

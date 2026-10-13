@@ -28,16 +28,17 @@
 
 @*
     BOTH expense forms, on one page. Section 0 asks which one, and everything below it is that form's
-    own words: the two documents share all eight sections structurally and almost none of their wording,
-    so the structure is written once here and every string comes from ExpenseFormWording, keyed by kind.
+    own words: the two share sections 1 to 6 structurally and differ in their compliance questions and
+    declarations, so the structure is written once here and every string comes from ExpenseFormWording,
+    keyed by kind.
 
-    Sections 1 to 6 are fillable; 7 and 8 are rendered read-only and disabled, because an approver and
-    finance complete them after submission and neither is on this page.
+    The paper forms' sections 7 (independent approval) and 8 (finance use only) are not here at all. The
+    accounts team handles both by email, outside this app.
 
-    What this page must never do is share a string between the kinds to save an @if. Two of the six
-    compliance questions and one of the five declarations are word-for-word identical; the rest are not,
-    and a form that asks a subtly different question has recorded an answer to a question nobody asked.
-    See docs/modules/expenses/paper-form-fields.md, which was read out of the .docx files.
+    What this page must never do is share a question or declaration between the kinds to save an @if.
+    Two of the compliance questions and one of the five declarations are word-for-word identical; the
+    rest are not, and a form that asks a subtly different question has recorded an answer to a question
+    nobody asked. See docs/modules/expenses/paper-form-fields.md, which was read out of the .docx files.
 *@
 
 <div class="layout">
@@ -125,8 +126,8 @@
                     *@
                     <b>Submitted for approval.</b> Your claim reference is
                     <span class="refcode">@_reference</span>. Quote it in any correspondence about this
-                    claim. An independent approver completes section 7, and Finance completes
-                    section 8.
+                    claim. The accounts team handles approval and payment from here, and will contact
+                    you if anything further is needed.
                     <div class="help">
                         <a href="@PdfUrl" target="_blank" rel="noopener">Open the printable form (PDF)</a>
                         &mdash; this link works for anyone you send it to, which is how a reviewer reads
@@ -235,8 +236,8 @@
                             the details that only belong to the form you are leaving.
                         </p>
                         <p>
-                            Your name, ministry, section 2, every line in section 3 and every receipt you
-                            have attached all stay exactly as they are.
+                            Your name, section 2, every purchase in section 3 and every receipt you have
+                            attached all stay exactly as they are.
                         </p>
                         <p>
                             <button class="b" type="button" @onclick="ConfirmKindChange">
@@ -334,82 +335,17 @@
                             </div>
                         }
 
-                        <div class="f c12">
-                            <fieldset style="border:0;padding:0;margin:0">
-                                <legend class="lbl" style="padding:0">Role / relationship <span class="req">*</span></legend>
-                                <div class="chips">
-                                    @foreach (ClaimantRole role in Enum.GetValues<ClaimantRole>())
-                                    {
-                                        <label class="chip">
-                                            <input type="radio" name="role" checked="@(Model.Role == role)"
-                                                   @onchange="() => SetRole(role)"/>
-                                            @RoleLabel(role)
-                                        </label>
-                                    }
-                                </div>
-                            </fieldset>
-                        </div>
-
-                        @if (Model.Role == ClaimantRole.Other)
+                        @*
+                            The reimbursement form's remaining fields. The debit card form asks nothing
+                            more in this section: its role, ministry, transaction date and time, supplier,
+                            amount charged and bank reference were all removed at the accounts team's
+                            request, and the receipts in section 3 carry the supplier and date anyway.
+                        *@
+                        @if (Model.Kind == SubmissionKind.ExpenseReimbursement)
                         {
                             <div class="f c4">
-                                <label for="roleother">Other &mdash; please say what</label>
-                                <input type="text" id="roleother" @bind="Model.RoleOther" @bind:event="oninput"/>
-                            </div>
-                        }
-
-                        <div class="f c4">
-                            <label for="ministry">Ministry / department <span class="req">*</span></label>
-                            <input type="text" id="ministry" @bind="Model.MinistryDepartment" @bind:event="oninput"/>
-                        </div>
-
-                        @if (Model.Kind == SubmissionKind.DebitCardPurchase)
-                        {
-                            <div class="f c4">
-                                <label for="txdate">Transaction date <span class="req">*</span></label>
-                                <input type="date" id="txdate" @bind="Model.TransactionDate" @bind:event="oninput"/>
-                            </div>
-                            <div class="f c4">
-                                <label for="txtime">Time</label>
-                                <input type="time" id="txtime" @bind="Model.TransactionTime" @bind:event="oninput"/>
-                            </div>
-
-                            <div class="f c5">
-                                <label for="supplier">Supplier / merchant <span class="req">*</span></label>
-                                <input type="text" id="supplier" @bind="Model.SupplierMerchant" @bind:event="oninput"/>
-                            </div>
-                            <div class="f c3">
-                                <label for="charged">Amount charged <span class="req">*</span></label>
-                                <div class="money">
-                                    @* inputmode=decimal, not the browser's own type=number keyboard: iOS
-                                       puts up numbers-and-punctuation for the latter, and a numeric pad
-                                       for this. *@
-                                    <input type="number" inputmode="decimal" step="0.01" min="0" id="charged"
-                                           aria-invalid="@Invalid("charged")"
-                                           @bind="Model.AmountCharged" @bind:event="oninput" @bind:after="Touched"/>
-                                </div>
-                            </div>
-                            <div class="f c4">
-                                <label for="bankref">Bank reference</label>
-                                <input type="text" id="bankref" class="mono" placeholder="e.g. EFTPOS 27/08"
-                                       @bind="Model.BankReference" @bind:event="oninput"/>
-                            </div>
-                        }
-                        else
-                        {
-                            @* One reimbursement claim can gather up weeks of receipts, so the period is
-                               the span the receipts cover rather than a single transaction date - which
-                               is the thing the label alone never managed to say. The debit card form has
-                               no equivalent: it is one purchase on one day. *@
-                            <div class="f c4">
-                                <label for="periodfrom">Expense period &mdash; from <span class="req">*</span></label>
-                                <input type="date" id="periodfrom" @bind="Model.ExpensePeriodFrom" @bind:event="oninput"/>
-                                <span class="help">Date of your earliest receipt.</span>
-                            </div>
-                            <div class="f c4">
-                                <label for="periodto">Expense period &mdash; to <span class="req">*</span></label>
-                                <input type="date" id="periodto" @bind="Model.ExpensePeriodTo" @bind:event="oninput"/>
-                                <span class="help">Date of your latest. For a single receipt, use its date in both.</span>
+                                <label for="ministry">Ministry / department <span class="req">*</span></label>
+                                <input type="text" id="ministry" @bind="Model.MinistryDepartment" @bind:event="oninput"/>
                             </div>
 
                             <div class="f c4">
@@ -442,21 +378,31 @@
                                 <div class="yn">
                                     <label>
                                         <input type="radio" name="bankonfile" checked="@(Model.BankDetailsOnFile == false)"
-                                               @onchange="() => SetBankDetails(false)"/>No &ndash; provide securely
+                                               @onchange="() => SetBankDetails(false)"/>No
                                     </label>
                                     <label>
                                         <input type="radio" name="bankonfile" checked="@(Model.BankDetailsOnFile == true)"
                                                @onchange="() => SetBankDetails(true)"/>Yes
                                     </label>
                                 </div>
+                                @if (Model.BankDetailsOnFile == false)
+                                {
+                                    @* A link as well as the notice below, because this is the moment the
+                                       claimant learns they have something to send - and on a phone a
+                                       tap that opens the mail app is the whole instruction. *@
+                                    <span class="help">
+                                        Email your bank details to
+                                        <a href="mailto:@AccountsEmail">@AccountsEmail</a>.
+                                    </span>
+                                }
                             </div>
                         }
                     </div>
 
                     @*
-                        Reproduced from the paper forms, and a different warning on each. The
-                        reimbursement one is also why this page asks for no BSB and no account number:
-                        the form deliberately collects neither, and neither does this app.
+                        A different warning on each form. The reimbursement one is also why this page
+                        asks for no BSB and no account number: a claimant whose details are not on file
+                        sends them to the accounts team by email, and this app holds neither.
                     *@
                     <div class="notice" style="margin-top:16px">
                         <span class="ico">!</span>
@@ -468,48 +414,40 @@
             </section>
 
             <!-- 2 -->
+            @*
+                Two questions, and optional on both forms - the accounts team follow approval up
+                themselves. The purpose question that used to sit here is asked of each receipt in
+                section 3 instead.
+            *@
             <section class="card" id="s2">
                 <header>
                     <span class="num">02</span>
                     <h3>@Text.Section2Caption</h3>
+                    <span class="hint">Optional</span>
                 </header>
                 <div class="body">
                     <div class="grid">
-                        @*
-                            One field, one column, a per-kind label - "Ministry / department" on the card
-                            form and "Purpose / activity" on the reimbursement one. It reads oddly beside
-                            section 1's field of the same name on a card form, but that is what the paper
-                            prints, and paper-form-fields.md is the authority.
-
-                            Until the two pages were merged the card form had no such field at all, so
-                            PurposeActivity was null on every card submission - a blank row in the PDF and
-                            a missing subtitle in the drafts list.
-                        *@
-                        <div class="f c6">
-                            <label for="activity">@Text.PurposeActivityLabel <span class="req">*</span></label>
-                            <input type="text" id="activity" @bind="Model.PurposeActivity" @bind:event="oninput"/>
-                        </div>
-                        <div class="f c6">
-                            <label for="event">Event / project</label>
-                            <input type="text" id="event" @bind="Model.EventProject" @bind:event="oninput"/>
-                        </div>
                         <div class="f c4">
-                            <label for="approvedby">Prior approval by</label>
-                            <input type="text" id="approvedby" @bind="Model.PriorApprovalBy" @bind:event="oninput"/>
+                            <span class="lbl">Has this expense been approved?</span>
+                            <div class="yn">
+                                <label>
+                                    <input type="radio" name="approved" checked="@(Model.PriorApprovalGiven == false)"
+                                           @onchange="() => SetApproved(false)"/>No
+                                </label>
+                                <label>
+                                    <input type="radio" name="approved" checked="@(Model.PriorApprovalGiven == true)"
+                                           @onchange="() => SetApproved(true)"/>Yes
+                                </label>
+                            </div>
                         </div>
-                        <div class="f c4">
-                            <label for="approvaldate">Approval date</label>
-                            <input type="date" id="approvaldate" @bind="Model.ApprovalDate" @bind:event="oninput"/>
-                        </div>
-                        <div class="f c12">
-                            <label for="purpose">@Text.PurposeNarrativePrompt <span class="req">*</span></label>
-                            <textarea id="purpose" rows="4" aria-invalid="@Invalid("purpose")"
-                                      @bind="Model.PurposeNarrative" @bind:event="oninput"></textarea>
-                            @if (Text.PurposeNarrativeHint is { } hint)
-                            {
-                                <span class="help">@hint</span>
-                            }
-                        </div>
+                        @if (Model.PriorApprovalGiven == true)
+                        {
+                            <div class="f c8">
+                                <label for="approvedby">Who approved it? <span class="req">*</span></label>
+                                <input type="text" id="approvedby" aria-invalid="@Invalid("approvedby")"
+                                       @bind="Model.PriorApprovalBy" @bind:event="oninput"/>
+                            </div>
+                        }
                     </div>
                 </div>
             </section>
@@ -529,8 +467,6 @@
 
             <DeclarationsSection Model="Model" Text="Text" Attachments="_attachments"
                                  Invalid="InvalidFields" OnChanged="Touched"/>
-
-            <ApprovalSections Kind="Model.Kind.Value"/>
 
             <p class="footnote">@Text.Footnote</p>
         }
@@ -571,25 +507,14 @@
 {
 <div class="actionbar">
     <div class="sum">
-        @if (Model.Kind == SubmissionKind.DebitCardPurchase)
-        {
-            @* The card form's total is stated twice - once by the bank, once by the claimant's
-               itemisation - and the two have to agree. Nothing external states the reimbursement
-               form's total, so it shows its own subtotal instead. *@
-            <div><span class="k">Card charge</span><span class="v">@(Model.AmountCharged?.ToString("C2") ?? "$0.00")</span></div>
-        }
-        else
-        {
-            <div><span class="k">@Text.GrossTotalLabel</span><span class="v">@Model.GrossTotal.ToString("C2")</span></div>
-        }
+        <div><span class="k">@Text.GrossTotalLabel</span><span class="v">@Model.GrossTotal.ToString("C2")</span></div>
         <div><span class="k">@Text.NetTotalLabel</span><span class="v">@Model.NetTotal.ToString("C2")</span></div>
         <div><span class="k">Purchases</span><span class="v">@Model.Details.Count</span></div>
         <div><span class="k">Files</span><span class="v">@_attachments.Count</span></div>
         @*
             HOW MUCH OF THE FORM IS DONE, counted off the same rail entries that draw the dots, so the
-            figure and the dots cannot disagree. Sections nobody on this page can complete - 7 and 8,
-            and 5 until it applies - are out of both halves of the fraction: "4 of 8" that can never
-            reach 8 is a progress figure that lies.
+            figure and the dots cannot disagree. Section 5 until it applies is out of both halves of the
+            fraction: "4 of 7" that can never reach 7 is a progress figure that lies.
 
             In the summary strip because that strip already scrolls and already has its fade, so it is
             the natural home on a phone - where the stepper this duplicates is off screen for most of
@@ -599,10 +524,6 @@
         <div><span class="k">Sections done</span><span class="v">@SectionsComplete of @SectionsToComplete</span></div>
     </div>
     <div class="spacer"></div>
-    @if (Model.ChargeMismatch)
-    {
-        <span class="badge warn">Receipts do not match the card charge</span>
-    }
 @*
     Development builds only.
 
@@ -778,37 +699,34 @@
             rail.AddRange(
             [
                 new("1", Text.Section1Caption, "s1", Complete: !string.IsNullOrWhiteSpace(Model.SubmitterName)),
-                new("2", Text.Section2Caption, "s2", Complete: !string.IsNullOrWhiteSpace(Model.PurposeNarrative)),
+                // Optional, so done unless it is half-answered: a Yes with nobody named is the one
+                // state Submit refuses here.
+                new("2", Text.Section2Caption, "s2",
+                    Complete: Model.PriorApprovalGiven != true || !string.IsNullOrWhiteSpace(Model.PriorApprovalBy)),
                 // One rail entry, where there were two. Section 3 and "Attachments" were separate cards
                 // until the receipts became what section 3 is made of; a rail link to a card that no
                 // longer exists is a dead link.
                 new("3", Text.Section3Caption, "s3",
                     Complete: Model.Details.Count > 0
                               && Model.Details.All(x => x.Answered && x.TotalIncGst > 0)),
-                new("4", Text.Section4Caption, "s4", Complete: Model.Compliance.All(x => x is not null))
+                new("4", Text.Section4Caption, "s4",
+                    Complete: Text.ComplianceQuestions.All(x => Model.Compliance[x.Slot] is not null))
             ]);
 
             // ALWAYS LISTED, and pending until it applies. The card itself still appears only when a
             // purchase has nothing from the supplier behind it - the paper form's rule is "complete
             // only when evidence is unavailable" - but leaving the entry out made the rail read
-            // 0, 1, 2, 3, 4, 6, 7, 8, and SectionRail's own comment says a rail that skips a number
-            // reads as a bug. Greyed and unlinked is what that comment describes; the numbers are the
-            // paper form's, and this is what says so on screen.
+            // 0, 1, 2, 3, 4, 6, and SectionRail's own comment says a rail that skips a number reads as a
+            // bug. Greyed and unlinked is what that comment describes.
             bool missingApplies = Model.HasMissingEvidence(_attachments);
 
             rail.Add(new SectionRail.RailSection(
-                "5", "Missing receipt", "s5",
+                "5", "Missing receipt declaration", "s5",
                 Complete: missingApplies && Model.MissingDeclared,
                 Pending: !missingApplies));
 
-            rail.AddRange(
-            [
-                new("6", Text.Section6Caption, "s6", Complete: Model.Declarations.All(x => x)),
-                // Pending forever, as far as this scope is concerned: an approver and finance fill these
-                // in, and neither is on this page.
-                new("7", "Independent approval", "s7", Complete: false, Pending: true),
-                new("8", "Finance use only", "s8", Complete: false, Pending: true)
-            ]);
+            rail.Add(new SectionRail.RailSection(
+                "6", Text.Section6Caption, "s6", Complete: Model.Declarations.All(x => x)));
 
             return rail;
         }
@@ -842,8 +760,6 @@
             {
                 Model.SubmitterName = remembered.Name;
                 Model.ContactPhoneEmail = remembered.ContactPhoneEmail;
-                Model.Role = remembered.Role;
-                Model.RoleOther = remembered.RoleOther;
                 Model.MinistryDepartment = remembered.Ministry;
 
                 _prefilled = true;
@@ -1075,33 +991,29 @@
 #endif
     }
 
-    private void SetRole(ClaimantRole role)
-    {
-        Model.Role = role;
-
-        // Dropping the free text when the role moves away from Other, so a stale "Other" answer cannot
-        // ride along on a submission that no longer says Other.
-        if (role != ClaimantRole.Other)
-            Model.RoleOther = null;
-    }
+    /// <summary>Where a claimant whose bank details are not on file sends them.</summary>
+    private const string AccountsEmail = "accounts@baptist.com.au";
 
     private void SetPaymentMethod(PaymentMethod method)
     {
         Model.PaymentMethod = method;
 
-        // Same rule as SetRole: a stale answer must not ride along on a submission that no longer
-        // says Other.
+        // Dropping the free text when the method moves away from Other, so a stale "Other" answer cannot
+        // ride along on a submission that no longer says Other.
         if (method != PaymentMethod.Other)
             Model.PaymentMethodOther = null;
     }
 
     private void SetBankDetails(bool onFile) => Model.BankDetailsOnFile = onFile;
 
-    private static string RoleLabel(ClaimantRole role) => role switch
+    private void SetApproved(bool approved)
     {
-        ClaimantRole.ResponsiblePerson => "Responsible Person",
-        _ => role.ToString()
-    };
+        Model.PriorApprovalGiven = approved;
+
+        // Same rule: a name left over from a Yes must not ride along on a No.
+        if (!approved)
+            Model.PriorApprovalBy = null;
+    }
 
     /// <summary>Re-renders for the running totals, and starts the autosave clock.</summary>
     private Task Touched()
@@ -1266,8 +1178,6 @@
                 {
                     Name = Model.SubmitterName,
                     ContactPhoneEmail = Model.ContactPhoneEmail,
-                    Role = Model.Role,
-                    RoleOther = Model.RoleOther,
                     Ministry = Model.MinistryDepartment
                 });
             }

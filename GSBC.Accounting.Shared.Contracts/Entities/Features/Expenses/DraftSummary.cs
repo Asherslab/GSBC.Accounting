@@ -5,7 +5,7 @@ namespace GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses;
 /// </summary>
 /// <remarks>
 /// <b>Deliberately not the whole aggregate.</b> The list page renders every draft a session owns, and
-/// sending each one's lines, attendees, trips and declarations to draw six fields would move a great
+/// sending each one's receipts, attendees and declarations to draw six fields would move a great
 /// deal of a claimant's personal data across the wire for no reader. The full form arrives only when
 /// somebody actually opens one, through <c>Get</c>.
 /// <para>
@@ -35,9 +35,6 @@ public record DraftSummary
     /// draft" rather than showing a blank - a row with no label reads as a broken list.
     /// </summary>
     public string? SubmitterName { get; init; }
-
-    /// <summary>Section 2's purpose, used as the second line so two drafts of a kind are tellable apart.</summary>
-    public string? PurposeActivity { get; init; }
 
     /// <summary>
     /// The supplier on the first purchase in section 3, which is what the list names a draft by.

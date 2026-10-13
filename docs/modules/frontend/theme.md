@@ -96,8 +96,7 @@ container and predates the breadcrumb; it is unchanged with the crumb removed.
 Two attributes that are only about a phone, and both are markup rather than CSS:
 
 - **`inputmode="decimal"` on every enabled `type="number"`.** iOS puts up the numbers-and-punctuation
-  keyboard for `type=number` and a clean numeric pad for this. The two disabled fields in
-  `ApprovalSections` are left alone — they never take a keyboard.
+  keyboard for `type=number` and a clean numeric pad for this.
 - **`autocomplete` only on the fields that are genuinely about the person** — `name` on both forms'
   claimant, `tel` on the reimbursement form's phone/email. Ministry, supplier and event are not
   autofillable and must not claim to be. **Nothing carries a card token.** The only card field on the

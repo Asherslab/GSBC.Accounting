@@ -66,7 +66,7 @@ public static class ErrorConstants
         $"Section 3, purchase {purchase}: a date of purchase is required.";
 
     public static string DetailNeedsAPurpose(int purchase) =>
-        $"Section 3, purchase {purchase}: a Church purpose is required.";
+        $"Section 3, purchase {purchase}: explain how the expenditure furthered the Church’s purposes.";
 
     public static string DetailNeedsATotal(int purchase) =>
         $"Section 3, purchase {purchase}: a receipt total is required.";
@@ -99,8 +99,8 @@ public static class ErrorConstants
     public const string NeedsASubmitterName =
         "Section 1: enter the claimant's name.";
 
-    public const string NeedsAPurposeNarrative =
-        "Section 2: an explanation of the Church purpose is required.";
+    public const string ApprovalNeedsAnApprover =
+        "Section 2: you answered that this was approved. Enter who approved it.";
 
     public const string MissingEvidenceNeedsADeclaration =
         "Section 5: a purchase has no supplier receipt, so the missing receipt declaration must be "
@@ -117,7 +117,4 @@ public static class ErrorConstants
 
     public const string DebitCardNeedsCardLastFour =
         "Section 1: enter the last four digits of the card.";
-
-    public const string DebitCardNeedsAmountCharged =
-        "Section 1: enter the amount the card was charged.";
 }

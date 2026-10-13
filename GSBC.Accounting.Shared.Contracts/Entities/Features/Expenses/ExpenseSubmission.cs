@@ -5,15 +5,14 @@ namespace GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses;
 /// one type with a <see cref="SubmissionKind"/> discriminator, not as two parallel aggregates.
 /// </summary>
 /// <remarks>
-/// The two forms share all eight sections, the seven-column line table, the six compliance questions
-/// and the five declarations <b>structurally</b>. They differ in 19 header fields, which are the
-/// nullable properties grouped below, and they differ in almost all of their <b>wording</b>.
+/// The two forms share sections 0 to 6, the per-receipt section 3, the compliance questions and the
+/// five declarations <b>structurally</b>. They differ in a handful of section 1 fields, grouped below,
+/// and in most of the <b>wording</b> of sections 4, 5 and 6.
 /// <para>
-/// <b>Never share the printed text between the two kinds.</b> Only two of the six compliance questions
-/// and one of the five declarations are word-for-word identical; sections 2, 3 and 5 differ too. The
-/// answers live in shared columns here, but every question, declaration and label is a per-kind string
-/// in the UI and the PDF. On a compliance document, a form that does not say what the paper form says
-/// is the failure that matters.
+/// <b>Never share a question or declaration's text between the two kinds.</b> The answers live in
+/// shared columns here, but every question and declaration is a per-kind string in the UI and the PDF,
+/// because a tick recorded against wording the claimant was never shown is the failure that matters on
+/// a compliance document.
 /// </para>
 /// <para>
 /// This is not a ledger entry and must not pretend to be one. The finance destination is Xero; this
@@ -45,14 +44,6 @@ public record ExpenseSubmission : IIdentifiable
     /// <summary>`Form date` on the debit card form, `Claim date` on the reimbursement form.</summary>
     public DateTime? FormDate { get; init; }
 
-    public ClaimantRole? Role { get; init; }
-
-    /// <summary>The free text after `☐ Other:` on the role checkboxes.</summary>
-    public string? RoleOther { get; init; }
-
-    /// <summary>Section 1 `Ministry / department`, printed on both forms.</summary>
-    public string? MinistryDepartment { get; init; }
-
     // ---- Section 1, debit card only ---------------------------------------------------------------
 
     /// <summary>
@@ -63,31 +54,12 @@ public record ExpenseSubmission : IIdentifiable
     /// </summary>
     public string? CardLastFourDigits { get; init; }
 
-    public DateTime? TransactionDate { get; init; }
-
-    /// <summary>Printed as `Time: ________` - free text on the paper form, not a picker.</summary>
-    public string? TransactionTime { get; init; }
-
-    public string? SupplierMerchant { get; init; }
-
-    /// <summary>
-    /// What the card was actually charged, as stated by the claimant. Distinct from
-    /// <see cref="GrossTotal"/>, which is the sum of the lines - reconciling the two is the point of
-    /// the debit card form. The reimbursement form has no equivalent, because nothing external states
-    /// its total.
-    /// </summary>
-    public decimal? AmountCharged { get; init; }
-
-    /// <summary>Printed as `Ref: __________________` beside the amount charged.</summary>
-    public string? BankReference { get; init; }
-
     // ---- Section 1, reimbursement only -------------------------------------------------------------
 
     public string? ContactPhoneEmail { get; init; }
 
-    public DateTime? ExpensePeriodFrom { get; init; }
-
-    public DateTime? ExpensePeriodTo { get; init; }
+    /// <summary>`Ministry / department`. Reimbursement form only - the debit card form does not ask.</summary>
+    public string? MinistryDepartment { get; init; }
 
     public PaymentMethod? PaymentMethod { get; init; }
 
@@ -95,33 +67,20 @@ public record ExpenseSubmission : IIdentifiable
     public string? PaymentMethodOther { get; init; }
 
     /// <summary>
-    /// `☐ Yes   ☐ No - provide securely`. This is the whole of the banking data model: the form
-    /// deliberately collects no BSB and no account number, and neither does this app. A "No" is handled
-    /// off-channel, per the form's own instruction ("Do not email bank details in an unsecured message.
-    /// Use the church-approved secure method."). Adding an account-number field would be a new decision
-    /// and a new class of data at rest, not an implementation detail.
+    /// This is the whole of the banking data model: the app collects no BSB and no account number. A
+    /// "No" is handled off-channel - the page tells the claimant to email their details to the accounts
+    /// team. Adding an account-number field would be a new decision and a new class of data at rest, not
+    /// an implementation detail.
     /// </summary>
     public bool? BankDetailsOnFile { get; init; }
 
-    // ---- Section 2 ----------------------------------------------------------------------------------
+    // ---- Section 2: authorisation, optional on both forms -----------------------------------------------
 
-    /// <summary>
-    /// Section 2 slot 1: `Ministry / department` on the debit card form (which repeats section 1's
-    /// answer), `Purpose / activity` on the reimbursement form.
-    /// </summary>
-    public string? PurposeActivity { get; init; }
+    /// <summary>`Has this expense been approved?` Null is unanswered, not No.</summary>
+    public bool? PriorApprovalGiven { get; init; }
 
-    public string? EventProject { get; init; }
-
+    /// <summary>`Who approved it?` Only meaningful when <see cref="PriorApprovalGiven"/> is true.</summary>
     public string? PriorApprovalBy { get; init; }
-
-    public DateTime? ApprovalDate { get; init; }
-
-    /// <summary>
-    /// The written answer to section 2's narrative prompt. The prompt itself differs per kind and is
-    /// three questions in one box on the debit card form.
-    /// </summary>
-    public string? PurposeNarrative { get; init; }
 
     // ---- Section 3 totals ----------------------------------------------------------------------------
 
@@ -157,7 +116,11 @@ public record ExpenseSubmission : IIdentifiable
        enforces the rules the questions recite.
 
        The ANSWERS are shared columns. The QUESTIONS are not: only Q4 and Q6 are word-for-word identical
-       between the two forms, and Q1 is a materially different question. See ExpenseFormWording.
+       between the two forms. See ExpenseFormWording.
+
+       ComplianceQ1 is DEBIT CARD ONLY. The reimbursement form's question 1 (motor vehicle travel) was
+       removed at the accounts team's request, so on a reimbursement it is always null and the form
+       asks five questions, numbered 1 to 5 on screen but stored in Q2 to Q6.
     */
     public bool? ComplianceQ1 { get; init; }
     public bool? ComplianceQ2 { get; init; }
@@ -189,7 +152,7 @@ public record ExpenseSubmission : IIdentifiable
 
     /// <summary>
     /// The typed signature. Not a signature in any legal sense - it is a name the claimant typed beside
-    /// the five declarations, and section 7's approval is what carries authority.
+    /// the five declarations. Approval is the accounts team's, and happens outside this app.
     /// </summary>
     public string? SignatureName { get; init; }
 
@@ -218,9 +181,6 @@ public record ExpenseSubmission : IIdentifiable
 
     /// <summary>Section 4's meals/hospitality table. Debit card form only.</summary>
     public List<ExpenseAttendee> Attendees { get; init; } = [];
-
-    /// <summary>Section 4's motor vehicle trip record. Reimbursement form only.</summary>
-    public List<ExpenseTrip> Trips { get; init; } = [];
 
     /// <summary>
     /// The uploaded evidence.
@@ -258,21 +218,6 @@ public enum SubmissionStatus
     Approved,
     Declined,
     Paid
-}
-
-/// <summary>
-/// `Role / relationship`, six checkboxes, printed identically on both forms. Nullable rather than
-/// carrying an `Unknown` member: an `Unknown` reads as a value, and a value is something that ends up
-/// written down as though a human had chosen it.
-/// </summary>
-[ProtoContract]
-public enum ClaimantRole
-{
-    Employee,
-    Volunteer,
-    Pastor,
-    ResponsiblePerson,
-    Other
 }
 
 /// <summary>`☐ EFT   ☐ Other:`, reimbursement form only.</summary>

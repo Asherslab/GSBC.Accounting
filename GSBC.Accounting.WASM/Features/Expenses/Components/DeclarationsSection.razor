@@ -82,7 +82,7 @@
             <div class="f">
                 <label for="signature">@Text.SignatureLabel</label>
                 @* Typed, and not a signature in any legal sense - it is a name somebody typed beside the
-                   declarations above. Section 7's independent approval is what carries authority. *@
+                   declarations above. Approval is the accounts team's, outside this app. *@
                 <input type="text" id="signature" class="typed"
                        aria-invalid="@(Invalid.Contains("signature") ? "true" : null)"
                        @bind="Model.SignatureName" @bind:event="oninput" @bind:after="Changed"/>

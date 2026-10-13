@@ -1,4 +1,3 @@
-using System.Globalization;
 using GSBC.Accounting.Grpc.Data.Models.Expenses;
 using GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses;
 using GSBC.Accounting.Shared.Contracts.Messages.Requests.Features.Expenses;
@@ -93,7 +92,7 @@ public partial class ExpenseSubmissionService
         (decimal gross, decimal gst, decimal lessPersonal) = ExpenseTotals.SumDetails(details);
         decimal net = ExpenseTotals.Net(gross, lessPersonal);
 
-        List<SubmissionProblem> problems = ValidateForSubmit(submission, details, gross);
+        List<SubmissionProblem> problems = ValidateForSubmit(submission, details);
 
         if (problems.Count > 0)
             return SubmitExpenseSubmissionResponse.WithProblems(problems);
@@ -230,8 +229,7 @@ public partial class ExpenseSubmissionService
     /// </remarks>
     private static List<SubmissionProblem> ValidateForSubmit(
         DbExpenseSubmission submission,
-        IReadOnlyList<ExpenseDetail> details,
-        decimal gross
+        IReadOnlyList<ExpenseDetail> details
     )
     {
         List<SubmissionProblem> errors = [];
@@ -239,8 +237,11 @@ public partial class ExpenseSubmissionService
         if (string.IsNullOrWhiteSpace(submission.SubmitterName))
             errors.Add(new SubmissionProblem(NeedsASubmitterName, "s1", "submitter"));
 
-        if (string.IsNullOrWhiteSpace(submission.PurposeNarrative))
-            errors.Add(new SubmissionProblem(NeedsAPurposeNarrative, "s2", "purpose"));
+        // Section 2 is optional on both forms - the accounts team chase approval themselves - so the
+        // only thing refused there is a Yes with nobody named, which records an approval without saying
+        // whose it was.
+        if (submission.PriorApprovalGiven == true && string.IsNullOrWhiteSpace(submission.PriorApprovalBy))
+            errors.Add(new SubmissionProblem(ApprovalNeedsAnApprover, "s2", "approvedby"));
 
         // Section 3 has to say what was bought. A draft is allowed to have no details at all - somebody
         // fills section 1 in first - so this is asked once, here, and never while they are typing.
@@ -328,15 +329,17 @@ public partial class ExpenseSubmissionService
         if (hasUnreceiptedPurchase && submission.MissingReceipt is not { Declared: true })
             errors.Add(new SubmissionProblem(MissingEvidenceNeedsADeclaration, "s5"));
 
-        // null is unanswered, and unanswered is not No.
+        // null is unanswered, and unanswered is not No. Question 1 only exists on the debit card form -
+        // a reimbursement is never asked it, so its null there is not a gap.
         bool[] answered =
         [
-            submission.ComplianceQ1 is not null, submission.ComplianceQ2 is not null,
-            submission.ComplianceQ3 is not null, submission.ComplianceQ4 is not null,
-            submission.ComplianceQ5 is not null, submission.ComplianceQ6 is not null
+            submission.Kind != SubmissionKind.DebitCardPurchase || submission.ComplianceQ1 is not null,
+            submission.ComplianceQ2 is not null, submission.ComplianceQ3 is not null,
+            submission.ComplianceQ4 is not null, submission.ComplianceQ5 is not null,
+            submission.ComplianceQ6 is not null
         ];
 
-        // No field id: six questions are unanswered as a group, and pointing at the first of them would
+        // No field id: the questions are unanswered as a group, and pointing at the first of them would
         // be pointing at a question that may well be answered.
         if (answered.Any(x => !x))
             errors.Add(new SubmissionProblem(ComplianceQuestionsUnanswered, "s4"));
@@ -366,31 +369,9 @@ public partial class ExpenseSubmissionService
                 errors.Add(new SubmissionProblem(CardLastFourDigitsMustBeFourDigits, "s1", "card4"));
             }
 
-            if (submission.AmountCharged is null)
-            {
-                errors.Add(new SubmissionProblem(DebitCardNeedsAmountCharged, "s1", "charged"));
-            }
-            else
-            {
-                decimal charged = ExpenseTotals.Money(submission.AmountCharged.Value);
-
-                // THE RECONCILIATION. Both figures are named, because "the totals do not match" sends
-                // somebody hunting through a table for a number the server already knows.
-                //
-                // Only the debit card form has this: it is the one whose total is stated twice, once by
-                // the bank and once by the claimant's own itemisation. The reimbursement form has
-                // nothing external to reconcile against.
-                if (charged != gross)
-                {
-                    // Anchored at section 1 and pointing at no field: it is about two figures in two
-                    // different sections, and either of them may be the one that is wrong.
-                    errors.Add(new SubmissionProblem(
-                        $"Section 1: the card was charged {Money(charged)}, but the receipts in "
-                        + $"section 3 total {Money(gross)}. Attach the missing receipt, or correct "
-                        + "the amount charged.",
-                        "s1"));
-                }
-            }
+            // There is no reconciliation against an amount charged any more. The form stopped asking
+            // what the card was charged, at the accounts team's request, so there is nothing on it to
+            // reconcile the receipts against.
         }
 
         return errors.Distinct().ToList();
@@ -408,12 +389,4 @@ public partial class ExpenseSubmissionService
     /// </remarks>
     private static SubmissionProblem Detail(string message, ExpenseDetail detail, string? field = null) =>
         new(message, "s3", field is null ? null : $"{field}-{detail.Key}");
-
-    /// <summary>
-    /// en-AU explicitly, not the server's culture. This string is read by a claimant, and a container
-    /// that happens to run under en-US or the invariant culture would show them a figure that is right
-    /// but formatted like somebody else's money.
-    /// </summary>
-    private static string Money(decimal value) =>
-        value.ToString("C2", CultureInfo.GetCultureInfo("en-AU"));
 }

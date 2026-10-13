@@ -19,6 +19,14 @@ declaration below was read out of `word/document.xml` inside the two `.docx` fil
 doc. Read this before writing a contract, a page or a validator; where it disagrees with the scope doc, this
 document is the one that was checked against the files.
 
+> **The app no longer prints everything below, on purpose.** On 2026-10-13 the accounts team removed a
+> number of fields — sections 7 and 8, role, the debit card transaction fields, the expense period, the
+> reimbursement form's question 1 — moved the purpose question into each receipt, and unified the section
+> captions. This document is still an accurate record of the paper, which is what it is for. What the app
+> does instead is in
+> [submission-model.md § Where the app departs from the paper forms](submission-model.md#where-the-app-departs-from-the-paper-forms).
+> The questions and declarations the app still asks are still quoted verbatim from here.
+
 **The scope doc's central claim about the two forms is wrong in a way that changes the build.** It says the six
 compliance questions are "five of them word-for-word identical" and that "Q2–Q6 identical". **Two of six are
 identical.** It says the five declarations are "4 shared". **One of five is shared.** Sections 2, 3 and 5, which the

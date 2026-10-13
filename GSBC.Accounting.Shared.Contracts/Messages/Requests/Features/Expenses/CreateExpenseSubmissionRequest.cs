@@ -25,32 +25,20 @@ public record CreateExpenseSubmissionRequest
     // Section 1, shared
     public string? SubmitterName { get; init; }
     public DateTime? FormDate { get; init; }
-    public ClaimantRole? Role { get; init; }
-    public string? RoleOther { get; init; }
-    public string? MinistryDepartment { get; init; }
 
     // Section 1, debit card only
     public string? CardLastFourDigits { get; init; }
-    public DateTime? TransactionDate { get; init; }
-    public string? TransactionTime { get; init; }
-    public string? SupplierMerchant { get; init; }
-    public decimal? AmountCharged { get; init; }
-    public string? BankReference { get; init; }
 
     // Section 1, reimbursement only
     public string? ContactPhoneEmail { get; init; }
-    public DateTime? ExpensePeriodFrom { get; init; }
-    public DateTime? ExpensePeriodTo { get; init; }
+    public string? MinistryDepartment { get; init; }
     public PaymentMethod? PaymentMethod { get; init; }
     public string? PaymentMethodOther { get; init; }
     public bool? BankDetailsOnFile { get; init; }
 
-    // Section 2
-    public string? PurposeActivity { get; init; }
-    public string? EventProject { get; init; }
+    // Section 2, authorisation
+    public bool? PriorApprovalGiven { get; init; }
     public string? PriorApprovalBy { get; init; }
-    public DateTime? ApprovalDate { get; init; }
-    public string? PurposeNarrative { get; init; }
 
     // Section 3. There is no LessPersonalAmount here any more: it is the sum of the details' own
     // non-reimbursed amounts, so the server adds it up rather than being told it twice.
@@ -65,7 +53,6 @@ public record CreateExpenseSubmissionRequest
     public bool? ComplianceQ6 { get; init; }
     public string? ComplianceDetails { get; init; }
     public List<ExpenseAttendee> Attendees { get; init; } = [];
-    public List<ExpenseTrip> Trips { get; init; } = [];
 
     // Section 5, null unless some detail carries no receipt from where the purchase was made
     public MissingReceiptDeclaration? MissingReceipt { get; init; }

@@ -3,7 +3,7 @@ title: The expense submission model
 kind: reference
 status: current
 module: expenses
-verified: 2026-09-01
+verified: 2026-10-13
 code:
   - GSBC.Accounting.Shared.Contracts/Entities/Features/Expenses
   - GSBC.Accounting.Grpc/Data/Models/Expenses
@@ -21,8 +21,10 @@ is a financial record.
 ## One aggregate, two kinds
 
 `ExpenseSubmission` carries a `SubmissionKind` discriminator — `DebitCardPurchase` or
-`ExpenseReimbursement` — and the 19 fields that exist on only one of the two forms are nullable columns
-on it. Ten are debit-card-only, nine reimbursement-only.
+`ExpenseReimbursement` — and the fields that exist on only one of the two forms are nullable columns on
+it: `CardLastFourDigits` on the debit card form; `ContactPhoneEmail`, `MinistryDepartment`,
+`PaymentMethod`, `PaymentMethodOther` and `BankDetailsOnFile` on the reimbursement form. Compliance
+question 1 is debit-card-only too — see [Where the app departs from the paper forms](#where-the-app-departs-from-the-paper-forms).
 
 Two aggregates would mean every shared section is written, migrated, validated and rendered twice, and
 the second copy drifts. There is one page too, for the same reason and with the same evidence behind it:
@@ -40,34 +42,56 @@ the answer.
 
 | | Identical between the two forms |
 |---|---|
-| Compliance questions (§4) | **2 of 6** |
+| Compliance questions (§4) | **2** — Q4 and Q6 of the paper forms |
 | Declarations (§6) | **1 of 5** |
 | Missing-receipt declaration (§5) | closing GST sentence only |
-| Line-table headers (§3) | 4 of 7 — *and the app no longer prints either set; see below* |
-| Finance checklist (§8) | 4 of 6 |
 
-So the *answers* live in shared columns and every question, declaration and label is a per-kind string
-in the UI and the PDF. A form that does not say what the paper form says is, on a compliance document,
-the failure that matters. Never hoist a question's text into a shared constant because two forms happen
-to ask something similar.
+So the *answers* live in shared columns and every question and declaration is a per-kind string in the
+UI and the PDF. A tick recorded against wording the claimant was never shown is, on a compliance
+document, the failure that matters. Never hoist a question's text into a shared constant because two
+forms happen to ask something similar.
 
-Section 3 used to be the sharpest case, and it is now the exception that proves the rule: it is the one
-section the app has **deliberately stopped copying from the paper form**, so it is identically shaped on
-both kinds. See [Section 3 is per receipt, not per line](#section-3-is-per-receipt-not-per-line).
+**The section captions are the deliberate exception.** They are the same on both forms — `Authorisation`,
+`Expense details`, `Compliance questions`, `Missing receipt declaration`, `Declarations` — except section
+1, which is `Cardholder details` or `Claimant details`. The literal is still written twice in
+`ExpenseFormWording` and `SubmissionPdfWording`, so a later change to one form's caption cannot reach the
+other's by accident.
 
-Section 2's first slot is the trap in the other direction: one column, `PurposeActivity`, printed under
-two labels — `Ministry / department` on the debit card form and `Purpose / activity` on the
-reimbursement one. On a card form that reads oddly beside section 1's field of the same name, and the
-old debit card page "fixed" it by dropping the section 2 field and pointing the label at
-`MinistryDepartment` instead. The result was that **`PurposeActivity` was null on every card
-submission** — a blank row in the PDF (`SubmissionDocument.cs:195`) and a missing subtitle in the drafts
-list, neither of which errors. Where a label looks wrong, check
-[paper-form-fields.md](paper-form-fields.md) before changing which column it points at.
+## Where the app departs from the paper forms
+
+[paper-form-fields.md](paper-form-fields.md) is still what the `.docx` files say. **The app no longer
+prints all of it.** The accounts team reviewed both forms on 2026-10-13 and asked for the changes below.
+A field missing from the page is not a regression to fix from the paper; check this table first.
+
+| What | Where it went | Why it matters in the code |
+|---|---|---|
+| Sections 7 (independent approval) and 8 (finance use only) | Gone from the page, the PDF and the rail. The accounts team does both by email. | The form is sections 0 to 6. Nothing holds an approver or a finance field. |
+| Section 1 `Role / relationship` | Gone from both forms | `ClaimantRole` no longer exists |
+| Debit card section 1: ministry, transaction date and time, supplier, amount charged, bank reference | Gone. Section 1 is now name, form date and card digits. | **There is no reconciliation against the card charge any more.** `Submit` used to refuse a card claim whose receipts did not total the amount charged. Nothing on the form states that amount now. |
+| Reimbursement section 1 `Expense period` from/to | Gone | — |
+| Reimbursement banking notice | Now says to email bank details to `accounts@baptist.com.au` if they are not on file, and a No on `Bank details on file` shows that address as a link | Still no BSB or account number in the app |
+| Section 2 `Purpose / activity`, `Event / project`, `Approval date` | Gone. Section 2 is `Authorisation`: *Has this expense been approved?* (`PriorApprovalGiven`) and, on Yes, *Who approved it?* (`PriorApprovalBy`). | **Optional on both forms.** `Submit` refuses only a Yes with no name. The name is dropped on a No, by the page and by both writes. |
+| Section 2's narrative, *How did the expenditure further the Church’s charitable/religious purposes?* | Asked of **each receipt** in section 3, stored in `ExpenseDetail.Purpose`. It replaced the short `Church purpose` field there rather than sitting beside it. | `Submit` requires it per purchase. The debit card form's three-question prompt is gone; both forms ask the same question. |
+| Reimbursement compliance question 1 (motor vehicle travel) and its trip record | Gone. The form asks five questions, numbered 1 to 5. | Stored in `ComplianceQ2`–`ComplianceQ6`, with `ComplianceQ1` always null on a reimbursement. See below. |
+| The Responsible Person question's help text | Ends "If unsure, tick No." on both forms | App wording, not paper wording, so it is in the hint and not in the question |
+| Section captions | Unified, as above | — |
+
+### The question number is not the column
+
+Each `ComplianceQuestion` carries a `Slot`, which is the stored answer it reads and writes (0–5 for
+`ComplianceQ1`–`ComplianceQ6`). The number on screen and on the PDF is the question's *position*. On the
+debit card form the two agree. On the reimbursement form, question 1 is slot 1.
+
+Everything that counts answers goes through the questions, not through the six slots: the `n of N
+answered` hint, the rail, and `Submit`, which skips `ComplianceQ1` on a reimbursement. Counting the
+array instead would leave a reimbursement permanently one answer short.
+`ClearFieldsForOtherKind` nulls `ComplianceQ1` on every reimbursement write, so a client cannot record
+an answer to a question the claimant was never shown.
 
 ## Section 3 is per receipt, not per line
 
-**This is the one place the app deliberately departs from the `.docx` files.** Everywhere else the rule
-is "print what the paper prints"; here the paper's shape was a consequence of being paper.
+**This was the first place the app deliberately departed from the `.docx` files.** The paper's shape
+was a consequence of being paper.
 
 On the forms, section 3 is a grid you write across and the receipts are stapled to the back. Nothing on
 the page records which row a receipt belongs to — a reviewer infers it from the amounts. A web form does
@@ -132,8 +156,9 @@ unlinked seconds after upload. See [attachments.md](attachments.md).
 
 ## The compliance answers and declarations are columns, the questions are not
 
-Six `bool?` columns for section 4 and five for section 6, on the header rather than in a table. There
-are exactly six and five, fixed by the paper forms; a table would make "was question 4 answered" a join.
+Six `bool?` columns for section 4 and five for section 6, on the header rather than in a table; a table
+would make "was question 4 answered" a join. The reimbursement form uses five of the six — see
+[The question number is not the column](#the-question-number-is-not-the-column).
 
 **`null` means *not answered*, which is a different fact from "No"** — and it is the one a reviewer
 needs to see. The page therefore renders a No/Yes radio pair, never a checkbox: an unticked checkbox
@@ -145,11 +170,9 @@ The *text* of every question and declaration lives in `ExpenseFormWording`, keye
 forms genuinely agree the same literal appears twice, deliberately, so changing one never changes the
 other by accident.
 
-Section 4's Yes reveals a detail table, and which table depends on the kind because question 1 is a
-different question on each form: `ExpenseAttendee` (date, person, relationship, amount, private share,
-reason) for the debit card form's meals and hospitality, `ExpenseTrip` (date, from, to, business km,
-approved rate, purpose) for the reimbursement form's motor vehicle record. `ApprovedRate` is *recorded,
-not applied* — this app holds no ATO rate table and checks nothing against one.
+Only the debit card form has a section 4 detail table: a Yes to question 1 (travel) or 2 (meals) opens
+`ExpenseAttendee` (date, person, relationship, amount, private share, reason). The reimbursement form's
+trip record went with its question 1, and its meals question asks for attendees in the free-text block.
 
 Section 5 (`MissingReceiptDeclaration`, 0..1) exists only when some purchase has **no
 `SupplierReceipt` among its files** — nothing from the place it was bought, only a bank line or a
@@ -163,12 +186,12 @@ phase one, the files go up against the id it returns, so there are no attachment
 carries a declaration through if one is sent so that somebody who filled it in before their first
 autosave does not lose it.
 
-## Sections 7 and 8 are captured but never filled in here
+## Approval and payment happen outside the app
 
-The columns exist on the aggregate and the page renders both sections read-only and disabled, exactly
-as the mockup shows them, so the form still reads as the whole document to the person filling it in.
-Nothing in this scope can complete them: the form is anonymous, and "the approver must not be the
-claimant" is a compliance constraint that needs an identity to enforce.
+The paper forms end with section 7 (independent approval) and section 8 (finance use only). Neither is
+on the page, on the PDF or in the model: the accounts team handles both by email. The claimant's
+confirmation after Submit says so. `SubmissionStatus` still has `Approved`, `Declined` and `Paid`
+should that work ever move into the app.
 
 ## The server computes the totals
 
@@ -180,10 +203,6 @@ numbers are a display convenience — the page computes the same figures so they
 section 3 that the claimant typed and the server took as given. Each purchase now states its own
 `NonReimbursedAmount`, so the submission-level figure is their sum and nothing else — there is no second
 number for the first to disagree with, and the request does not carry one.
-
-`AmountCharged` (debit card only) is what the claimant says the card was charged, and is deliberately
-*not* the same field as `GrossTotal`, which is the sum of the receipts. Reconciling those two is the
-point of the debit card form.
 
 Rounding is `MidpointRounding.ToEven` at every step, not only at the end: the columns are
 `decimal(12,2)`, so a sum carrying more scale is silently truncated on write and the stored total then
@@ -219,9 +238,9 @@ every two seconds. `ListDrafts` counts through the filtered sets for that reason
   A *draft* may hold fewer than four — "12" is where "1234" passes through on the way in, and refusing it
   would refuse to save somebody's draft. `Submit` requires all four.
 - **Bank account details.** `BankDetailsOnFile` is a `bool?` and that is the whole banking data model.
-  The paper form collects no BSB and no account number, and says so: "Do not email bank details in an
-  unsecured message." Adding an account-number field would be a new class of data at rest, not an
-  implementation detail.
+  There is no BSB and no account number. A claimant whose details are not on file is told to email them
+  to `accounts@baptist.com.au`. Adding an account-number field would be a new class of data at rest, not
+  an implementation detail.
 
 ## Identity, status and dates
 
@@ -272,9 +291,8 @@ reveals its problems one at a time is the one people give up on.
 
 The draft appears on the first edit, long before the claimant has finished. Without `Update`,
 everything typed afterwards never reaches the server, and submit then checks a row that no longer
-matches the screen. That was live on 2026-08-31: correcting the amount
-charged on the page left the stored row at the old figure, and the reconciliation error could not be
-cleared.
+matches the screen. That was live on 2026-08-31: correcting a figure on the page left the stored row
+at the old one, and the error it caused at submit could not be cleared.
 
 So `EnsureSubmissionAsync` creates on first call and **updates on every call after**. Re-sending the
 whole form is safe because attachments are keyed to the submission *id* and to the claimant's own
@@ -303,18 +321,18 @@ mis-answer first questions, and the alternative is retyping the claim.
 
 | What | Where | Why there |
 |---|---|---|
-| The six header fields of the kind being left | `Update.ClearFieldsForOtherKind` | The server is where a compliance rule finally lives; a client that sends them anyway is ignored |
-| The attendee or trip rows | falls out of `Update`'s soft-delete-then-re-add | Only the table matching the *stored* kind is re-added |
-| All six compliance answers and all five declarations | `ExpenseFormModel.SwitchKind` | The page is the only place that can warn the claimant first |
+| The section 1 fields of the other kind, and `ComplianceQ1` on a reimbursement | `ClearFieldsForOtherKind`, run by `Create` and on **every** `Update`, not only on a kind change | The server is where a compliance rule finally lives; a client that sends them anyway is ignored |
+| The attendee rows | falls out of `Update`'s soft-delete-then-re-add | Re-added only on the debit card form |
+| All compliance answers and all five declarations | `ExpenseFormModel.SwitchKind` | The page is the only place that can warn the claimant first |
 
-The declarations and questions clear because **four of the six questions and four of the five
-declarations are different text on the two forms**. A tick carried across would record somebody as having
-agreed to wording they were never shown, which is the failure this whole app exists to avoid. Q4, Q6 and
-D4 are word-for-word identical and could in principle survive; clearing everything instead is a rule that
+The declarations and questions clear because **most of the questions and four of the five declarations
+are different text on the two forms**. A tick carried across would record somebody as having agreed to
+wording they were never shown, which is the failure this whole app exists to avoid. Two questions and D4
+are word-for-word identical and could in principle survive; clearing everything instead is a rule that
 fits in one sentence on screen and cannot be got subtly wrong by a later edit to the wording.
 
-Everything that means the same thing on both documents stays: the claimant, the ministry, section 2,
-every purchase in section 3 and its receipts, the missing-receipt declaration and the signature. Section
+Everything that means the same thing on both documents stays: the claimant's name, section 2, every
+purchase in section 3 and its receipts, the missing-receipt declaration and the signature. Section
 3 is now the easiest of those to be sure about — a receipt has a supplier and a date whichever card paid
 for it, so there is nothing in it that belongs to one kind.
 
@@ -325,12 +343,12 @@ cannot say what is about to be lost and reads as an error. Nothing changes until
 ## Submit is where a draft stops being allowed to be half-finished
 
 `Create` checks only what must hold for the row to be coherent. Every completeness rule is in `Submit`,
-because somebody filling in a long form needs to save it and come back: a submitter name, the section 2
-narrative, at least one purchase, and per purchase a file, a supplier, a date, a purpose, a total, both
-questions answered and whatever itemisation those answers require; a missing-receipt declaration where
-some purchase has nothing from the supplier; all six compliance answers, all five declarations, a
-signature, and — on the debit card form — four card digits, an amount charged, and the reconciliation
-below.
+because somebody filling in a long form needs to save it and come back: a submitter name; an approver's
+name if section 2 says it was approved; at least one purchase, and per purchase a file, a supplier, a
+date, an answer to the purpose question, a total, both questions answered and whatever itemisation
+those answers require; a missing-receipt declaration where some purchase has nothing from the supplier;
+an answer to every compliance question the form asks, all five declarations, a signature, and — on the
+debit card form — four card digits.
 
 **What `Submit` does not check is the itemisation adding up.** Where the evidence does not itemise the
 claimant was asked for best effort, and a form that will not submit until the cents reconcile is a form
@@ -341,10 +359,9 @@ can ask.
 re-sent form, which would let a client submit something different from what it attached receipts to. It
 returns every problem at once.
 
-The headline check is the reconciliation, and it **names both figures**: "The receipts in section 3 total
-$156.25 but section 1 says the card was charged $99.00." Anything less sends somebody hunting for a
-number the server already knows. Only the debit card form has it — it is the one whose total is stated
-twice, once by the bank and once by the claimant's own receipts.
+There is no reconciliation of the receipts against what the card was charged. There used to be, and it
+was the headline check on the debit card form. The form stopped asking for the amount charged on
+2026-10-13, so there is nothing on it to reconcile against.
 
 Writes use `db.Entry(x).Property(...).IsModified` rather than `db.Update`, which writes every column and
 would silently revert anything another writer committed since the read.

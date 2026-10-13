@@ -32,8 +32,7 @@ public partial class ExpenseSubmissionService
     /// <para>
     /// Validation here is only what must hold for the row to be coherent - the arithmetic has to add up
     /// and the card number must not be recorded. The completeness rules (a receipt attached, the
-    /// declarations ticked, the lines reconciling against the amount charged) belong to submit, in slice
-    /// 7, because a draft is allowed to be half-finished.
+    /// declarations ticked) belong to submit, because a draft is allowed to be half-finished.
     /// </para>
     /// </remarks>
     // THE ONE METHOD THAT OPTS OUT OF Policies.AnonymousSession, and it has to. This is the sole caller
@@ -77,29 +76,17 @@ public partial class ExpenseSubmissionService
 
             SubmitterName = request.SubmitterName,
             FormDate = ToOffset(request.FormDate),
-            Role = request.Role,
-            RoleOther = request.RoleOther,
-            MinistryDepartment = request.MinistryDepartment,
 
             CardLastFourDigits = request.CardLastFourDigits,
-            TransactionDate = ToOffset(request.TransactionDate),
-            TransactionTime = request.TransactionTime,
-            SupplierMerchant = request.SupplierMerchant,
-            AmountCharged = request.AmountCharged is { } charged ? ExpenseTotals.Money(charged) : null,
-            BankReference = request.BankReference,
 
             ContactPhoneEmail = request.ContactPhoneEmail,
-            ExpensePeriodFrom = ToOffset(request.ExpensePeriodFrom),
-            ExpensePeriodTo = ToOffset(request.ExpensePeriodTo),
+            MinistryDepartment = request.MinistryDepartment,
             PaymentMethod = request.PaymentMethod,
             PaymentMethodOther = request.PaymentMethodOther,
             BankDetailsOnFile = request.BankDetailsOnFile,
 
-            PurposeActivity = request.PurposeActivity,
-            EventProject = request.EventProject,
-            PriorApprovalBy = request.PriorApprovalBy,
-            ApprovalDate = ToOffset(request.ApprovalDate),
-            PurposeNarrative = request.PurposeNarrative,
+            PriorApprovalGiven = request.PriorApprovalGiven,
+            PriorApprovalBy = request.PriorApprovalGiven == true ? request.PriorApprovalBy : null,
 
             GrossTotal = gross,
             GstTotal = gst,
@@ -131,51 +118,14 @@ public partial class ExpenseSubmissionService
             IsMockData = request.IsMockData
         };
 
+        ClearFieldsForOtherKind(submission);
+
         WriteDetails(submission, request.Details);
 
-        // Section 4's detail tables. Only the one belonging to this kind is written - a debit card
-        // submission has no trip record and a reimbursement has no attendee table, and a client sending
-        // the wrong one is ignored rather than trusted.
+        // Section 4's attendee table, which only the debit card form has. A reimbursement arriving with
+        // one is ignored rather than trusted.
         if (request.Kind == SubmissionKind.DebitCardPurchase)
-        {
-            int attendeeOrdinal = 0;
-
-            foreach (ExpenseAttendee attendee in request.Attendees)
-            {
-                submission.Attendees.Add(new DbExpenseAttendee
-                {
-                    Id = Guid.Empty,
-                    SubmissionId = Guid.Empty,
-                    Ordinal = attendeeOrdinal++,
-                    Date = ToOffset(attendee.Date),
-                    Person = attendee.Person,
-                    Relationship = attendee.Relationship,
-                    Amount = attendee.Amount is { } a ? ExpenseTotals.Money(a) : null,
-                    PrivateShare = attendee.PrivateShare is { } p ? ExpenseTotals.Money(p) : null,
-                    Reason = attendee.Reason
-                });
-            }
-        }
-        else
-        {
-            int tripOrdinal = 0;
-
-            foreach (ExpenseTrip trip in request.Trips)
-            {
-                submission.Trips.Add(new DbExpenseTrip
-                {
-                    Id = Guid.Empty,
-                    SubmissionId = Guid.Empty,
-                    Ordinal = tripOrdinal++,
-                    Date = ToOffset(trip.Date),
-                    From = trip.From,
-                    To = trip.To,
-                    BusinessKm = trip.BusinessKm,
-                    ApprovedRate = trip.ApprovedRate,
-                    Purpose = trip.Purpose
-                });
-            }
-        }
+            WriteAttendees(submission, request.Attendees);
 
         // Section 5, written only when there is genuinely a purchase with no supplier receipt behind it.
         // A declaration attached to a submission with full evidence would read to a reviewer as a
@@ -277,6 +227,30 @@ public partial class ExpenseSubmissionService
             }
 
             submission.Details.Add(row);
+        }
+    }
+
+    /// <summary>
+    /// Adds section 4's attendee rows as new rows. Shared by <c>Create</c> and <c>Update</c>.
+    /// </summary>
+    private static void WriteAttendees(DbExpenseSubmission submission, IReadOnlyList<ExpenseAttendee> attendees)
+    {
+        int ordinal = 0;
+
+        foreach (ExpenseAttendee attendee in attendees)
+        {
+            submission.Attendees.Add(new DbExpenseAttendee
+            {
+                Id = Guid.Empty,
+                SubmissionId = submission.Id,
+                Ordinal = ordinal++,
+                Date = ToOffset(attendee.Date),
+                Person = attendee.Person,
+                Relationship = attendee.Relationship,
+                Amount = attendee.Amount is { } a ? ExpenseTotals.Money(a) : null,
+                PrivateShare = attendee.PrivateShare is { } p ? ExpenseTotals.Money(p) : null,
+                Reason = attendee.Reason
+            });
         }
     }
 

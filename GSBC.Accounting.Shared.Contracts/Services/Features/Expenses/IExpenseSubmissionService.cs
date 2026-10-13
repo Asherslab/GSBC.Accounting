@@ -24,7 +24,7 @@ namespace GSBC.Accounting.Shared.Contracts.Services.Features.Expenses;
 /// <para>
 /// There is still no approval queue and no finance screen. What can be read back is a claimant's own
 /// unsubmitted work and nothing else: once a claim is submitted it leaves the drafts list, and the
-/// people who complete sections 7 and 8 have no screen here. The PDF render stays a plain HTTP
+/// accounts team, who approve and pay, have no screen here. The PDF render stays a plain HTTP
 /// endpoint rather than a method here, because a rendered document is not a gRPC message.
 /// </para>
 /// </remarks>

@@ -73,11 +73,6 @@
                         <span class="hint">@KindLabel(draft.Kind) &middot; last edited @Ago(draft.UpdatedAt)</span>
                     </header>
                     <div class="body">
-                        @if (!string.IsNullOrWhiteSpace(draft.PurposeActivity))
-                        {
-                            <p>@draft.PurposeActivity</p>
-                        }
-
                         <p class="help">
                             @draft.GrossTotal.ToString("C2")
                             &middot; @draft.DetailCount purchase@(draft.DetailCount == 1 ? "" : "s")
