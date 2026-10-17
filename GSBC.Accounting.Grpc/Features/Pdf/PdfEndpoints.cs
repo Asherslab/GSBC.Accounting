@@ -44,6 +44,7 @@ public static class PdfEndpoints
             Guid submissionId,
             AccountingDbContext db,
             AnonymousSessions sessions,
+            ClaimPdf claimPdf,
             HttpResponse response,
             CancellationToken token
         ) =>
@@ -69,11 +70,12 @@ public static class PdfEndpoints
             if (submission is null)
                 return Results.NotFound();
 
-            byte[] pdf = new SubmissionDocument(submission).GeneratePdf();
+            // The same file the accounts team is emailed: the form with every receipt bound in after it.
+            byte[] pdf = await claimPdf.RenderAsync(submission, token);
 
             response.Headers.XContentTypeOptions = "nosniff";
             response.Headers.ContentDisposition =
-                $"attachment; filename=\"{FileName(submission)}\"";
+                $"attachment; filename=\"{ClaimPdf.FileName(submission)}\"";
 
             return Results.File(pdf, "application/pdf");
         })
@@ -87,28 +89,4 @@ public static class PdfEndpoints
         .RequireRateLimiting(RateLimiting.RenderPolicy);
     }
 
-    /// <summary>
-    /// Named for what it is and who filed it, because it ends up in somebody's downloads folder next to
-    /// twenty others. A submitted claim is named by its claim reference, which is the thing anybody
-    /// looking for the file again will be holding; a draft has none, so it falls back to the first
-    /// eight characters of the id - enough to tell two apart, and the whole one is printed inside the
-    /// document either way.
-    /// </summary>
-    private static string FileName(DbExpenseSubmission submission)
-    {
-        string kind = submission.Kind == Shared.Contracts.Entities.Features.Expenses.SubmissionKind.DebitCardPurchase
-            ? "debit-card-purchase"
-            : "expense-reimbursement";
-
-        string who = new((submission.SubmitterName ?? "unnamed")
-            .ToLowerInvariant()
-            .Select(c => char.IsLetterOrDigit(c) ? c : '-')
-            .ToArray());
-
-        string tail = submission.Reference is { Length: > 0 } reference
-            ? reference
-            : submission.Id.ToString()[..8];
-
-        return $"{kind}-{who}-{tail}.pdf";
-    }
 }

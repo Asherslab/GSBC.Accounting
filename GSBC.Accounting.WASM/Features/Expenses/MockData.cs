@@ -57,6 +57,7 @@ public static class MockData
         DateOnly transaction = today.AddDays(-Rng.Next(1, 14));
 
         model.SubmitterName = submitter;
+        model.SubmitterEmail = MockEmail(submitter);
         model.FormDate = today;
         model.CardLastFourDigits = Rng.Next(1000, 10000).ToString();
 
@@ -124,6 +125,13 @@ public static class MockData
         model.IsMockData = true;
     }
 
+    /// <summary>
+    /// <c>example.com</c>, which RFC 2606 reserves and which delivers nowhere. A mock claim still sends its
+    /// receipt email, and that email must never land in a real person's inbox.
+    /// </summary>
+    private static string MockEmail(string submitter) =>
+        new string(submitter.ToLowerInvariant().Where(char.IsAsciiLetter).ToArray()) + "@example.com";
+
     private static void FillReimbursement(ExpenseFormModel model)
     {
         (string submitter, string ministry, string supplier, string narrative, (string item, string details, decimal gross)[] lines) =
@@ -133,9 +141,10 @@ public static class MockData
         DateOnly from = today.AddDays(-Rng.Next(14, 40));
 
         model.SubmitterName = submitter;
+        model.SubmitterEmail = MockEmail(submitter);
         model.FormDate = today;
         model.MinistryDepartment = ministry;
-        model.ContactPhoneEmail = $"04{Rng.Next(10, 100)} {Rng.Next(100, 1000)} {Rng.Next(100, 1000)}";
+        model.ContactPhone =$"04{Rng.Next(10, 100)} {Rng.Next(100, 1000)} {Rng.Next(100, 1000)}";
         model.PaymentMethod = PaymentMethod.Eft;
         model.BankDetailsOnFile = Rng.Next(2) == 0;
 

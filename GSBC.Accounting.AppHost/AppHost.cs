@@ -77,6 +77,24 @@ IResourceBuilder<ProjectResource> grpcService = builder.AddProject<Projects.GSBC
     .WithEnvironment("Attachments__SecretKey", s3SecretKey)
     .WaitFor(s3);
 
+// Email. Locally every message is written to a folder rather than sent, so a mock claim never reaches
+// the real accounts team: open the .html files there to see what would have gone. To try real Graph
+// sending from this laptop, set Mail:Transport to Graph plus Mail:TenantId, Mail:ClientId and
+// Mail:ClientSecret in THIS project's user secrets - they are passed through below, and Mail:AccountsAddress
+// is worth pointing at yourself while you do.
+string mailTransport = builder.Configuration["Mail:Transport"] ?? "Directory";
+
+grpcService
+    .WithEnvironment("Mail__Transport", mailTransport)
+    .WithEnvironment("Mail__DirectoryPath", Path.Combine(Path.GetTempPath(), "gsbc-accounting-mail"))
+    .WithEnvironment("Mail__PublicBaseUrl", "https://localhost:7273");
+
+foreach (string key in (string[])["TenantId", "ClientId", "ClientSecret", "Sender", "AccountsAddress"])
+{
+    if (builder.Configuration[$"Mail:{key}"] is { Length: > 0 } value)
+        grpcService.WithEnvironment($"Mail__{key}", value);
+}
+
 IResourceBuilder<ProjectResource> wasm =
     builder.AddStandaloneBlazorWebAssemblyProject<Projects.GSBC_Accounting_WASM>("wasm");
 

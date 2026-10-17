@@ -24,13 +24,14 @@ public record CreateExpenseSubmissionRequest
 
     // Section 1, shared
     public string? SubmitterName { get; init; }
+    public string? SubmitterEmail { get; init; }
     public DateTime? FormDate { get; init; }
 
     // Section 1, debit card only
     public string? CardLastFourDigits { get; init; }
 
     // Section 1, reimbursement only
-    public string? ContactPhoneEmail { get; init; }
+    public string? ContactPhone { get; init; }
     public string? MinistryDepartment { get; init; }
     public PaymentMethod? PaymentMethod { get; init; }
     public string? PaymentMethodOther { get; init; }

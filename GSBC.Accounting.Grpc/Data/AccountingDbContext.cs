@@ -22,5 +22,6 @@ public partial class AccountingDbContext(DbContextOptions<AccountingDbContext> o
         base.OnModelCreating(modelBuilder);
 
         BuildExpensesModel(modelBuilder);
+        BuildMailModel(modelBuilder);
     }
 }

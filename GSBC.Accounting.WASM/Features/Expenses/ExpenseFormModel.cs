@@ -42,13 +42,14 @@ public class ExpenseFormModel
 
     // ---- Section 1, shared ----
     public string? SubmitterName { get; set; }
+    public string? SubmitterEmail { get; set; }
     public DateOnly? FormDate { get; set; } = DateOnly.FromDateTime(DateTime.Now);
 
     // ---- Section 1, debit card only ----
     public string? CardLastFourDigits { get; set; }
 
     // ---- Section 1, reimbursement only ----
-    public string? ContactPhoneEmail { get; set; }
+    public string? ContactPhone { get; set; }
     public string? MinistryDepartment { get; set; }
     public PaymentMethod? PaymentMethod { get; set; }
     public string? PaymentMethodOther { get; set; }
@@ -163,7 +164,7 @@ public class ExpenseFormModel
 
         return Kind == SubmissionKind.DebitCardPurchase
             ? !string.IsNullOrWhiteSpace(CardLastFourDigits)
-            : !string.IsNullOrWhiteSpace(ContactPhoneEmail) || !string.IsNullOrWhiteSpace(MinistryDepartment)
+            : !string.IsNullOrWhiteSpace(ContactPhone) || !string.IsNullOrWhiteSpace(MinistryDepartment)
               || PaymentMethod is not null || !string.IsNullOrWhiteSpace(PaymentMethodOther)
               || BankDetailsOnFile is not null;
     }
@@ -199,7 +200,7 @@ public class ExpenseFormModel
 
         if (kind == SubmissionKind.DebitCardPurchase)
         {
-            ContactPhoneEmail = null;
+            ContactPhone = null;
             MinistryDepartment = null;
             PaymentMethod = null;
             PaymentMethodOther = null;
@@ -267,11 +268,12 @@ public class ExpenseFormModel
             Kind = submission.Kind,
 
             SubmitterName = submission.SubmitterName,
+            SubmitterEmail = submission.SubmitterEmail,
             FormDate = FromUtc(submission.FormDate),
 
             CardLastFourDigits = submission.CardLastFourDigits,
 
-            ContactPhoneEmail = submission.ContactPhoneEmail,
+            ContactPhone = submission.ContactPhone,
             MinistryDepartment = submission.MinistryDepartment,
             PaymentMethod = submission.PaymentMethod,
             PaymentMethodOther = submission.PaymentMethodOther,
@@ -359,11 +361,12 @@ public class ExpenseFormModel
             "The form has no kind. Question zero has to be answered before a draft can be written, "
             + "because the kind decides what every stored field means."),
         SubmitterName = Trim(SubmitterName),
+        SubmitterEmail = Trim(SubmitterEmail),
         FormDate = ToUtc(FormDate),
 
         CardLastFourDigits = Trim(CardLastFourDigits),
 
-        ContactPhoneEmail = Trim(ContactPhoneEmail),
+        ContactPhone = Trim(ContactPhone),
         MinistryDepartment = Trim(MinistryDepartment),
         PaymentMethod = PaymentMethod,
         PaymentMethodOther = Trim(PaymentMethodOther),

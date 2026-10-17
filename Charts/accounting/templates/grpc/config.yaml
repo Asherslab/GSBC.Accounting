@@ -17,3 +17,10 @@ data:
   # service is its only client. The credentials are NOT here; they are in attachments-secret.
   Attachments__ServiceUrl: "http://s3-service:{{ .Values.parameters.s3.port_s3 }}"
   Attachments__BucketName: "{{ .Values.config.s3.bucket }}"
+  # Email, through Microsoft Graph. The tenant, client id and client secret are NOT here; they are in
+  # mail-secret. See docs/modules/infrastructure/email.md.
+  Mail__Transport: "{{ .Values.config.mail.transport }}"
+  Mail__Sender: "{{ .Values.config.mail.sender }}"
+  Mail__AccountsAddress: "{{ .Values.config.mail.accounts_address }}"
+  Mail__PublicBaseUrl: "{{ .Values.config.mail.public_base_url }}"
+  Mail__MaxAttachmentBytes: "{{ .Values.config.mail.max_attachment_bytes | int64 }}"

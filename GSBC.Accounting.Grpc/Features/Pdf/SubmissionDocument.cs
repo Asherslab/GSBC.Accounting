@@ -8,7 +8,8 @@ using QuestPDF.Infrastructure;
 namespace GSBC.Accounting.Grpc.Features.Pdf;
 
 /// <summary>
-/// Renders one submission as the printed form, plus a manifest of its evidence.
+/// Renders one submission as the printed form, plus a manifest of its evidence. <see cref="ClaimPdf"/>
+/// binds the evidence itself in after it.
 /// </summary>
 /// <remarks>
 /// <b>Rendered from the aggregate, not from the HTML page.</b> The screen layout and the printed layout
@@ -146,6 +147,7 @@ public class SubmissionDocument(DbExpenseSubmission submission) : IDocument
                     Field(row, _text.FormDateLabel, Date(submission.FormDate), 2);
                     Field(row, "Card last 4 digits", submission.CardLastFourDigits, 2);
                 });
+                column.Item().Row(row => Field(row, "Email", submission.SubmitterEmail, 1));
             }
             else
             {
@@ -153,8 +155,9 @@ public class SubmissionDocument(DbExpenseSubmission submission) : IDocument
                 {
                     Field(row, _text.SubmitterNameLabel, submission.SubmitterName, 3);
                     Field(row, _text.FormDateLabel, Date(submission.FormDate), 2);
-                    Field(row, "Phone / email", submission.ContactPhoneEmail, 3);
+                    Field(row, "Phone", submission.ContactPhone, 3);
                 });
+                column.Item().Row(row => Field(row, "Email", submission.SubmitterEmail, 1));
                 column.Item().Row(row =>
                 {
                     Field(row, "Ministry / department", submission.MinistryDepartment, 3);
@@ -193,11 +196,10 @@ public class SubmissionDocument(DbExpenseSubmission submission) : IDocument
     /// Section 3: one block per purchase, each naming the files that evidence it.
     /// </summary>
     /// <remarks>
-    /// <b>The attachments do not travel with this PDF - they are sent alongside it, usually as separate
-    /// files on an email to finance - so saying which file belongs to which purchase is this section's
-    /// job and not a nicety.</b> Every block prints the filenames it owns, and the evidence manifest at
-    /// the end repeats the mapping the other way round with the hashes. A reviewer holding a printout
-    /// and a folder of JPEGs has to be able to pair them without asking the claimant.
+    /// Every block prints the filenames it owns, and the evidence manifest at the end repeats the mapping
+    /// the other way round with the hashes. The files themselves are bound in after the form, each page
+    /// headed with its purchase number - see <see cref="ClaimPdf"/> - so a reviewer can go from a block
+    /// here to its receipt, and back, without asking the claimant.
     /// </remarks>
     private void Section3(IContainer container) =>
         Card(container, _text.Section3Caption, inner => inner.Column(column =>
@@ -465,29 +467,48 @@ public class SubmissionDocument(DbExpenseSubmission submission) : IDocument
             });
         }));
 
+    /// <summary>One file of evidence, and the purchase in section 3 it belongs to (null for none).</summary>
+    public sealed record Evidence(DbExpenseAttachment File, int? Purchase);
+
     /// <summary>
-    /// A manifest of the evidence, rather than the receipts themselves.
+    /// Every file in the order the manifest lists it and <see cref="ClaimPdf"/> binds it: by purchase,
+    /// then by when it was uploaded - the order the claimant added them within one purchase - with files
+    /// filed against no purchase last.
     /// </summary>
     /// <remarks>
-    /// The scope doc's first pass: images embed directly but PDF receipts need page-level merging, which
-    /// QuestPDF does not do, so appending a scanned tax invoice needs a separate merge step. Until that
-    /// lands, the manifest gives an auditor what actually matters - the filename, type, size and
-    /// <b>content hash</b> of every file, so "is this the file that was uploaded" has an answer that does
-    /// not depend on the object store.
-    /// </remarks>
-    /// <summary>
-    /// Every file, and which purchase in section 3 it belongs to.
-    /// </summary>
-    /// <remarks>
-    /// <b>The `Purchase` column is why this table is worth its page space.</b> The attachments are sent
-    /// beside this document rather than inside it, so a reviewer opening a folder of four phone photos
-    /// needs a printed statement of which receipt each one is - and that statement has to survive the
-    /// filenames being unhelpful, which <c>IMG_4471.jpeg</c> reliably is.
+    /// One method for both, because the manifest's `#` column and the "Evidence 3 of 7" heading on each
+    /// bound page are the same number, and a reviewer cross-referencing them must never find they
+    /// disagree.
     /// <para>
-    /// Files with no purchase against them are listed last under `—`. Those are either uploads that
-    /// predate the per-purchase model or files whose purchase the claimant deleted; showing them against
-    /// purchase 1 would be a claim nobody made.
+    /// Files with no purchase are either uploads that predate the per-purchase model or files whose
+    /// purchase the claimant deleted; numbering them against purchase 1 would be a claim nobody made.
     /// </para>
+    /// </remarks>
+    public static IReadOnlyList<Evidence> OrderedEvidence(DbExpenseSubmission submission)
+    {
+        // Purchase number by detail key, so the manifest and section 3 use the same numbering.
+        Dictionary<Guid, int> numbers = submission.Details
+            .OrderBy(x => x.Ordinal)
+            .Select((detail, index) => (detail.Key, Number: index + 1))
+            .ToDictionary(x => x.Key, x => x.Number);
+
+        return submission.Attachments
+            .Select(x => new Evidence(x,
+                x.DetailKey is { } key && numbers.TryGetValue(key, out int n) ? n : null))
+            .OrderBy(x => x.Purchase ?? int.MaxValue)
+            .ThenBy(x => x.File.UploadedAt)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Every file, which purchase in section 3 it belongs to, and the hash of what was uploaded.
+    /// </summary>
+    /// <remarks>
+    /// <b>The files themselves follow this form, bound into the same PDF</b> - see <see cref="ClaimPdf"/>.
+    /// The manifest is still worth its space: the `#` column is the number printed at the top of each
+    /// bound page, and the <b>hash</b> is of the original upload. Photos are re-encoded for printing, so
+    /// the bound page is not the uploaded file, and "is this the file that was uploaded" has to be
+    /// answerable against the object store rather than against the PDF.
     /// </remarks>
     private void EvidenceManifest(IContainer container) =>
         Card(container, "EVIDENCE ATTACHED", inner => inner.Column(column =>
@@ -498,47 +519,39 @@ public class SubmissionDocument(DbExpenseSubmission submission) : IDocument
                 return;
             }
 
-            // Purchase number by detail key, so the manifest and section 3 use the same numbering.
-            Dictionary<Guid, int> numbers = submission.Details
-                .OrderBy(x => x.Ordinal)
-                .Select((detail, index) => (detail.Key, Number: index + 1))
-                .ToDictionary(x => x.Key, x => x.Number);
-
-            // ABOVE THE TABLE, not below it. It explains the `Purchase` column, which reads better
-            // before the column than after - and the layout reason is firmer than the editorial one: as
-            // a trailing paragraph it is the last thing that can break, so a manifest that fills a page
-            // pushed one sentence onto a page of its own. Observed on 2026-09-01, a three-line page 3.
+            // ABOVE THE TABLE, not below it. It explains the columns, which reads better before them than
+            // after - and the layout reason is firmer than the editorial one: as a trailing paragraph it
+            // is the last thing that can break, so a manifest that fills a page pushed one sentence onto
+            // a page of its own. Observed on 2026-09-01, a three-line page 3.
             column.Item().PaddingBottom(4).Text(
-                    "These files are supplied alongside this form, not inside it. The `Purchase` column "
-                    + "matches the numbered blocks in section 3. Each hash identifies exactly the bytes "
-                    + "that were uploaded, and the files themselves are held in the Church's evidence "
-                    + "store against this submission's reference.")
+                    "Each file follows this form, in this order, headed with its number and its purchase. "
+                    + "The `Purchase` column matches the numbered blocks in section 3. Photos are converted "
+                    + "to JPEG and reduced to a printable size; PDFs are included as uploaded. Each hash "
+                    + "identifies exactly the bytes that were uploaded, and the originals are held in the "
+                    + "Church's evidence store against this submission's reference.")
                 .FontSize(7).FontColor(Colors.Grey.Darken1);
 
             column.Item().Table(table =>
             {
                 table.ColumnsDefinition(c =>
                 {
-                    c.RelativeColumn(1.1f); c.RelativeColumn(3); c.RelativeColumn(2);
+                    c.RelativeColumn(0.6f); c.RelativeColumn(1.1f); c.RelativeColumn(3); c.RelativeColumn(2);
                     c.RelativeColumn(1.6f); c.RelativeColumn(1.2f); c.RelativeColumn(4);
                 });
                 table.Header(h =>
                 {
-                    Th(h, "Purchase"); Th(h, "File"); Th(h, "Evidence type"); Th(h, "Format");
+                    Th(h, "#"); Th(h, "Purchase"); Th(h, "File"); Th(h, "Evidence type"); Th(h, "Format");
                     Th(h, "Size", true); Th(h, "SHA-256");
                 });
 
-                IOrderedEnumerable<DbExpenseAttachment> ordered = submission.Attachments
-                    // Unfiled last, then by purchase, then by when they were uploaded - which is the
-                    // order the claimant added them within one purchase.
-                    .OrderBy(x => x.DetailKey is { } key && numbers.TryGetValue(key, out int n) ? n : int.MaxValue)
-                    .ThenBy(x => x.UploadedAt);
+                IReadOnlyList<Evidence> ordered = OrderedEvidence(submission);
 
-                foreach (DbExpenseAttachment a in ordered)
+                for (int i = 0; i < ordered.Count; i++)
                 {
-                    Td(table, a.DetailKey is { } key && numbers.TryGetValue(key, out int number)
-                        ? number.ToString()
-                        : "—");
+                    (DbExpenseAttachment a, int? purchase) = ordered[i];
+
+                    Td(table, (i + 1).ToString());
+                    Td(table, purchase?.ToString() ?? "—");
                     Td(table, a.FileName);
                     Td(table, EvidenceTypeLabel(a.Kind));
                     Td(table, a.ContentType);
@@ -549,7 +562,7 @@ public class SubmissionDocument(DbExpenseSubmission submission) : IDocument
 
         }));
 
-    private static string EvidenceTypeLabel(AttachmentKind kind) => kind switch
+    public static string EvidenceTypeLabel(AttachmentKind kind) => kind switch
     {
         AttachmentKind.SupplierReceipt => "Receipt / tax invoice from supplier",
         AttachmentKind.BankOrCardStatement => "Bank / card statement line",

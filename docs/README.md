@@ -41,6 +41,10 @@ Present tense, kept current, no dates.
     chart, the six out-of-band secrets, why this app has its own SeaweedFS with different volume
     numbers, and the two container details (Skia's native libraries, `/_framework/` never falling back
     to `index.html`) that fail in confusing ways when missed.
+  - [How the app sends email](modules/infrastructure/email.md) — the claim to accounts with every
+    receipt bound into one PDF, the claimant's receipt, the outbox table that keeps a Graph outage from
+    losing either, and **the Microsoft 365 setup, including why `Mail.Send` must not be granted in
+    Entra.**
 
 - **frontend**
   - [The theme, and why there is no component library](modules/frontend/theme.md) — `app.css` is a

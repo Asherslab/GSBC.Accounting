@@ -318,7 +318,8 @@ label,.lbl{
 .req{color:var(--bad);font-weight:600}
 .help{font-size:12px;color:var(--ink-3);line-height:1.45}
 
-input[type=text],input[type=date],input[type=time],input[type=number],input[type=email],select,textarea{
+input[type=text],input[type=date],input[type=time],input[type=number],input[type=email],input[type=tel],
+select,textarea{
   width:100%;padding:8px 10px;
   font:inherit;font-size:14px;color:var(--ink);
   background:var(--surface);
@@ -863,7 +864,7 @@ button.b.primary:hover{background:var(--brand-2);border-color:var(--brand-2)}
   .card .body{padding:14px}
 
   /* ----- fields: 16px is the anti-zoom rule, the padding is the 44px touch target ----- */
-  input[type=text],input[type=date],input[type=time],input[type=number],input[type=email],
+  input[type=text],input[type=date],input[type=time],input[type=number],input[type=email],input[type=tel],
   select,textarea{font-size:16px;padding:10px 12px}
   .money input{padding-left:25px}
   .money::before{left:11px;font-size:14px}

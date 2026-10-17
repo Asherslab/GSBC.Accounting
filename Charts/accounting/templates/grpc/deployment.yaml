@@ -34,6 +34,14 @@ spec:
             # not start, and CrashLoopBackOff at least says what is wrong.
             - secretRef:
                 name: "attachments-secret"
+            # Mail__TenantId / Mail__ClientId / Mail__ClientSecret, for Microsoft Graph.
+            #
+            # Optional, the opposite of attachments-secret, and deliberately. Without it claims are still
+            # accepted and their emails wait in the OutgoingEmails table; create the secret, restart the
+            # pod, and the backlog goes out. A pod that refused to start would stop anyone submitting.
+            - secretRef:
+                name: "mail-secret"
+                optional: true
           ports:
             - name: "http"
               protocol: "TCP"

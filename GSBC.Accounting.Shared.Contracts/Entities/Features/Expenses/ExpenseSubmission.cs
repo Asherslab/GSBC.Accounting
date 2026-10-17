@@ -41,6 +41,12 @@ public record ExpenseSubmission : IIdentifiable
     /// <summary>`Cardholder name` on the debit card form, `Claimant name` on the reimbursement form.</summary>
     public string? SubmitterName { get; init; }
 
+    /// <summary>
+    /// Where the receipt email goes. App field, not paper: neither form had an address the app could
+    /// send to - the reimbursement form's `Phone / email` took either.
+    /// </summary>
+    public string? SubmitterEmail { get; init; }
+
     /// <summary>`Form date` on the debit card form, `Claim date` on the reimbursement form.</summary>
     public DateTime? FormDate { get; init; }
 
@@ -56,7 +62,8 @@ public record ExpenseSubmission : IIdentifiable
 
     // ---- Section 1, reimbursement only -------------------------------------------------------------
 
-    public string? ContactPhoneEmail { get; init; }
+    /// <summary>`Phone / email` on the paper; the address moved to <see cref="SubmitterEmail"/>.</summary>
+    public string? ContactPhone { get; init; }
 
     /// <summary>`Ministry / department`. Reimbursement form only - the debit card form does not ask.</summary>
     public string? MinistryDepartment { get; init; }

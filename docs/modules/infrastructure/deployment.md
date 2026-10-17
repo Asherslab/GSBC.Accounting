@@ -108,7 +108,7 @@ grants it.
 
 ## Secrets
 
-Five always, plus a sixth once the offsite backup is turned on. All created out of band with
+Five always, a sixth for email, plus a seventh once the offsite backup is turned on. All created out of band with
 `kubectl`, all in the `accounting` namespace. **The chart renders
 no Secret and no values file holds a credential**, because values files live in `gsbc.argo` and that is
 git.
@@ -120,6 +120,7 @@ git.
 | `grpc-secrets` | `ConnectionStrings__accounting` | grpc |
 | `s3-identities-secret` | `s3.json` | s3 |
 | `attachments-secret` | `Attachments__AccessKey`, `Attachments__SecretKey` | grpc |
+| `mail-secret` | `Mail__TenantId`, `Mail__ClientId`, `Mail__ClientSecret` | grpc, **optional** — without it emails queue and wait. Setup in [email.md](email.md) |
 | `s3-backup-secret` | four `RCLONE_CONFIG_*` keys | backup CronJob, only when enabled |
 
 **The exact commands live in `gsbc.argo/clusters/mini/README.md`, under "accounting".** They are not

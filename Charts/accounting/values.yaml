@@ -38,6 +38,17 @@ parameters:
 config:
   s3:
     bucket: "accounting"
+  mail:
+    # Graph | None. None queues every email and sends nothing.
+    transport: "Graph"
+    # A shared mailbox. The app registration must be scoped to it - see
+    # docs/modules/infrastructure/email.md - or Graph answers ErrorAccessDenied.
+    sender: "expenses@baptist.com.au"
+    accounts_address: "accounts@baptist.com.au"
+    public_base_url: "https://expenses.baptist.com.au"
+    # 24 MB fits Exchange Online's default 35/36 MB message limits once base64 is added. Raise only
+    # after raising MaxSendSize on the sender AND MaxReceiveSize on the accounts mailbox.
+    max_attachment_bytes: 25165824
   sql:
     POSTGRES_HOST_AUTH_METHOD: "scram-sha-256"
     POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
@@ -71,7 +82,8 @@ config:
 # There is deliberately no `secrets:` block.
 #
 # Every credential is a Secret created out of band with kubectl and referenced by name only —
-# sql-secrets, migrations-secrets, grpc-secrets, s3-identities-secret, attachments-secret. Nothing
+# sql-secrets, migrations-secrets, grpc-secrets, s3-identities-secret, attachments-secret, and the
+# optional mail-secret. Nothing
 # puts a credential in a values file, because values files live in the gsbc.argo repo and that is git.
 #
 # docs/modules/infrastructure/deployment.md has the exact `kubectl create secret` commands and what

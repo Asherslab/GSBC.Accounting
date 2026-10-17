@@ -40,6 +40,17 @@ public class DbExpenseSubmission
 
     // ---- Section 1, shared ----
     public string? SubmitterName { get; set; }
+
+    /// <summary>
+    /// Where the "we have received your claim" email goes. On both forms, and required at submit.
+    /// </summary>
+    /// <remarks>
+    /// Its own field rather than the reimbursement form's old <c>Phone / email</c>, which took either
+    /// and in practice held a phone number - and the debit card form had nowhere to put an address at
+    /// all. A receipt email cannot be sent to a field that might be a mobile number.
+    /// </remarks>
+    public string? SubmitterEmail { get; set; }
+
     public DateTimeOffset? FormDate { get; set; }
 
     // ---- Section 1, debit card only ----
@@ -51,7 +62,7 @@ public class DbExpenseSubmission
     public string? CardLastFourDigits { get; set; }
 
     // ---- Section 1, reimbursement only ----
-    public string? ContactPhoneEmail { get; set; }
+    public string? ContactPhone { get; set; }
     public string? MinistryDepartment { get; set; }
     public PaymentMethod? PaymentMethod { get; set; }
     public string? PaymentMethodOther { get; set; }

@@ -42,11 +42,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "archive", "archive", "{A03E
 		docs\archive\2026-08-mockup-design-spec.md = docs\archive\2026-08-mockup-design-spec.md
 	EndProjectSection
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "examples", "examples", "{EEA6B8AC-57EC-421D-B729-7BA10A93A003}"
-	ProjectSection(SolutionItems) = preProject
-		docs\examples\README.md = docs\examples\README.md
-	EndProjectSection
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "modules", "modules", "{FCA78D81-D501-48BD-B137-71D2C9757E81}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "expenses", "expenses", "{FE9C5F40-FF95-42BE-A124-C516E7B61DFF}"
@@ -65,6 +60,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "infrastructure", "infrastructure", "{25E8ED7C-FF11-4DA1-8D1C-1967C055DCE2}"
 	ProjectSection(SolutionItems) = preProject
 		docs\modules\infrastructure\deployment.md = docs\modules\infrastructure\deployment.md
+		docs\modules\infrastructure\email.md = docs\modules\infrastructure\email.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "work", "work", "{53503B03-230D-4EEB-9674-B095E7B538D6}"
@@ -75,7 +71,6 @@ EndProject
 Global
 	GlobalSection(NestedProjects) = preSolution
 		{A03E409E-2533-4314-9FFD-D362CD69ADBD} = {97DA8033-D184-4401-9E40-0D0D0CCCA08B}
-		{EEA6B8AC-57EC-421D-B729-7BA10A93A003} = {97DA8033-D184-4401-9E40-0D0D0CCCA08B}
 		{FCA78D81-D501-48BD-B137-71D2C9757E81} = {97DA8033-D184-4401-9E40-0D0D0CCCA08B}
 		{FE9C5F40-FF95-42BE-A124-C516E7B61DFF} = {FCA78D81-D501-48BD-B137-71D2C9757E81}
 		{C251E262-50FE-4524-BD8C-B202FC19BAC1} = {FCA78D81-D501-48BD-B137-71D2C9757E81}

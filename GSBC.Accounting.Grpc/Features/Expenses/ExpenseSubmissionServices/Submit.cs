@@ -1,4 +1,5 @@
 using GSBC.Accounting.Grpc.Data.Models.Expenses;
+using GSBC.Accounting.Grpc.Data.Models.Mail;
 using GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses;
 using GSBC.Accounting.Shared.Contracts.Messages.Requests.Features.Expenses;
 using GSBC.Accounting.Shared.Contracts.Messages.Responses.Features.Expenses;
@@ -116,7 +117,27 @@ public partial class ExpenseSubmissionService
         db.Entry(submission).Property(x => x.SignedAt).IsModified = true;
         db.Entry(submission).Property(x => x.Reference).IsModified = true;
 
+        // The two emails, written in the SAME SaveChanges as the status change - so a submitted claim
+        // always has its emails owed, and an email is never owed for a claim that did not submit. The
+        // sender reads these rows; nothing here waits on Microsoft. See OutgoingEmailService.
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        foreach (OutgoingEmailKind kind in (OutgoingEmailKind[])
+                 [OutgoingEmailKind.ClaimToAccounts, OutgoingEmailKind.ReceiptToClaimant])
+        {
+            db.OutgoingEmails.Add(new DbOutgoingEmail
+            {
+                Id = Guid.CreateVersion7(),
+                SubmissionId = submission.Id,
+                Kind = kind,
+                CreatedAt = now,
+                NextAttemptAt = now
+            });
+        }
+
         await SaveWithAReferenceAsync(submission, token);
+
+        mail.Wake();
 
         return new SubmitExpenseSubmissionResponse
         {
@@ -236,6 +257,13 @@ public partial class ExpenseSubmissionService
 
         if (string.IsNullOrWhiteSpace(submission.SubmitterName))
             errors.Add(new SubmissionProblem(NeedsASubmitterName, "s1", "submitter"));
+
+        // Required on both forms, because the receipt email is the claimant's only confirmation that
+        // the claim reached the accounts team - and once it is submitted they cannot fix the address.
+        if (string.IsNullOrWhiteSpace(submission.SubmitterEmail))
+            errors.Add(new SubmissionProblem(NeedsAnEmail, "s1", "email"));
+        else if (!EmailAddress.IsPlausible(submission.SubmitterEmail))
+            errors.Add(new SubmissionProblem(EmailIsNotAnAddress, "s1", "email"));
 
         // Section 2 is optional on both forms - the accounts team chase approval themselves - so the
         // only thing refused there is a Yes with nobody named, which records an approval without saying

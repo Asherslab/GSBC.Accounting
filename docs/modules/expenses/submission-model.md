@@ -3,7 +3,7 @@ title: The expense submission model
 kind: reference
 status: current
 module: expenses
-verified: 2026-10-13
+verified: 2026-10-17
 code:
   - GSBC.Accounting.Shared.Contracts/Entities/Features/Expenses
   - GSBC.Accounting.Grpc/Data/Models/Expenses
@@ -22,7 +22,7 @@ is a financial record.
 
 `ExpenseSubmission` carries a `SubmissionKind` discriminator — `DebitCardPurchase` or
 `ExpenseReimbursement` — and the fields that exist on only one of the two forms are nullable columns on
-it: `CardLastFourDigits` on the debit card form; `ContactPhoneEmail`, `MinistryDepartment`,
+it: `CardLastFourDigits` on the debit card form; `ContactPhone`, `MinistryDepartment`,
 `PaymentMethod`, `PaymentMethodOther` and `BankDetailsOnFile` on the reimbursement form. Compliance
 question 1 is debit-card-only too — see [Where the app departs from the paper forms](#where-the-app-departs-from-the-paper-forms).
 
@@ -69,6 +69,7 @@ A field missing from the page is not a regression to fix from the paper; check t
 | Section 1 `Role / relationship` | Gone from both forms | `ClaimantRole` no longer exists |
 | Debit card section 1: ministry, transaction date and time, supplier, amount charged, bank reference | Gone. Section 1 is now name, form date and card digits. | **There is no reconciliation against the card charge any more.** `Submit` used to refuse a card claim whose receipts did not total the amount charged. Nothing on the form states that amount now. |
 | Reimbursement section 1 `Expense period` from/to | Gone | — |
+| Reimbursement section 1 `Phone / email` | Split. `Phone` stays on the reimbursement form (`ContactPhone`, optional); **`Email` is a new field on both forms** (`SubmitterEmail`) | **Required at submit and checked for a plausible address** (`EmailAddress.IsPlausible`), because it is where the claimant's receipt email goes and nothing can correct it after submit. The old field took either and in practice held a phone number, and the debit card form had nowhere to put an address at all. |
 | Reimbursement banking notice | Now says to email bank details to `accounts@baptist.com.au` if they are not on file, and a No on `Bank details on file` shows that address as a link | Still no BSB or account number in the app |
 | Section 2 `Purpose / activity`, `Event / project`, `Approval date` | Gone. Section 2 is `Authorisation`: *Has this expense been approved?* (`PriorApprovalGiven`) and, on Yes, *Who approved it?* (`PriorApprovalBy`). | **Optional on both forms.** `Submit` refuses only a Yes with no name. The name is dropped on a No, by the page and by both writes. |
 | Section 2's narrative, *How did the expenditure further the Church’s charitable/religious purposes?* | Asked of **each receipt** in section 3, stored in `ExpenseDetail.Purpose`. It replaced the short `Church purpose` field there rather than sitting beside it. | `Submit` requires it per purchase. The debit card form's three-question prompt is gone; both forms ask the same question. |
@@ -343,7 +344,8 @@ cannot say what is about to be lost and reads as an error. Nothing changes until
 ## Submit is where a draft stops being allowed to be half-finished
 
 `Create` checks only what must hold for the row to be coherent. Every completeness rule is in `Submit`,
-because somebody filling in a long form needs to save it and come back: a submitter name; an approver's
+because somebody filling in a long form needs to save it and come back: a submitter name; a plausible
+email address; an approver's
 name if section 2 says it was approved; at least one purchase, and per purchase a file, a supplier, a
 date, an answer to the purpose question, a total, both questions answered and whatever itemisation
 those answers require; a missing-receipt declaration where some purchase has nothing from the supplier;
@@ -354,6 +356,10 @@ debit card form — four card digits.
 claimant was asked for best effort, and a form that will not submit until the cents reconcile is a form
 that gets a made-up line added to close the gap. The page shows the difference as a warning; a reviewer
 can ask.
+
+A successful `Submit` also queues two emails — the claim to accounts and a receipt to the claimant — as
+`OutgoingEmails` rows in the same `SaveChanges`. It does not send them; see
+[email.md](../infrastructure/email.md).
 
 `Submit` recomputes the totals from the **stored** details and checks the **stored** submission — never a
 re-sent form, which would let a client submit something different from what it attached receipts to. It

@@ -97,6 +97,10 @@ public partial class AccountingDbContext
         // keep that true.
         modelBuilder.Entity<DbExpenseSubmission>().Property(x => x.CardLastFourDigits).HasMaxLength(4);
 
+        // RFC 5321's ceiling on a forward path. Anything longer cannot be delivered to, so there is no
+        // reason to store it.
+        modelBuilder.Entity<DbExpenseSubmission>().Property(x => x.SubmitterEmail).HasMaxLength(254);
+
         // The human claim reference: "RE-2026-0142". Bounded at the column, and unique among the rows
         // that have one - a filtered index, because every draft has none and two nulls are not a
         // duplicate anywhere except in a naive unique constraint. The uniqueness is what makes the

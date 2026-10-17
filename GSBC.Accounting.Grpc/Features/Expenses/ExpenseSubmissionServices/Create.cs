@@ -75,11 +75,12 @@ public partial class ExpenseSubmissionService
             Status = SubmissionStatus.Draft,
 
             SubmitterName = request.SubmitterName,
+            SubmitterEmail = request.SubmitterEmail,
             FormDate = ToOffset(request.FormDate),
 
             CardLastFourDigits = request.CardLastFourDigits,
 
-            ContactPhoneEmail = request.ContactPhoneEmail,
+            ContactPhone = request.ContactPhone,
             MinistryDepartment = request.MinistryDepartment,
             PaymentMethod = request.PaymentMethod,
             PaymentMethodOther = request.PaymentMethodOther,
@@ -280,6 +281,11 @@ public partial class ExpenseSubmissionService
         {
             errors.Add(CardLastFourDigitsMustBeDigitsOnly);
         }
+
+        // Only the length, which the column enforces anyway and would otherwise refuse as a database
+        // error. Whether it is an address is Submit's question: a draft holds whatever is half-typed.
+        if (request.SubmitterEmail is { Length: > EmailAddress.MaxLength })
+            errors.Add(EmailTooLong);
 
         foreach (ExpenseDetail detail in request.Details)
         {

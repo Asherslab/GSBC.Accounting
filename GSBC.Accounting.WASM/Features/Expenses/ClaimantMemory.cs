@@ -43,8 +43,15 @@ public sealed class ClaimantMemory(IJSRuntime js)
     {
         public string? Name { get; init; }
 
-        /// <summary>Only on the reimbursement form. The card form asks for card digits instead.</summary>
-        public string? ContactPhoneEmail { get; init; }
+        /// <summary>Both forms. Where the receipt email goes.</summary>
+        public string? Email { get; init; }
+
+        /// <summary>
+        /// Only on the reimbursement form. Renamed from <c>ContactPhoneEmail</c> when the address got its
+        /// own field, so a value stored under the old name is simply not read - which loses a phone
+        /// number once rather than putting an address in the phone box.
+        /// </summary>
+        public string? ContactPhone { get; init; }
 
         /// <summary>Only on the reimbursement form.</summary>
         public string? Ministry { get; init; }

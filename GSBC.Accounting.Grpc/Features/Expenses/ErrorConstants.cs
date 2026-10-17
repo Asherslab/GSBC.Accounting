@@ -99,6 +99,15 @@ public static class ErrorConstants
     public const string NeedsASubmitterName =
         "Section 1: enter the claimant's name.";
 
+    public const string NeedsAnEmail =
+        "Section 1: enter your email address. A confirmation that the claim was received is sent there.";
+
+    public const string EmailIsNotAnAddress =
+        "Section 1: the email address does not look right. Check it for typos.";
+
+    public const string EmailTooLong =
+        "Section 1: the email address is longer than any address that can receive mail.";
+
     public const string ApprovalNeedsAnApprover =
         "Section 2: you answered that this was approved. Enter who approved it.";
 

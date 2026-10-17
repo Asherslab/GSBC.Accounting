@@ -11,9 +11,11 @@
         <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.2.2" />
         <PackageReference Include="Aspire4Wasm.WebApi" Version="6.0.1" />
         <PackageReference Include="AWSSDK.S3" Version="4.0.102.4" />
+        <PackageReference Include="Azure.Identity" Version="1.21.0" />
         <PackageReference Include="Grpc.AspNetCore" Version="2.76.0" />
         <PackageReference Include="Grpc.AspNetCore.HealthChecks" Version="2.76.0" />
         <PackageReference Include="Grpc.AspNetCore.Web" Version="2.76.0" />
+        <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="15.0.0" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.1">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

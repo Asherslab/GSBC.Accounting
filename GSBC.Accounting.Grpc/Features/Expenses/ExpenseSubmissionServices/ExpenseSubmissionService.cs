@@ -1,6 +1,7 @@
 using GSBC.Accounting.Grpc.Conversion;
 using GSBC.Accounting.Grpc.Data;
 using GSBC.Accounting.Grpc.Data.Models.Expenses;
+using GSBC.Accounting.Grpc.Features.Mail;
 using GSBC.Accounting.Grpc.Features.Sessions;
 using GSBC.Accounting.Shared.Contracts.Entities.Features.Expenses;
 using GSBC.Accounting.Shared.Contracts.Services.Features.Expenses;
@@ -33,5 +34,6 @@ namespace GSBC.Accounting.Grpc.Features.Expenses.ExpenseSubmissionServices;
 public partial class ExpenseSubmissionService(
     AccountingDbContext db,
     AnonymousSessions sessions,
-    IConverter<DbExpenseSubmission, ExpenseSubmission> converter
+    IConverter<DbExpenseSubmission, ExpenseSubmission> converter,
+    MailSignal mail
 ) : IExpenseSubmissionService;

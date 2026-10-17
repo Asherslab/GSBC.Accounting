@@ -316,24 +316,28 @@
                         else
                         {
                             <div class="f c4">
-                                <label for="contact">Phone / email <span class="req">*</span></label>
+                                <label for="contact">Phone</label>
                                 @*
-                                    One field taking either, so it stays type=text: type=email would
-                                    reject a phone number and type=tel would put the wrong keyboard up
-                                    for an address.
-
-                                    NO autocomplete token, and that is a change. It carried "tel",
-                                    which is a claim about the field rather than a hint - a claimant
-                                    typing an email address was offered a phone number, and accepting
-                                    the offer put the wrong kind of answer in. There is no token for
-                                    "either of these two things", and a wrong one is worse than none.
-                                    ClaimantMemory fills this in from the last claim anyway, which is
-                                    the saved typing the token was there for.
+                                    The paper form's "Phone / email". The address has its own field
+                                    below now, because the receipt email has to go somewhere that is
+                                    certainly an address - so this is only a phone number, and can say
+                                    so to the keyboard and to autofill.
                                 *@
-                                <input type="text" id="contact"
-                                       @bind="Model.ContactPhoneEmail" @bind:event="oninput"/>
+                                <input type="tel" id="contact" autocomplete="tel"
+                                       @bind="Model.ContactPhone" @bind:event="oninput"/>
                             </div>
                         }
+
+                        <div class="f c6">
+                            <label for="email">Email <span class="req">*</span></label>
+                            @* type=email for the keyboard and autofill only. The browser's own
+                               validation never runs - nothing here submits a <form> - so the server's
+                               check at Submit is the one that counts. *@
+                            <input type="email" id="email" autocomplete="email" inputmode="email"
+                                   aria-invalid="@Invalid("email")"
+                                   @bind="Model.SubmitterEmail" @bind:event="oninput"/>
+                            <span class="help">We email you here to confirm the claim was received.</span>
+                        </div>
 
                         @*
                             The reimbursement form's remaining fields. The debit card form asks nothing
@@ -698,7 +702,9 @@
 
             rail.AddRange(
             [
-                new("1", Text.Section1Caption, "s1", Complete: !string.IsNullOrWhiteSpace(Model.SubmitterName)),
+                new("1", Text.Section1Caption, "s1",
+                    Complete: !string.IsNullOrWhiteSpace(Model.SubmitterName)
+                              && !string.IsNullOrWhiteSpace(Model.SubmitterEmail)),
                 // Optional, so done unless it is half-answered: a Yes with nobody named is the one
                 // state Submit refuses here.
                 new("2", Text.Section2Caption, "s2",
@@ -759,7 +765,8 @@
             if (await Claimant.ReadAsync() is { } remembered)
             {
                 Model.SubmitterName = remembered.Name;
-                Model.ContactPhoneEmail = remembered.ContactPhoneEmail;
+                Model.SubmitterEmail = remembered.Email;
+                Model.ContactPhone = remembered.ContactPhone;
                 Model.MinistryDepartment = remembered.Ministry;
 
                 _prefilled = true;
@@ -1177,7 +1184,8 @@
                 await Claimant.RememberAsync(new ClaimantMemory.Claimant
                 {
                     Name = Model.SubmitterName,
-                    ContactPhoneEmail = Model.ContactPhoneEmail,
+                    Email = Model.SubmitterEmail,
+                    ContactPhone = Model.ContactPhone,
                     Ministry = Model.MinistryDepartment
                 });
             }

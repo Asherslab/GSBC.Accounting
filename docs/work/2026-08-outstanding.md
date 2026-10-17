@@ -4,7 +4,7 @@ kind: handover
 status: accepted
 module: expenses
 opened: 2026-08-31
-verified: 2026-09-01
+verified: 2026-10-17
 code:
   - GSBC.Accounting.Grpc/Features/Pdf
   - GSBC.Accounting.Grpc/Extensions/RateLimiting.cs
@@ -21,18 +21,10 @@ Ordered by what would hurt most to discover late.
 
 ## Decisions someone else has to make
 
-**The output format is still parked with the accountant.** The specific question to put to them: **is
-the evidence manifest enough, or do the receipts have to be bound into the same file?** QuestPDF cannot
-merge PDF pages, so binding them in needs a separate merge step — images could embed today, PDFs cannot.
-
-The question got fairer when section 3 became one block per receipt: every file now prints against the
-purchase it evidences, in section 3 and again in the manifest, so a reviewer holding the PDF and a folder
-of photos can pair them without asking the claimant.
-
-There is no longer a rendered example checked in. There were two, and they showed the seven-column line
-table, the `Attached / Missing` column and `Church use %` — none of which the app prints any more — so
-they were deleted rather than left to be read as current. **Generate a fresh pair before the
-conversation**: fill a form with mock data, submit it, and follow the PDF link the page hands back.
+**The output format is settled (2026-10-17): one PDF, receipts bound in.** The accounts team asked for
+the claim to arrive at `accounts@baptist.com.au` as a single file, and they decide what goes on to Xero.
+QuestPDF's `DocumentOperation` (qpdf) does the merging the scope doc thought it could not. How it works is
+in [email.md](../modules/infrastructure/email.md).
 
 **Two declarations exist on one form and not the other, and closing that gap is finance's call.**
 Debit card declaration 3 is the *repayment* declaration; reimbursement declaration 3 is the
@@ -55,6 +47,12 @@ and the `gsbc.argo` manifests all exist, and how it fits together is documented 
 plan of one shared instance with two buckets was rejected that day.
 
 What is genuinely still outstanding:
+
+- **Email is built and not yet connected.** The shared mailbox, the app registration, its Exchange
+  scoping and `mail-secret` are all a tenant admin's job, written out step by step in
+  [email.md](../modules/infrastructure/email.md#microsoft-365-setup). Until they exist, submitted claims
+  queue their emails in `OutgoingEmails` and nothing is lost — but nobody is told about a claim either.
+  `mail-secret`'s command also wants adding to `gsbc.argo/clusters/mini/README.md` beside the others.
 
 - **The six `kubectl create secret` commands have not been run**, and the exact commands are in
   `gsbc.argo/clusters/mini/README.md` under "accounting". `sql-secrets` in particular must exist
@@ -88,10 +86,10 @@ unedited draft is deleted after 90 days.
 
 **No approval queue and no finance screen.** A claimant can read their own unsubmitted drafts back, and
 nothing else can be read back. Approval and payment are the accounts team's, by email, and since
-2026-10-13 the form no longer carries the paper forms' sections 7 and 8 at all. A reviewer still needs
-`psql` or the PDF link, and somebody still
-has to hand them the submission id — that link deliberately keeps working for a **submitted** claim
-without a cookie, because it is the only review path there is.
+2026-10-13 the form no longer carries the paper forms' sections 7 and 8 at all. The accounts team now
+receive each claim by email with the PDF attached and its link in the body — that link deliberately
+keeps working for a **submitted** claim without a cookie, because it is the only way back to a claim
+there is.
 
 **Attachment objects for purged and discarded drafts stay in the object store.** Rows are soft-deleted;
 bytes are not touched, because destroying uploaded files is a decision nobody has taken. The daily

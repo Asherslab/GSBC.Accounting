@@ -71,11 +71,12 @@ public partial class ExpenseSubmissionService
         (decimal gross, decimal gst, decimal lessPersonal) = ExpenseTotals.SumDetails(form.Details);
 
         submission.SubmitterName = form.SubmitterName;
+        submission.SubmitterEmail = form.SubmitterEmail;
         submission.FormDate = ToOffset(form.FormDate);
 
         submission.CardLastFourDigits = form.CardLastFourDigits;
 
-        submission.ContactPhoneEmail = form.ContactPhoneEmail;
+        submission.ContactPhone = form.ContactPhone;
         submission.MinistryDepartment = form.MinistryDepartment;
         submission.PaymentMethod = form.PaymentMethod;
         submission.PaymentMethodOther = form.PaymentMethodOther;
@@ -217,7 +218,7 @@ public partial class ExpenseSubmissionService
     {
         if (submission.Kind == SubmissionKind.DebitCardPurchase)
         {
-            submission.ContactPhoneEmail = null;
+            submission.ContactPhone = null;
             submission.MinistryDepartment = null;
             submission.PaymentMethod = null;
             submission.PaymentMethodOther = null;

@@ -3,6 +3,7 @@ using Amazon.Runtime;
 using Amazon.S3;
 using GSBC.Accounting.Grpc.Extensions;
 using GSBC.Accounting.Grpc.Features.Attachments;
+using GSBC.Accounting.Grpc.Features.Mail;
 using GSBC.Accounting.Grpc.Features.Pdf;
 using GSBC.Accounting.Grpc.Features.Sessions;
 using QuestPDF.Infrastructure;
@@ -56,6 +57,29 @@ builder.Services.AddSingleton<IAmazonS3>(_ => new AmazonS3Client(
         AuthenticationRegion = "us-east-1"
     }));
 builder.Services.AddScoped<AttachmentStore>();
+
+// The claim as one PDF - the form with every receipt bound in after it. The download and the accounts
+// email are the same file.
+builder.Services.AddScoped<ClaimPdf>();
+
+// Email. Submit writes what is owed into OutgoingEmails in its own transaction; OutgoingEmailService
+// sends it. Unlike the attachment store, missing mail configuration is NOT a startup failure: claims are
+// still accepted and their emails wait, which beats a deployment nobody can submit to.
+MailConfig mail = builder.Configuration.GetSection(MailConfig.SectionName).Get<MailConfig>() ?? new MailConfig();
+
+builder.Services.AddSingleton(mail);
+builder.Services.AddSingleton<MailSignal>();
+builder.Services.AddScoped<ClaimEmails>();
+
+if (mail.Transport == MailTransportKind.Directory)
+    builder.Services.AddScoped<IMailTransport, DirectoryMailTransport>();
+else
+    builder.Services.AddHttpClient<IMailTransport, GraphMailTransport>(client =>
+        // Long enough for a 4 MB chunk over a slow uplink - the Mac mini sends through the church's
+        // own connection.
+        client.Timeout = TimeSpan.FromMinutes(2));
+
+builder.Services.AddHostedService<OutgoingEmailService>();
 
 builder.Services.AddGsbcRateLimiting();
 

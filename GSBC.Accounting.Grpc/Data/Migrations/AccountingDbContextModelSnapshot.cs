@@ -239,7 +239,7 @@ namespace GSBC.Accounting.Grpc.Data.Migrations
                     b.Property<bool?>("ComplianceQ6")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("ContactPhoneEmail")
+                    b.Property<string>("ContactPhone")
                         .HasColumnType("text");
 
                     b.Property<DateTimeOffset>("CreatedAt")
@@ -324,6 +324,10 @@ namespace GSBC.Accounting.Grpc.Data.Migrations
                     b.Property<DateTimeOffset?>("SubmittedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("SubmitterEmail")
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
                     b.Property<string>("SubmitterName")
                         .HasColumnType("text");
 
@@ -377,6 +381,50 @@ namespace GSBC.Accounting.Grpc.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("MissingReceiptDeclarations");
+                });
+
+            modelBuilder.Entity("GSBC.Accounting.Grpc.Data.Models.Mail.DbOutgoingEmail", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset?>("LeaseUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("SentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NextAttemptAt")
+                        .HasFilter("\"SentAt\" IS NULL");
+
+                    b.HasIndex("SubmissionId", "Kind")
+                        .IsUnique();
+
+                    b.ToTable("OutgoingEmails");
                 });
 
             modelBuilder.Entity("GSBC.Accounting.Grpc.Data.Models.Sessions.DbAnonymousSession", b =>
@@ -465,6 +513,15 @@ namespace GSBC.Accounting.Grpc.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Submission");
+                });
+
+            modelBuilder.Entity("GSBC.Accounting.Grpc.Data.Models.Mail.DbOutgoingEmail", b =>
+                {
+                    b.HasOne("GSBC.Accounting.Grpc.Data.Models.Expenses.DbExpenseSubmission", null)
+                        .WithMany()
+                        .HasForeignKey("SubmissionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("GSBC.Accounting.Grpc.Data.Models.Expenses.DbExpenseDetail", b =>
