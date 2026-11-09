@@ -2,6 +2,19 @@ apiVersion: v1
 entries:
   accounting-app:
   - apiVersion: v2
+    created: "2026-11-09T02:47:54.554637703Z"
+    description: Aspire Helm Chart
+    digest: 1ef9dad78eb865dd37254ba9c5333654daf690137af09429d60818768ec4eb1b
+    keywords:
+    - aspire
+    - kubernetes
+    kubeVersion: '>= 1.18.0-0'
+    name: accounting-app
+    type: application
+    urls:
+    - https://github.com/Asherslab/GSBC.Accounting/releases/download/accounting-app-0.0.22/accounting-app-0.0.22.tgz
+    version: 0.0.22
+  - apiVersion: v2
     created: "2026-10-17T03:14:24.746653661Z"
     description: Aspire Helm Chart
     digest: 1c4e1ebca161cad19e464f39d983780ec3a75f71dc8d9591a057534d2bc036f5
@@ -274,4 +287,4 @@ entries:
     urls:
     - https://github.com/Asherslab/GSBC.Accounting/releases/download/accounting-app-0.0.1/accounting-app-0.0.1.tgz
     version: 0.0.1
-generated: "2026-10-17T03:14:24.746727305Z"
+generated: "2026-11-09T02:47:54.554728078Z"
