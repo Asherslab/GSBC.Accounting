@@ -435,13 +435,26 @@
     /// Only into an EMPTY box, and never over a figure somebody has already put there. A form that
     /// rewrites a number after it was typed is a form nobody trusts with the rest of them.
     /// </para>
+    /// <para>
+    /// A figure this method put there is still ours to rewrite, though: the total binds per keystroke,
+    /// so "753" arrives as 7, 75, 753, and the suggestion has to follow it to the end rather than stop
+    /// at the eleventh of the first digit.
+    /// </para>
     /// </remarks>
     private async Task TotalEntered()
     {
-        if (Detail.GstAmount is null && Detail.TotalIncGst is { } total and > 0m)
+        if (Detail.GstAmount is null || _gstSuggested)
         {
-            Detail.GstAmount = decimal.Round(total / 11m, 2, MidpointRounding.AwayFromZero);
-            _gstSuggested = true;
+            if (Detail.TotalIncGst is { } total and > 0m)
+            {
+                Detail.GstAmount = decimal.Round(total / 11m, 2, MidpointRounding.AwayFromZero);
+                _gstSuggested = true;
+            }
+            else
+            {
+                Detail.GstAmount = null;
+                _gstSuggested = false;
+            }
         }
 
         await Changed();
