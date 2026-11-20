@@ -23,7 +23,9 @@ RUN dotnet publish ./GSBC.Accounting.WASM/GSBC.Accounting.WASM.csproj \
     /p:LinkerDumpDependencies=false
 
 # ---------- Runtime stage ----------
-FROM nginx:latest AS runtime
+# Pinned, not :latest, so a security fix is a visible change here rather than whatever the last
+# build happened to pull. 1.31.9 fixes CVE-2026-123633 and CVE-2026-123007 (HTTP/2); bump it here.
+FROM nginx:1.31.9 AS runtime
 COPY ./GSBC.Accounting.WASM/nginx.conf /etc/nginx/nginx.conf
 COPY --from=build /app/publish/wwwroot /usr/share/nginx/html
 
